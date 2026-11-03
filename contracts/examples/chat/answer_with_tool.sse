@@ -1,0 +1,18 @@
+event: tool_call
+data: {"name":"buscar_facturas","status":"started"}
+
+event: tool_call
+data: {"name":"buscar_facturas","status":"finished"}
+
+event: token
+data: {"delta":"Este año has facturado "}
+
+event: token
+data: {"delta":"9.000,00 € a clientes de la UE, sin IVA."}
+
+event: usage
+data: {"input_tokens":3180,"output_tokens":41,"cost_eur":"0.005000"}
+
+event: done
+data: {"finish_reason":"stop","trace_id":"trc_synthetic_0103"}
+

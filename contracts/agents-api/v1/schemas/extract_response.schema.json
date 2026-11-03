@@ -1,0 +1,409 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-contract-version": "1.0.0",
+  "$defs": {
+    "DocType": {
+      "enum": [
+        "full_invoice",
+        "simplified_invoice",
+        "ticket",
+        "receipt",
+        "other",
+        "not_an_invoice"
+      ],
+      "title": "DocType",
+      "type": "string"
+    },
+    "DoubtReason": {
+      "enum": [
+        "illegible",
+        "ambiguous",
+        "missing",
+        "inconsistent"
+      ],
+      "title": "DoubtReason",
+      "type": "string"
+    },
+    "DoubtfulField": {
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/ExtractedField"
+        },
+        "line_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Posición en tax_breakdown cuando la duda afecta a una línea concreta.",
+          "title": "Line Index"
+        },
+        "reason": {
+          "$ref": "#/$defs/DoubtReason"
+        },
+        "raw_text": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Texto tal como se leyó, para ayudar a la revisión. Nunca un IBAN.",
+          "title": "Raw Text"
+        }
+      },
+      "required": [
+        "field",
+        "reason"
+      ],
+      "title": "DoubtfulField",
+      "type": "object"
+    },
+    "ExtractedField": {
+      "enum": [
+        "doc_type",
+        "supplier_name",
+        "supplier_tax_id",
+        "recipient_tax_id",
+        "invoice_number",
+        "issue_date",
+        "currency",
+        "tax_breakdown",
+        "withholding",
+        "total"
+      ],
+      "title": "ExtractedField",
+      "type": "string"
+    },
+    "ExtractedInvoice": {
+      "properties": {
+        "doc_type": {
+          "$ref": "#/$defs/DocType"
+        },
+        "supplier_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Supplier Name"
+        },
+        "supplier_tax_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "NIF/CIF/NIF-IVA del proveedor tal como aparece. Sin normalizar.",
+          "title": "Supplier Tax Id"
+        },
+        "recipient_tax_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "NIF del destinatario si aparece; sirve para decidir la deducibilidad de las simplificadas.",
+          "title": "Recipient Tax Id"
+        },
+        "invoice_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Invoice Number"
+        },
+        "issue_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Issue Date"
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "description": "Código de moneda ISO 4217.",
+              "examples": [
+                "EUR"
+              ],
+              "pattern": "^[A-Z]{3}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Currency"
+        },
+        "tax_breakdown": {
+          "description": "Desglose de IVA, una línea por tipo.",
+          "items": {
+            "$ref": "#/$defs/TaxLine"
+          },
+          "title": "Tax Breakdown",
+          "type": "array"
+        },
+        "withholding": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Withholding"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Retención de IRPF. null cuando la factura no la lleva."
+        },
+        "total": {
+          "anyOf": [
+            {
+              "description": "Importe en euros como cadena decimal con punto y dos decimales.",
+              "examples": [
+                "120.00"
+              ],
+              "pattern": "^-?\\d{1,12}\\.\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Total"
+        },
+        "doubtful_fields": {
+          "items": {
+            "$ref": "#/$defs/DoubtfulField"
+          },
+          "title": "Doubtful Fields",
+          "type": "array"
+        },
+        "injection_suspected": {
+          "default": false,
+          "description": "El documento contiene texto que parece una instrucción dirigida a un sistema. Es solo una señal: cuadre-web fuerza la revisión manual, pero nunca depende de ella para validar.",
+          "title": "Injection Suspected",
+          "type": "boolean"
+        },
+        "warnings": {
+          "description": "Avisos en lenguaje natural, para la persona.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "doc_type",
+        "supplier_name",
+        "supplier_tax_id",
+        "recipient_tax_id",
+        "invoice_number",
+        "issue_date",
+        "currency",
+        "tax_breakdown",
+        "withholding",
+        "total",
+        "doubtful_fields",
+        "injection_suspected",
+        "warnings"
+      ],
+      "title": "ExtractedInvoice",
+      "type": "object"
+    },
+    "TaxLine": {
+      "properties": {
+        "vat_rate": {
+          "anyOf": [
+            {
+              "description": "Porcentaje como cadena decimal, sin el signo %.",
+              "examples": [
+                "21",
+                "7.5"
+              ],
+              "pattern": "^\\d{1,3}(\\.\\d{1,2})?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Tipo de IVA de la línea; null si no se lee.",
+          "title": "Vat Rate"
+        },
+        "base": {
+          "anyOf": [
+            {
+              "description": "Importe en euros como cadena decimal con punto y dos decimales.",
+              "examples": [
+                "120.00"
+              ],
+              "pattern": "^-?\\d{1,12}\\.\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Base imponible de la línea.",
+          "title": "Base"
+        },
+        "vat_amount": {
+          "anyOf": [
+            {
+              "description": "Importe en euros como cadena decimal con punto y dos decimales.",
+              "examples": [
+                "120.00"
+              ],
+              "pattern": "^-?\\d{1,12}\\.\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Cuota de IVA de la línea.",
+          "title": "Vat Amount"
+        }
+      },
+      "required": [
+        "vat_rate",
+        "base",
+        "vat_amount"
+      ],
+      "title": "TaxLine",
+      "type": "object"
+    },
+    "Usage": {
+      "properties": {
+        "input_tokens": {
+          "minimum": 0,
+          "title": "Input Tokens",
+          "type": "integer"
+        },
+        "output_tokens": {
+          "minimum": 0,
+          "title": "Output Tokens",
+          "type": "integer"
+        },
+        "cost_eur": {
+          "anyOf": [
+            {
+              "description": "Coste en euros como cadena decimal (hasta seis decimales).",
+              "examples": [
+                "0.004200"
+              ],
+              "pattern": "^\\d{1,6}\\.\\d{2,6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Eur"
+        }
+      },
+      "required": [
+        "input_tokens",
+        "output_tokens",
+        "cost_eur"
+      ],
+      "title": "Usage",
+      "type": "object"
+    },
+    "Withholding": {
+      "properties": {
+        "rate": {
+          "anyOf": [
+            {
+              "description": "Porcentaje como cadena decimal, sin el signo %.",
+              "examples": [
+                "21",
+                "7.5"
+              ],
+              "pattern": "^\\d{1,3}(\\.\\d{1,2})?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Porcentaje de retención de IRPF.",
+          "title": "Rate"
+        },
+        "amount": {
+          "anyOf": [
+            {
+              "description": "Importe en euros como cadena decimal con punto y dos decimales.",
+              "examples": [
+                "120.00"
+              ],
+              "pattern": "^-?\\d{1,12}\\.\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Importe retenido.",
+          "title": "Amount"
+        }
+      },
+      "required": [
+        "rate",
+        "amount"
+      ],
+      "title": "Withholding",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "extraction": {
+      "$ref": "#/$defs/ExtractedInvoice"
+    },
+    "usage": {
+      "$ref": "#/$defs/Usage"
+    },
+    "trace_id": {
+      "description": "Identificador de traza del servicio de agentes.",
+      "title": "Trace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "extraction",
+    "usage",
+    "trace_id"
+  ],
+  "title": "ExtractResponse",
+  "type": "object"
+}

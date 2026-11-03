@@ -1,0 +1,28 @@
+{
+  "tool": "resumen_anio",
+  "input": { "anio": 2026 },
+  "output": {
+    "anio": 2026,
+    "mes": null,
+    "estado": null,
+    "ingresos": {
+      "nacional_cents": 1572000,
+      "ue_cents": 900000,
+      "fuera_ue_cents": 285000,
+      "total_cents": 2757000
+    },
+    "gastos_cents": 468469,
+    "rendimiento_cents": 2288531,
+    "por_cliente": [
+      { "cliente": "Estudio Norte S.L.", "ambito": "nacional", "base_cents": 1320000 },
+      { "cliente": "Kreativ Agentur GmbH", "ambito": "ue", "base_cents": 900000 },
+      { "cliente": "Casa Lumbre S.A. de C.V.", "ambito": "fuera_ue", "base_cents": 285000 },
+      { "cliente": "Café Liebre S.L.", "ambito": "nacional", "base_cents": 192000 },
+      { "cliente": "Marta Gil Ortega", "ambito": "nacional", "base_cents": 60000 }
+    ],
+    "acumulado_anio_cents": 2757000,
+    "n_facturas": 24,
+    "moneda": "EUR",
+    "as_of": "2026-11-03T08:30:00Z"
+  }
+}

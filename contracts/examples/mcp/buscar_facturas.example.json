@@ -1,0 +1,90 @@
+{
+  "tool": "buscar_facturas",
+  "input": {
+    "tipo": "emitida",
+    "desde": "2026-01-01",
+    "hasta": "2026-11-03",
+    "ambito": "ue",
+    "limite": 20
+  },
+  "output": {
+    "items": [
+      {
+        "id": "a0000000-0000-4000-8000-000000000012",
+        "tipo": "emitida",
+        "numero": "2026-017",
+        "fecha": "2026-10-12",
+        "contraparte": "Kreativ Agentur GmbH",
+        "ambito": "ue",
+        "base_cents": 180000,
+        "iva_cents": 0,
+        "retencion_cents": 0,
+        "total_cents": 180000,
+        "cobrada": false
+      },
+      {
+        "id": "a0000000-0000-4000-8000-000000000011",
+        "tipo": "emitida",
+        "numero": "2026-013",
+        "fecha": "2026-08-12",
+        "contraparte": "Kreativ Agentur GmbH",
+        "ambito": "ue",
+        "base_cents": 180000,
+        "iva_cents": 0,
+        "retencion_cents": 0,
+        "total_cents": 180000,
+        "cobrada": true
+      },
+      {
+        "id": "a0000000-0000-4000-8000-000000000010",
+        "tipo": "emitida",
+        "numero": "2026-009",
+        "fecha": "2026-06-12",
+        "contraparte": "Kreativ Agentur GmbH",
+        "ambito": "ue",
+        "base_cents": 180000,
+        "iva_cents": 0,
+        "retencion_cents": 0,
+        "total_cents": 180000,
+        "cobrada": true
+      },
+      {
+        "id": "a0000000-0000-4000-8000-00000000000f",
+        "tipo": "emitida",
+        "numero": "2026-005",
+        "fecha": "2026-04-12",
+        "contraparte": "Kreativ Agentur GmbH",
+        "ambito": "ue",
+        "base_cents": 180000,
+        "iva_cents": 0,
+        "retencion_cents": 0,
+        "total_cents": 180000,
+        "cobrada": true
+      },
+      {
+        "id": "a0000000-0000-4000-8000-00000000000e",
+        "tipo": "emitida",
+        "numero": "2026-002",
+        "fecha": "2026-02-12",
+        "contraparte": "Kreativ Agentur GmbH",
+        "ambito": "ue",
+        "base_cents": 180000,
+        "iva_cents": 0,
+        "retencion_cents": 0,
+        "total_cents": 180000,
+        "cobrada": true
+      }
+    ],
+    "totales_emitidas": {
+      "n": 5,
+      "base_cents": 900000,
+      "iva_cents": 0,
+      "retencion_cents": 0,
+      "total_cents": 900000
+    },
+    "totales_gastos": null,
+    "truncado": false,
+    "moneda": "EUR",
+    "as_of": "2026-11-03T08:30:00Z"
+  }
+}

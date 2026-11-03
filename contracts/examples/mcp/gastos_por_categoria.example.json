@@ -1,0 +1,22 @@
+{
+  "tool": "gastos_por_categoria",
+  "input": { "anio": 2026, "trimestre": 1 },
+  "output": {
+    "anio": 2026,
+    "mes": null,
+    "trimestre": 1,
+    "categorias": [
+      { "categoria": "Coworking y oficina", "base_cents": 15000, "iva_cents": 3150, "total_cents": 18150, "n": 1 },
+      { "categoria": "Software", "base_cents": 2479, "iva_cents": 521, "total_cents": 3000, "n": 1 }
+    ],
+    "total": {
+      "n": 2,
+      "base_cents": 17479,
+      "iva_cents": 3671,
+      "retencion_cents": 0,
+      "total_cents": 21150
+    },
+    "moneda": "EUR",
+    "as_of": "2026-11-03T08:30:00Z"
+  }
+}

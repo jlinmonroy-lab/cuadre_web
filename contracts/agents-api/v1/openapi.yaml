@@ -1,0 +1,156 @@
+openapi: 3.1.0
+info:
+  title: Cuadre · API del servicio de agentes (cuadre-agents)
+  version: 1.0.0
+  description: |
+    Contrato que **cuadre-agents implementa** y **cuadre-web consume**. La fuente de verdad son los modelos
+    Pydantic de `contracts/python/cuadre_contracts`; los esquemas de `schemas/` se generan de ellos con
+    `contracts/tools/export_schemas.py` y no se editan a mano.
+
+    Reglas que afectan a ambos lados:
+
+    * **RES-01.** El servicio solo extrae, clasifica y redacta. No calcula impuestos, no valida NIF ni sumas y no
+      registra gastos: esas comprobaciones viven en cuadre-web, que trata toda respuesta como dato no confiable.
+    * **Importes** como cadenas decimales (`"120.00"`), nunca como números JSON (RES-02).
+    * **Compatibilidad.** Dentro de 1.x solo se añaden campos opcionales; los receptores ignoran los que no conocen.
+      Un cambio incompatible crea `/v2` y un directorio `v2/`. La web envía `X-Cuadre-Contract-Version: 1`.
+    * **Autenticación de servicio.** `Authorization: Bearer <AGENTS_API_KEY>`. Nunca se envía la service key de Supabase.
+    * **Privacidad (NFR-11).** Ni las URLs firmadas ni el contenido de los documentos, ni IBAN, se escriben en trazas.
+servers:
+  - url: "{agents_base_url}"
+    variables:
+      agents_base_url:
+        default: https://agents.example.test
+        description: Valor de AGENTS_BASE_URL en cuadre-web. Si no existe, la web usa su cliente simulado.
+security:
+  - serviceKey: []
+tags:
+  - name: extract
+    description: Contrato 1 · lectura de facturas de compra
+  - name: chat
+    description: Contrato 2 · chatbot
+paths:
+  /v1/health:
+    get:
+      operationId: get_health
+      summary: Comprobación de disponibilidad
+      security: []
+      responses:
+        "200":
+          description: El servicio está listo.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, contract_version]
+                properties:
+                  status: { type: string, const: ok }
+                  contract_version: { type: string, examples: ["1.0.0"] }
+  /v1/extract:
+    post:
+      operationId: extract_invoice
+      tags: [extract]
+      summary: Extrae los campos de una factura de compra
+      description: |
+        La web sube el archivo a Storage privado y pasa una **URL firmada de corta duración** (unos 120 s).
+        El servicio la descarga, lee el documento con un modelo multimodal y devuelve `ExtractedInvoice`.
+
+        * Todo escalar ilegible o ausente va a `null` y se lista en `doubtful_fields`; nunca se inventa.
+        * `injection_suspected` marca documentos con texto dirigido a un sistema. Es solo una señal: la web fuerza la
+          revisión manual y nunca la usa para validar (NFR-07).
+        * Objetivo de latencia: p95 ≤ 30 s (NFR-01). La web corta a los 45 s.
+        * Es idempotente por `document_id`: la web puede reintentar.
+      parameters:
+        - $ref: "#/components/parameters/ContractVersion"
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "./schemas/extract_request.schema.json"
+      responses:
+        "200":
+          description: Lectura realizada (puede contener campos dudosos).
+          content:
+            application/json:
+              schema:
+                $ref: "./schemas/extract_response.schema.json"
+        "401": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "415": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+        "502": { $ref: "#/components/responses/Error" }
+  /v1/chat:
+    post:
+      operationId: stream_chat
+      tags: [chat]
+      summary: Responde en streaming una pregunta del chatbot
+      description: |
+        Respuesta `text/event-stream`. Cada frame es `event: <nombre>` + `data: <json>` y cumple
+        `schemas/chat_stream_frame.schema.json` (`{event, data}`). El flujo termina con un frame `done` o `error`.
+
+        Orden habitual: `tool_call`* → `token`+ → `citation`* → `abstention`? → `usage` → `done`.
+
+        * El agente reenvía `X-User-Token` tal cual al servidor MCP (`mcp_url`) como `Authorization: Bearer`.
+          Ese token dura unos 5 minutos y solo sirve para el MCP de solo lectura (D4).
+        * **Abstención (US-002, RF-017).** Sin fuente oficial, o ante un caso que exige criterio profesional, el
+          agente no da cifras ni recomendaciones: emite `abstention` y deriva al gestor (solo si
+          `user_context.has_gestor`) o a un asesor.
+        * Objetivo de latencia: primer token p95 ≤ 2 s; respuesta completa p95 ≤ 8 s (NFR-01).
+        * La web añade el `message_id` en el frame `done` que reenvía al navegador (SPEC-W-004); no forma parte
+          de este contrato.
+      parameters:
+        - $ref: "#/components/parameters/ContractVersion"
+        - $ref: "#/components/parameters/RequestId"
+        - name: X-User-Token
+          in: header
+          required: true
+          description: Token MCP derivado y acotado (aud=cuadre-mcp, scope=mcp:read, exp ≤ 5 min). No se registra en logs.
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "./schemas/chat_request.schema.json"
+      responses:
+        "200":
+          description: Flujo de eventos del chatbot.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: Secuencia de frames SSE.
+              x-frame-schema:
+                $ref: "./schemas/chat_stream_frame.schema.json"
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    serviceKey:
+      type: http
+      scheme: bearer
+      description: AGENTS_API_KEY, compartida entre cuadre-web y cuadre-agents.
+  parameters:
+    ContractVersion:
+      name: X-Cuadre-Contract-Version
+      in: header
+      required: true
+      description: Versión mayor del contrato que habla la web.
+      schema: { type: string, enum: ["1"] }
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: Identificador de correlación generado por la web; el servicio lo incluye en sus trazas.
+      schema: { type: string }
+  responses:
+    Error:
+      description: Error del servicio. El código HTTP indica la categoría y `code` el motivo concreto.
+      content:
+        application/json:
+          schema:
+            $ref: "./schemas/agent_error.schema.json"

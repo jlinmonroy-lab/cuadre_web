@@ -1,0 +1,18 @@
+event: token
+data: {"delta":"Esa decisión depende de tu situación personal y tiene efectos fiscales, "}
+
+event: token
+data: {"delta":"así que no puedo recomendarte nada ni darte una cifra. "}
+
+event: token
+data: {"delta":"Te sugiero consultarlo con tu gestor."}
+
+event: abstention
+data: {"reason":"professional_judgment","referral":"gestor"}
+
+event: usage
+data: {"input_tokens":1320,"output_tokens":58,"cost_eur":"0.002100"}
+
+event: done
+data: {"finish_reason":"abstained","trace_id":"trc_synthetic_0102"}
+

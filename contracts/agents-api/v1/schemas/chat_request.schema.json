@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-contract-version": "1.0.0",
+  "$defs": {
+    "ChatMessage": {
+      "properties": {
+        "role": {
+          "enum": [
+            "user",
+            "assistant"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "content": {
+          "maxLength": 8000,
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ],
+      "title": "ChatMessage",
+      "type": "object"
+    },
+    "UserContext": {
+      "properties": {
+        "role": {
+          "description": "Rol de quien pregunta. Solo el rol «usuario» recibe herramientas de datos.",
+          "enum": [
+            "usuario",
+            "gestor"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "has_gestor": {
+          "description": "Si el usuario tiene un gestor vinculado: decide a quién se deriva.",
+          "title": "Has Gestor",
+          "type": "boolean"
+        },
+        "current_date": {
+          "description": "Fecha de hoy en Europe/Madrid, para resolver «este año» o «este trimestre».",
+          "format": "date",
+          "title": "Current Date",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "has_gestor",
+        "current_date"
+      ],
+      "title": "UserContext",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "conversation_id": {
+      "format": "uuid",
+      "title": "Conversation Id",
+      "type": "string"
+    },
+    "messages": {
+      "description": "Historial en orden cronológico.",
+      "items": {
+        "$ref": "#/$defs/ChatMessage"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Messages",
+      "type": "array"
+    },
+    "locale": {
+      "default": "es-ES",
+      "description": "Idioma y región (BCP 47 reducido).",
+      "examples": [
+        "es-ES"
+      ],
+      "pattern": "^[a-z]{2}-[A-Z]{2}$",
+      "title": "Locale",
+      "type": "string"
+    },
+    "user_context": {
+      "$ref": "#/$defs/UserContext"
+    },
+    "mcp_url": {
+      "anyOf": [
+        {
+          "format": "uri",
+          "maxLength": 2083,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "URL del servidor MCP de solo lectura. null cuando el rol no recibe herramientas de datos.",
+      "title": "Mcp Url"
+    }
+  },
+  "required": [
+    "conversation_id",
+    "messages",
+    "user_context",
+    "mcp_url"
+  ],
+  "title": "ChatRequest",
+  "type": "object"
+}

@@ -1,0 +1,25 @@
+{
+  "tool": "resumen_mes",
+  "input": { "anio": 2026, "mes": 10 },
+  "output": {
+    "anio": 2026,
+    "mes": 10,
+    "estado": "cerrado",
+    "ingresos": {
+      "nacional_cents": 120000,
+      "ue_cents": 180000,
+      "fuera_ue_cents": 0,
+      "total_cents": 300000
+    },
+    "gastos_cents": 46479,
+    "rendimiento_cents": 253521,
+    "por_cliente": [
+      { "cliente": "Kreativ Agentur GmbH", "ambito": "ue", "base_cents": 180000 },
+      { "cliente": "Estudio Norte S.L.", "ambito": "nacional", "base_cents": 120000 }
+    ],
+    "acumulado_anio_cents": 2637000,
+    "n_facturas": 2,
+    "moneda": "EUR",
+    "as_of": "2026-11-03T08:30:00Z"
+  }
+}

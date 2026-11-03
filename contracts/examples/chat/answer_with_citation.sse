@@ -1,0 +1,15 @@
+event: token
+data: {"delta":"Si el cliente es una empresa de la UE con NIF-IVA válido, "}
+
+event: token
+data: {"delta":"la factura va sin IVA y debe incluir la mención «Inversión del sujeto pasivo» [1]."}
+
+event: citation
+data: {"id":"1","title":"Real Decreto 1619/2012, Reglamento por el que se regulan las obligaciones de facturación","publisher":"BOE","url":"https://www.boe.es/buscar/act.php?id=BOE-A-2012-14696","valid_as_of":"2026-09-01","quote":null}
+
+event: usage
+data: {"input_tokens":2410,"output_tokens":96,"cost_eur":"0.004200"}
+
+event: done
+data: {"finish_reason":"stop","trace_id":"trc_synthetic_0101"}
+

@@ -1,0 +1,38 @@
+# Entornos y dependencias
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Secretos y datos reales (RES-07): nunca al repositorio
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+/private/
+/real-data/
+
+# Artefactos de build y test
+.next/
+out/
+dist/
+build/
+coverage/
+playwright-report/
+test-results/
+.lighthouseci/
+
+# Supabase local
+supabase/.temp/
+supabase/.branches/
+
+# Editores y sistema
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db

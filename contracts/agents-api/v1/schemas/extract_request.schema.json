@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-contract-version": "1.0.0",
+  "$defs": {
+    "MimeType": {
+      "enum": [
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "image/heic",
+        "image/webp"
+      ],
+      "title": "MimeType",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "document_id": {
+      "description": "Identificador del documento en cuadre-web. Se devuelve en la traza.",
+      "format": "uuid",
+      "title": "Document Id",
+      "type": "string"
+    },
+    "document_url": {
+      "description": "URL firmada y de corta duración (unos 120 s) del archivo en Storage. No debe registrarse en logs.",
+      "format": "uri",
+      "maxLength": 2083,
+      "minLength": 1,
+      "title": "Document Url",
+      "type": "string"
+    },
+    "mime_type": {
+      "$ref": "#/$defs/MimeType"
+    },
+    "locale": {
+      "default": "es-ES",
+      "description": "Idioma y región (BCP 47 reducido).",
+      "examples": [
+        "es-ES"
+      ],
+      "pattern": "^[a-z]{2}-[A-Z]{2}$",
+      "title": "Locale",
+      "type": "string"
+    }
+  },
+  "required": [
+    "document_id",
+    "document_url",
+    "mime_type"
+  ],
+  "title": "ExtractRequest",
+  "type": "object"
+}

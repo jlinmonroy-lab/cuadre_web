@@ -1,0 +1,5 @@
+# Tooling de contratos (modelos Pydantic -> JSON Schema, validación de ejemplos).
+# Entorno: .venv de la raíz del repo.
+pydantic==2.14.2
+jsonschema==4.26.0
+PyYAML==6.0.3

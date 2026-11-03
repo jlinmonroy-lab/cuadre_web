@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "x-contract-version": "1.0.0",
+  "$defs": {
+    "AgentErrorCode": {
+      "enum": [
+        "unreadable",
+        "unsupported_media_type",
+        "payload_too_large",
+        "invalid_request",
+        "unauthorized",
+        "upstream_error"
+      ],
+      "title": "AgentErrorCode",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "code": {
+      "$ref": "#/$defs/AgentErrorCode"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string"
+    },
+    "trace_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Trace Id"
+    }
+  },
+  "required": [
+    "code",
+    "message",
+    "trace_id"
+  ],
+  "title": "AgentError",
+  "type": "object"
+}

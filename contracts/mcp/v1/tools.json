@@ -1,0 +1,1115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "contract": "cuadre-mcp-tools",
+  "x-contract-version": "1.0.0",
+  "transport": {
+    "type": "streamable-http",
+    "path": "/mcp"
+  },
+  "auth": {
+    "scheme": "Bearer",
+    "audience": "cuadre-mcp",
+    "scope": "mcp:read",
+    "max_ttl_seconds": 300
+  },
+  "errorSchema": {
+    "description": "Contenido de un resultado MCP con isError=true.",
+    "properties": {
+      "code": {
+        "enum": [
+          "invalid_params",
+          "no_data",
+          "unauthorized",
+          "internal"
+        ],
+        "title": "Code",
+        "type": "string"
+      },
+      "message": {
+        "title": "Message",
+        "type": "string"
+      }
+    },
+    "required": [
+      "code",
+      "message"
+    ],
+    "title": "ToolError",
+    "type": "object"
+  },
+  "tools": [
+    {
+      "name": "buscar_facturas",
+      "title": "Buscar facturas",
+      "description": "Busca las facturas emitidas del usuario y/o sus gastos (facturas de compra) con filtros opcionales. Devuelve las filas pedidas y los totales de TODAS las coincidencias. Úsala para preguntas como «¿cuánto he facturado a clientes de la UE este año?» (tipo=emitida, ambito=ue, desde/hasta del año) o «¿qué facturas me faltan por cobrar?» (estado_cobro=pendiente). No sumes tú las filas: usa los totales.",
+      "inputSchema": {
+        "properties": {
+          "tipo": {
+            "default": "todas",
+            "description": "«emitida»: facturas del usuario a sus clientes. «gasto»: facturas de compra.",
+            "enum": [
+              "emitida",
+              "gasto",
+              "todas"
+            ],
+            "title": "Tipo",
+            "type": "string"
+          },
+          "desde": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fecha mínima (inclusive), AAAA-MM-DD.",
+            "title": "Desde"
+          },
+          "hasta": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fecha máxima (inclusive), AAAA-MM-DD.",
+            "title": "Hasta"
+          },
+          "cliente": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Texto contenido en el nombre del cliente o proveedor.",
+            "title": "Cliente"
+          },
+          "ambito": {
+            "anyOf": [
+              {
+                "enum": [
+                  "nacional",
+                  "ue",
+                  "fuera_ue"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Ámbito del cliente. Solo aplica a facturas emitidas.",
+            "title": "Ambito"
+          },
+          "estado_cobro": {
+            "anyOf": [
+              {
+                "enum": [
+                  "cobrada",
+                  "pendiente"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Solo aplica a facturas emitidas.",
+            "title": "Estado Cobro"
+          },
+          "limite": {
+            "default": 20,
+            "description": "Máximo de filas devueltas; los totales cubren todas.",
+            "maximum": 50,
+            "minimum": 1,
+            "title": "Limite",
+            "type": "integer"
+          }
+        },
+        "title": "BuscarFacturasInput",
+        "type": "object"
+      },
+      "outputSchema": {
+        "$defs": {
+          "FacturaItem": {
+            "properties": {
+              "id": {
+                "format": "uuid",
+                "title": "Id",
+                "type": "string"
+              },
+              "tipo": {
+                "enum": [
+                  "emitida",
+                  "gasto"
+                ],
+                "title": "Tipo",
+                "type": "string"
+              },
+              "numero": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Numero"
+              },
+              "fecha": {
+                "format": "date",
+                "title": "Fecha",
+                "type": "string"
+              },
+              "contraparte": {
+                "title": "Contraparte",
+                "type": "string"
+              },
+              "ambito": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "nacional",
+                      "ue",
+                      "fuera_ue"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "null en los gastos.",
+                "title": "Ambito"
+              },
+              "base_cents": {
+                "title": "Base Cents",
+                "type": "integer"
+              },
+              "iva_cents": {
+                "title": "Iva Cents",
+                "type": "integer"
+              },
+              "retencion_cents": {
+                "title": "Retencion Cents",
+                "type": "integer"
+              },
+              "total_cents": {
+                "title": "Total Cents",
+                "type": "integer"
+              },
+              "cobrada": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "null en los gastos.",
+                "title": "Cobrada"
+              }
+            },
+            "required": [
+              "id",
+              "tipo",
+              "numero",
+              "fecha",
+              "contraparte",
+              "ambito",
+              "base_cents",
+              "iva_cents",
+              "retencion_cents",
+              "total_cents",
+              "cobrada"
+            ],
+            "title": "FacturaItem",
+            "type": "object"
+          },
+          "Totales": {
+            "properties": {
+              "n": {
+                "description": "Número de documentos.",
+                "minimum": 0,
+                "title": "N",
+                "type": "integer"
+              },
+              "base_cents": {
+                "title": "Base Cents",
+                "type": "integer"
+              },
+              "iva_cents": {
+                "title": "Iva Cents",
+                "type": "integer"
+              },
+              "retencion_cents": {
+                "title": "Retencion Cents",
+                "type": "integer"
+              },
+              "total_cents": {
+                "title": "Total Cents",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "n",
+              "base_cents",
+              "iva_cents",
+              "retencion_cents",
+              "total_cents"
+            ],
+            "title": "Totales",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/FacturaItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "totales_emitidas": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Totales"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sobre TODAS las coincidencias, no solo las devueltas."
+          },
+          "totales_gastos": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Totales"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sobre TODAS las coincidencias, no solo las devueltas."
+          },
+          "truncado": {
+            "description": "true si hay más coincidencias que filas devueltas.",
+            "title": "Truncado",
+            "type": "boolean"
+          },
+          "moneda": {
+            "const": "EUR",
+            "default": "EUR",
+            "title": "Moneda",
+            "type": "string"
+          },
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "totales_emitidas",
+          "totales_gastos",
+          "truncado",
+          "moneda",
+          "as_of"
+        ],
+        "title": "BuscarFacturasOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "resumen_mes",
+      "title": "Resumen de un mes",
+      "description": "Resumen contable de un mes: ingresos por ámbito (nacional, UE, fuera de la UE) y por cliente, gastos deducibles, rendimiento y acumulado del año. Indica si el mes ya está cerrado.",
+      "inputSchema": {
+        "properties": {
+          "anio": {
+            "maximum": 2100,
+            "minimum": 2000,
+            "title": "Anio",
+            "type": "integer"
+          },
+          "mes": {
+            "maximum": 12,
+            "minimum": 1,
+            "title": "Mes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "anio",
+          "mes"
+        ],
+        "title": "ResumenMesInput",
+        "type": "object"
+      },
+      "outputSchema": {
+        "$defs": {
+          "ClienteImporte": {
+            "properties": {
+              "cliente": {
+                "title": "Cliente",
+                "type": "string"
+              },
+              "ambito": {
+                "enum": [
+                  "nacional",
+                  "ue",
+                  "fuera_ue"
+                ],
+                "title": "Ambito",
+                "type": "string"
+              },
+              "base_cents": {
+                "title": "Base Cents",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "cliente",
+              "ambito",
+              "base_cents"
+            ],
+            "title": "ClienteImporte",
+            "type": "object"
+          },
+          "IngresosPorAmbito": {
+            "properties": {
+              "nacional_cents": {
+                "title": "Nacional Cents",
+                "type": "integer"
+              },
+              "ue_cents": {
+                "title": "Ue Cents",
+                "type": "integer"
+              },
+              "fuera_ue_cents": {
+                "title": "Fuera Ue Cents",
+                "type": "integer"
+              },
+              "total_cents": {
+                "description": "Suma de los tres ámbitos, calculada por el servidor.",
+                "title": "Total Cents",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "nacional_cents",
+              "ue_cents",
+              "fuera_ue_cents",
+              "total_cents"
+            ],
+            "title": "IngresosPorAmbito",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "anio": {
+            "title": "Anio",
+            "type": "integer"
+          },
+          "mes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null en el resumen anual.",
+            "title": "Mes"
+          },
+          "estado": {
+            "anyOf": [
+              {
+                "enum": [
+                  "cerrado",
+                  "en_curso"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Estado del cierre mensual; null en el anual.",
+            "title": "Estado"
+          },
+          "ingresos": {
+            "$ref": "#/$defs/IngresosPorAmbito",
+            "description": "Bases imponibles, sin IVA."
+          },
+          "gastos_cents": {
+            "description": "Gastos deducibles del periodo.",
+            "title": "Gastos Cents",
+            "type": "integer"
+          },
+          "rendimiento_cents": {
+            "description": "Ingresos menos gastos, calculado por el servidor.",
+            "title": "Rendimiento Cents",
+            "type": "integer"
+          },
+          "por_cliente": {
+            "items": {
+              "$ref": "#/$defs/ClienteImporte"
+            },
+            "title": "Por Cliente",
+            "type": "array"
+          },
+          "acumulado_anio_cents": {
+            "title": "Acumulado Anio Cents",
+            "type": "integer"
+          },
+          "n_facturas": {
+            "minimum": 0,
+            "title": "N Facturas",
+            "type": "integer"
+          },
+          "moneda": {
+            "const": "EUR",
+            "default": "EUR",
+            "title": "Moneda",
+            "type": "string"
+          },
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          }
+        },
+        "required": [
+          "anio",
+          "mes",
+          "estado",
+          "ingresos",
+          "gastos_cents",
+          "rendimiento_cents",
+          "por_cliente",
+          "acumulado_anio_cents",
+          "n_facturas",
+          "moneda",
+          "as_of"
+        ],
+        "title": "ResumenPeriodoOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "resumen_anio",
+      "title": "Resumen del año",
+      "description": "Resumen contable acumulado de un año natural: ingresos por ámbito y por cliente, gastos deducibles y rendimiento. Úsala para preguntas sobre el año completo hasta hoy.",
+      "inputSchema": {
+        "properties": {
+          "anio": {
+            "maximum": 2100,
+            "minimum": 2000,
+            "title": "Anio",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "anio"
+        ],
+        "title": "ResumenAnioInput",
+        "type": "object"
+      },
+      "outputSchema": {
+        "$defs": {
+          "ClienteImporte": {
+            "properties": {
+              "cliente": {
+                "title": "Cliente",
+                "type": "string"
+              },
+              "ambito": {
+                "enum": [
+                  "nacional",
+                  "ue",
+                  "fuera_ue"
+                ],
+                "title": "Ambito",
+                "type": "string"
+              },
+              "base_cents": {
+                "title": "Base Cents",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "cliente",
+              "ambito",
+              "base_cents"
+            ],
+            "title": "ClienteImporte",
+            "type": "object"
+          },
+          "IngresosPorAmbito": {
+            "properties": {
+              "nacional_cents": {
+                "title": "Nacional Cents",
+                "type": "integer"
+              },
+              "ue_cents": {
+                "title": "Ue Cents",
+                "type": "integer"
+              },
+              "fuera_ue_cents": {
+                "title": "Fuera Ue Cents",
+                "type": "integer"
+              },
+              "total_cents": {
+                "description": "Suma de los tres ámbitos, calculada por el servidor.",
+                "title": "Total Cents",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "nacional_cents",
+              "ue_cents",
+              "fuera_ue_cents",
+              "total_cents"
+            ],
+            "title": "IngresosPorAmbito",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "anio": {
+            "title": "Anio",
+            "type": "integer"
+          },
+          "mes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null en el resumen anual.",
+            "title": "Mes"
+          },
+          "estado": {
+            "anyOf": [
+              {
+                "enum": [
+                  "cerrado",
+                  "en_curso"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Estado del cierre mensual; null en el anual.",
+            "title": "Estado"
+          },
+          "ingresos": {
+            "$ref": "#/$defs/IngresosPorAmbito",
+            "description": "Bases imponibles, sin IVA."
+          },
+          "gastos_cents": {
+            "description": "Gastos deducibles del periodo.",
+            "title": "Gastos Cents",
+            "type": "integer"
+          },
+          "rendimiento_cents": {
+            "description": "Ingresos menos gastos, calculado por el servidor.",
+            "title": "Rendimiento Cents",
+            "type": "integer"
+          },
+          "por_cliente": {
+            "items": {
+              "$ref": "#/$defs/ClienteImporte"
+            },
+            "title": "Por Cliente",
+            "type": "array"
+          },
+          "acumulado_anio_cents": {
+            "title": "Acumulado Anio Cents",
+            "type": "integer"
+          },
+          "n_facturas": {
+            "minimum": 0,
+            "title": "N Facturas",
+            "type": "integer"
+          },
+          "moneda": {
+            "const": "EUR",
+            "default": "EUR",
+            "title": "Moneda",
+            "type": "string"
+          },
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          }
+        },
+        "required": [
+          "anio",
+          "mes",
+          "estado",
+          "ingresos",
+          "gastos_cents",
+          "rendimiento_cents",
+          "por_cliente",
+          "acumulado_anio_cents",
+          "n_facturas",
+          "moneda",
+          "as_of"
+        ],
+        "title": "ResumenPeriodoOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "borrador_trimestre",
+      "title": "Borrador de los modelos 303 y 130",
+      "description": "Borrador orientativo del modelo 303 (IVA) y/o 130 (IRPF) de un trimestre, casilla a casilla y con las facturas que componen cada casilla. Es un borrador: no se presenta ante la AEAT. Explica el resultado con estas cifras; no las recalcules.",
+      "inputSchema": {
+        "properties": {
+          "anio": {
+            "maximum": 2100,
+            "minimum": 2000,
+            "title": "Anio",
+            "type": "integer"
+          },
+          "trimestre": {
+            "maximum": 4,
+            "minimum": 1,
+            "title": "Trimestre",
+            "type": "integer"
+          },
+          "modelo": {
+            "default": "ambos",
+            "enum": [
+              "303",
+              "130",
+              "ambos"
+            ],
+            "title": "Modelo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "anio",
+          "trimestre"
+        ],
+        "title": "BorradorTrimestreInput",
+        "type": "object"
+      },
+      "outputSchema": {
+        "$defs": {
+          "BorradorModelo": {
+            "properties": {
+              "modelo": {
+                "enum": [
+                  "303",
+                  "130"
+                ],
+                "title": "Modelo",
+                "type": "string"
+              },
+              "casillas": {
+                "items": {
+                  "$ref": "#/$defs/Casilla"
+                },
+                "title": "Casillas",
+                "type": "array"
+              },
+              "resultado_cents": {
+                "description": "Importe absoluto del resultado.",
+                "title": "Resultado Cents",
+                "type": "integer"
+              },
+              "resultado_tipo": {
+                "enum": [
+                  "a_ingresar",
+                  "a_compensar",
+                  "cero"
+                ],
+                "title": "Resultado Tipo",
+                "type": "string"
+              }
+            },
+            "required": [
+              "modelo",
+              "casillas",
+              "resultado_cents",
+              "resultado_tipo"
+            ],
+            "title": "BorradorModelo",
+            "type": "object"
+          },
+          "Casilla": {
+            "properties": {
+              "casilla": {
+                "description": "Número de casilla tal como aparece en el modelo, por ejemplo «07».",
+                "title": "Casilla",
+                "type": "string"
+              },
+              "concepto": {
+                "title": "Concepto",
+                "type": "string"
+              },
+              "importe_cents": {
+                "title": "Importe Cents",
+                "type": "integer"
+              },
+              "facturas": {
+                "description": "Documentos que componen la casilla. Vacío si es un total.",
+                "items": {
+                  "$ref": "#/$defs/FacturaRef"
+                },
+                "title": "Facturas",
+                "type": "array"
+              }
+            },
+            "required": [
+              "casilla",
+              "concepto",
+              "importe_cents",
+              "facturas"
+            ],
+            "title": "Casilla",
+            "type": "object"
+          },
+          "FacturaRef": {
+            "properties": {
+              "id": {
+                "format": "uuid",
+                "title": "Id",
+                "type": "string"
+              },
+              "tipo": {
+                "enum": [
+                  "emitida",
+                  "gasto"
+                ],
+                "title": "Tipo",
+                "type": "string"
+              },
+              "numero": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Numero"
+              },
+              "contraparte": {
+                "title": "Contraparte",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "tipo",
+              "numero",
+              "contraparte"
+            ],
+            "title": "FacturaRef",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "anio": {
+            "title": "Anio",
+            "type": "integer"
+          },
+          "trimestre": {
+            "title": "Trimestre",
+            "type": "integer"
+          },
+          "plazo_presentacion": {
+            "format": "date",
+            "title": "Plazo Presentacion",
+            "type": "string"
+          },
+          "orientativo": {
+            "const": true,
+            "description": "Siempre true: es un borrador, no se presenta ante la AEAT.",
+            "title": "Orientativo",
+            "type": "boolean"
+          },
+          "aviso": {
+            "title": "Aviso",
+            "type": "string"
+          },
+          "modelos": {
+            "items": {
+              "$ref": "#/$defs/BorradorModelo"
+            },
+            "title": "Modelos",
+            "type": "array"
+          },
+          "moneda": {
+            "const": "EUR",
+            "default": "EUR",
+            "title": "Moneda",
+            "type": "string"
+          },
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          }
+        },
+        "required": [
+          "anio",
+          "trimestre",
+          "plazo_presentacion",
+          "orientativo",
+          "aviso",
+          "modelos",
+          "moneda",
+          "as_of"
+        ],
+        "title": "BorradorTrimestreOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "gastos_por_categoria",
+      "title": "Gastos por categoría",
+      "description": "Gastos registrados agrupados por categoría (software, suministros, asesoría...) para un año, un mes o un trimestre. Indica «mes» o «trimestre», no ambos; sin ninguno, devuelve el año completo.",
+      "inputSchema": {
+        "properties": {
+          "anio": {
+            "maximum": 2100,
+            "minimum": 2000,
+            "title": "Anio",
+            "type": "integer"
+          },
+          "mes": {
+            "anyOf": [
+              {
+                "maximum": 12,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Excluyente con «trimestre».",
+            "title": "Mes"
+          },
+          "trimestre": {
+            "anyOf": [
+              {
+                "maximum": 4,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Excluyente con «mes».",
+            "title": "Trimestre"
+          }
+        },
+        "required": [
+          "anio"
+        ],
+        "title": "GastosPorCategoriaInput",
+        "type": "object"
+      },
+      "outputSchema": {
+        "$defs": {
+          "CategoriaImporte": {
+            "properties": {
+              "categoria": {
+                "title": "Categoria",
+                "type": "string"
+              },
+              "base_cents": {
+                "title": "Base Cents",
+                "type": "integer"
+              },
+              "iva_cents": {
+                "title": "Iva Cents",
+                "type": "integer"
+              },
+              "total_cents": {
+                "title": "Total Cents",
+                "type": "integer"
+              },
+              "n": {
+                "minimum": 0,
+                "title": "N",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "categoria",
+              "base_cents",
+              "iva_cents",
+              "total_cents",
+              "n"
+            ],
+            "title": "CategoriaImporte",
+            "type": "object"
+          },
+          "Totales": {
+            "properties": {
+              "n": {
+                "description": "Número de documentos.",
+                "minimum": 0,
+                "title": "N",
+                "type": "integer"
+              },
+              "base_cents": {
+                "title": "Base Cents",
+                "type": "integer"
+              },
+              "iva_cents": {
+                "title": "Iva Cents",
+                "type": "integer"
+              },
+              "retencion_cents": {
+                "title": "Retencion Cents",
+                "type": "integer"
+              },
+              "total_cents": {
+                "title": "Total Cents",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "n",
+              "base_cents",
+              "iva_cents",
+              "retencion_cents",
+              "total_cents"
+            ],
+            "title": "Totales",
+            "type": "object"
+          }
+        },
+        "properties": {
+          "anio": {
+            "title": "Anio",
+            "type": "integer"
+          },
+          "mes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mes"
+          },
+          "trimestre": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trimestre"
+          },
+          "categorias": {
+            "items": {
+              "$ref": "#/$defs/CategoriaImporte"
+            },
+            "title": "Categorias",
+            "type": "array"
+          },
+          "total": {
+            "$ref": "#/$defs/Totales"
+          },
+          "moneda": {
+            "const": "EUR",
+            "default": "EUR",
+            "title": "Moneda",
+            "type": "string"
+          },
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          }
+        },
+        "required": [
+          "anio",
+          "mes",
+          "trimestre",
+          "categorias",
+          "total",
+          "moneda",
+          "as_of"
+        ],
+        "title": "GastosPorCategoriaOutput",
+        "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    }
+  ]
+}

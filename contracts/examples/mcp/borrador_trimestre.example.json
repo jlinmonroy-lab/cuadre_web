@@ -1,0 +1,98 @@
+{
+  "tool": "borrador_trimestre",
+  "input": { "anio": 2026, "trimestre": 1, "modelo": "ambos" },
+  "output": {
+    "anio": 2026,
+    "trimestre": 1,
+    "plazo_presentacion": "2026-04-20",
+    "orientativo": true,
+    "aviso": "Borrador orientativo calculado con tus registros. No se presenta ante la AEAT desde la aplicación.",
+    "modelos": [
+      {
+        "modelo": "303",
+        "casillas": [
+          {
+            "casilla": "07",
+            "concepto": "Base imponible al 21 %",
+            "importe_cents": 120000,
+            "facturas": [
+              { "id": "a0000000-0000-4000-8000-000000000001", "tipo": "emitida", "numero": "2026-001", "contraparte": "Estudio Norte S.L." }
+            ]
+          },
+          { "casilla": "09", "concepto": "Cuota al 21 %", "importe_cents": 25200, "facturas": [] },
+          { "casilla": "27", "concepto": "Total cuota devengada", "importe_cents": 25200, "facturas": [] },
+          {
+            "casilla": "28",
+            "concepto": "Base de operaciones interiores corrientes (IVA deducible)",
+            "importe_cents": 17479,
+            "facturas": [
+              { "id": "b0000000-0000-4000-8000-000000000001", "tipo": "gasto", "numero": "EC-2026-01", "contraparte": "Espacio Común S.L." },
+              { "id": "b0000000-0000-4000-8000-000000000002", "tipo": "gasto", "numero": "NS-2026-0117", "contraparte": "Nubesoft S.L." }
+            ]
+          },
+          { "casilla": "29", "concepto": "Cuota deducible", "importe_cents": 3671, "facturas": [] },
+          { "casilla": "45", "concepto": "Total a deducir", "importe_cents": 3671, "facturas": [] },
+          { "casilla": "46", "concepto": "Resultado, régimen general (27 − 45)", "importe_cents": 21529, "facturas": [] },
+          {
+            "casilla": "59",
+            "concepto": "Servicios a empresas de la UE",
+            "importe_cents": 180000,
+            "facturas": [
+              { "id": "a0000000-0000-4000-8000-000000000002", "tipo": "emitida", "numero": "2026-002", "contraparte": "Kreativ Agentur GmbH" }
+            ]
+          },
+          {
+            "casilla": "120",
+            "concepto": "Operaciones no sujetas por reglas de localización",
+            "importe_cents": 95000,
+            "facturas": [
+              { "id": "a0000000-0000-4000-8000-000000000003", "tipo": "emitida", "numero": "2026-003", "contraparte": "Casa Lumbre S.A. de C.V." }
+            ]
+          }
+        ],
+        "resultado_cents": 21529,
+        "resultado_tipo": "a_ingresar"
+      },
+      {
+        "modelo": "130",
+        "casillas": [
+          {
+            "casilla": "01",
+            "concepto": "Ingresos computables",
+            "importe_cents": 395000,
+            "facturas": [
+              { "id": "a0000000-0000-4000-8000-000000000001", "tipo": "emitida", "numero": "2026-001", "contraparte": "Estudio Norte S.L." },
+              { "id": "a0000000-0000-4000-8000-000000000002", "tipo": "emitida", "numero": "2026-002", "contraparte": "Kreativ Agentur GmbH" },
+              { "id": "a0000000-0000-4000-8000-000000000003", "tipo": "emitida", "numero": "2026-003", "contraparte": "Casa Lumbre S.A. de C.V." }
+            ]
+          },
+          {
+            "casilla": "02",
+            "concepto": "Gastos fiscalmente deducibles",
+            "importe_cents": 17479,
+            "facturas": [
+              { "id": "b0000000-0000-4000-8000-000000000001", "tipo": "gasto", "numero": "EC-2026-01", "contraparte": "Espacio Común S.L." },
+              { "id": "b0000000-0000-4000-8000-000000000002", "tipo": "gasto", "numero": "NS-2026-0117", "contraparte": "Nubesoft S.L." }
+            ]
+          },
+          { "casilla": "03", "concepto": "Rendimiento neto (01 − 02)", "importe_cents": 377521, "facturas": [] },
+          { "casilla": "04", "concepto": "20 % del rendimiento neto", "importe_cents": 75504, "facturas": [] },
+          { "casilla": "05", "concepto": "Pagos fraccionados de trimestres anteriores", "importe_cents": 0, "facturas": [] },
+          {
+            "casilla": "06",
+            "concepto": "Retenciones soportadas",
+            "importe_cents": 8400,
+            "facturas": [
+              { "id": "a0000000-0000-4000-8000-000000000001", "tipo": "emitida", "numero": "2026-001", "contraparte": "Estudio Norte S.L." }
+            ]
+          },
+          { "casilla": "07", "concepto": "Pago fraccionado (04 − 05 − 06)", "importe_cents": 67104, "facturas": [] }
+        ],
+        "resultado_cents": 67104,
+        "resultado_tipo": "a_ingresar"
+      }
+    ],
+    "moneda": "EUR",
+    "as_of": "2026-11-03T08:30:00Z"
+  }
+}

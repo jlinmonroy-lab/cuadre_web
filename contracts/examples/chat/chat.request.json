@@ -1,0 +1,13 @@
+{
+  "conversation_id": "c0000000-0000-4000-8000-0000000000c1",
+  "messages": [
+    { "role": "user", "content": "¿Qué mención lleva una factura a una empresa alemana?" }
+  ],
+  "locale": "es-ES",
+  "user_context": {
+    "role": "usuario",
+    "has_gestor": true,
+    "current_date": "2026-11-03"
+  },
+  "mcp_url": "https://api.example.test/mcp"
+}

@@ -1,0 +1,23 @@
+{
+  "extraction": {
+    "doc_type": "full_invoice",
+    "supplier_name": "Imprenta Sol S.L.",
+    "supplier_tax_id": null,
+    "recipient_tax_id": "12345678Z",
+    "invoice_number": "A-311",
+    "issue_date": "2026-11-01",
+    "currency": "EUR",
+    "tax_breakdown": [
+      { "vat_rate": "21", "base": "120.00", "vat_amount": "25.20" }
+    ],
+    "withholding": null,
+    "total": "145.20",
+    "doubtful_fields": [
+      { "field": "supplier_tax_id", "line_index": null, "reason": "illegible", "raw_text": "B0?0?075" }
+    ],
+    "injection_suspected": false,
+    "warnings": ["El NIF del proveedor no se lee con claridad en la foto."]
+  },
+  "usage": { "input_tokens": 2105, "output_tokens": 236, "cost_eur": "0.003600" },
+  "trace_id": "trc_synthetic_0002"
+}

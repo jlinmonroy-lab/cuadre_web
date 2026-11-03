@@ -1,0 +1,21 @@
+{
+  "extraction": {
+    "doc_type": "full_invoice",
+    "supplier_name": "Nubesoft S.L.",
+    "supplier_tax_id": "B00000042",
+    "recipient_tax_id": "12345678Z",
+    "invoice_number": "NS-2026-9921",
+    "issue_date": "2026-10-28",
+    "currency": "EUR",
+    "tax_breakdown": [
+      { "vat_rate": "21", "base": "24.79", "vat_amount": "5.21" }
+    ],
+    "withholding": null,
+    "total": "30.00",
+    "doubtful_fields": [],
+    "injection_suspected": false,
+    "warnings": []
+  },
+  "usage": { "input_tokens": 1840, "output_tokens": 212, "cost_eur": "0.003100" },
+  "trace_id": "trc_synthetic_0001"
+}

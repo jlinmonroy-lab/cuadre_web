@@ -1,0 +1,1175 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cuadre</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Domine:wght@500;700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ===== Design tokens (se reutilizarán en el frontend Next.js / Claude Design) ===== */
+:root {
+  --color-ink: #1B2A33;
+  --color-ink-soft: #4A5862;
+  --color-paper: #F4F6F3;
+  --color-sheet: #FCFDFB;
+  --color-rule: #D5DDD7;
+  --color-rule-strong: #AEBBB2;
+  --color-action: #2F6B52;
+  --color-action-hover: #245640;
+  --color-action-soft: #E3EFE8;
+
+  --scope-national: #2F6B52;  --scope-national-bg: #E3EFE8;
+  --scope-eu: #2B5C9E;        --scope-eu-bg: #E4ECF7;
+  --scope-non-eu: #7E5210;    --scope-non-eu-bg: #F6ECDB;
+
+  --status-ok: #2F6B52;       --status-ok-bg: #E3EFE8;
+  --status-doubt: #7A5000;    --status-doubt-bg: #FFF3D1;  --status-doubt-line: #D9A62E;
+  --status-error: #A63A28;    --status-error-bg: #FBE7E3;
+
+  --font-head: 'Domine', Georgia, serif;
+  --font-ui: 'Public Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px; --space-7: 48px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+}
+a { color: var(--color-action); }
+:focus-visible { outline: 2px solid var(--color-action); outline-offset: 2px; }
+
+/* ===== Layout ===== */
+.app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+.sidebar {
+  background: var(--color-ink); color: #E6ECE8;
+  padding: var(--space-6) var(--space-4);
+  display: flex; flex-direction: column; gap: var(--space-6);
+  position: sticky; top: 0; height: 100vh;
+}
+.brand { font-family: var(--font-head); font-size: 26px; font-weight: 700; padding: 0 var(--space-3); color: #FCFDFB; text-decoration: none; }
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav a {
+  color: #C9D4CD; text-decoration: none; padding: 9px var(--space-3);
+  border-radius: var(--radius-s); font-weight: 500;
+}
+.nav a:hover { background: #26383F; color: #FCFDFB; }
+.nav a[aria-current="page"] { background: #2E434B; color: #FCFDFB; box-shadow: inset 3px 0 0 #7FBF9E; }
+.nav .count { float: right; background: var(--status-doubt-line); color: var(--color-ink); border-radius: 999px; font-size: 12px; font-weight: 700; padding: 0 7px; }
+.sidebar-foot { margin-top: auto; font-size: 13px; color: #A9B7AF; padding: 0 var(--space-3); }
+.sidebar-foot strong { color: #E6ECE8; display: block; font-weight: 600; }
+
+main { padding: var(--space-6) var(--space-7) var(--space-7); max-width: 1240px; width: 100%; min-width: 0; outline: none; }
+main:focus, main:focus-visible { outline: none; }
+.page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: var(--space-4); margin-bottom: var(--space-5); flex-wrap: wrap; }
+h1 { font-family: var(--font-head); font-size: 30px; font-weight: 700; margin: 0; line-height: 1.2; }
+h2 { font-family: var(--font-head); font-size: 19px; font-weight: 700; margin: 0 0 var(--space-3); line-height: 1.3; }
+h3 { font-size: 15px; font-weight: 700; margin: 0 0 var(--space-2); }
+.lead { color: var(--color-ink-soft); margin: var(--space-1) 0 0; max-width: 70ch; }
+.muted { color: var(--color-ink-soft); }
+.small { font-size: 13px; }
+.section { margin-top: var(--space-6); }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); }
+
+.panel { background: var(--color-sheet); border: 1px solid var(--color-rule); border-radius: var(--radius-m); padding: var(--space-5); }
+
+/* ===== Strip of key figures (a ledger line, not cards) ===== */
+.strip { display: grid; grid-template-columns: repeat(4, 1fr); background: var(--color-sheet); border: 1px solid var(--color-rule); border-radius: var(--radius-m); }
+.strip > div { padding: var(--space-4) var(--space-5); border-left: 1px solid var(--color-rule); }
+.strip > div:first-child { border-left: none; }
+.strip .label { font-size: 13px; color: var(--color-ink-soft); }
+.strip .value { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.strip .hint { font-size: 13px; color: var(--color-ink-soft); }
+
+/* ===== Ledger tables ===== */
+.table-wrap { overflow-x: auto; background: var(--color-sheet); border: 1px solid var(--color-rule); border-radius: var(--radius-m); }
+table.ledger { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.ledger th { text-align: left; font-size: 13px; font-weight: 600; color: var(--color-ink-soft); padding: 10px 14px; border-bottom: 1px solid var(--color-rule-strong); white-space: nowrap; }
+.ledger td { padding: 10px 14px; border-bottom: 1px solid var(--color-rule); vertical-align: middle; }
+.ledger tr:last-child td { border-bottom: none; }
+.ledger .num, .ledger .nowrap { white-space: nowrap; }
+.ledger .num { text-align: right; }
+.table-wrap > table.ledger { min-width: 760px; }
+.ledger tfoot td { font-weight: 700; border-top: 1px solid var(--color-rule-strong); border-bottom: none; }
+.ledger tbody tr.clickable { cursor: pointer; }
+.ledger tbody tr.clickable:hover { background: #F0F4F1; }
+.ledger tbody tr.selected { background: var(--color-action-soft); }
+.empty { padding: var(--space-6); text-align: center; color: var(--color-ink-soft); }
+
+/* ===== Badges ===== */
+.badge { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.scope-national { color: var(--scope-national); background: var(--scope-national-bg); }
+.scope-eu { color: var(--scope-eu); background: var(--scope-eu-bg); }
+.scope-non_eu { color: var(--scope-non-eu); background: var(--scope-non-eu-bg); }
+.st-ok { color: var(--status-ok); background: var(--status-ok-bg); }
+.st-doubt { color: var(--status-doubt); background: var(--status-doubt-bg); }
+.st-error { color: var(--status-error); background: var(--status-error-bg); }
+.st-neutral { color: var(--color-ink-soft); background: #E9EEEA; }
+
+/* ===== Buttons & forms ===== */
+.btn {
+  font: inherit; font-weight: 600; border-radius: var(--radius-s); padding: 9px 16px; cursor: pointer;
+  border: 1px solid var(--color-action); background: var(--color-action); color: #FCFDFB; white-space: nowrap;
+}
+.btn:hover { background: var(--color-action-hover); }
+.btn.secondary { background: transparent; color: var(--color-action); }
+.btn.secondary:hover { background: var(--color-action-soft); }
+.btn.quiet { background: transparent; border-color: var(--color-rule-strong); color: var(--color-ink); }
+.btn.quiet:hover { background: #E9EEEA; }
+.btn.small { padding: 4px 10px; font-size: 13px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.actions { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+
+.form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--space-4); }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field.wide { grid-column: 1 / -1; }
+.field label { font-size: 13px; font-weight: 600; color: var(--color-ink-soft); }
+input, select, textarea {
+  font: inherit; color: var(--color-ink); background: #FFFFFF;
+  border: 1px solid var(--color-rule-strong); border-radius: var(--radius-s); padding: 8px 10px; min-width: 0;
+}
+input.amount { text-align: right; font-variant-numeric: tabular-nums; }
+input:disabled, select:disabled { background: #EEF2EF; color: var(--color-ink-soft); }
+.field.doubt input { border-color: var(--status-doubt-line); background: var(--status-doubt-bg); }
+.field .flag { font-size: 12px; color: var(--status-doubt); font-weight: 600; }
+.form-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); margin-top: var(--space-5); flex-wrap: wrap; }
+.error-text { color: var(--status-error); font-size: 13px; font-weight: 600; }
+.note { border-left: 3px solid var(--color-rule-strong); padding: var(--space-2) var(--space-4); color: var(--color-ink-soft); font-size: 14px; background: #EEF2EF; border-radius: 0 var(--radius-s) var(--radius-s) 0; }
+.filters { display: flex; gap: var(--space-4); margin-bottom: var(--space-4); flex-wrap: wrap; }
+.filters .field { flex-direction: row; align-items: center; gap: var(--space-2); }
+
+/* ===== Gastos ===== */
+.dropzone {
+  border: 2px dashed var(--color-rule-strong); border-radius: var(--radius-m); background: var(--color-sheet);
+  padding: var(--space-6); display: flex; gap: var(--space-5); align-items: center; justify-content: space-between; flex-wrap: wrap;
+}
+.dropzone.over { border-color: var(--color-action); background: var(--color-action-soft); }
+.dropzone p { margin: 0; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.review { background: var(--color-sheet); border: 1px solid var(--color-rule); border-left: 4px solid var(--status-doubt-line); border-radius: var(--radius-m); padding: var(--space-5); margin-top: var(--space-4); }
+.review.processing { border-left-color: var(--color-rule-strong); }
+.review-head { display: flex; justify-content: space-between; gap: var(--space-4); align-items: baseline; flex-wrap: wrap; margin-bottom: var(--space-4); }
+.checks { list-style: none; padding: 0; margin: var(--space-4) 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: var(--space-2) var(--space-4); font-size: 14px; }
+.checks li { display: flex; gap: var(--space-2); align-items: baseline; }
+.checks .ok { color: var(--status-ok); font-weight: 700; }
+.checks .ko { color: var(--status-error); font-weight: 700; }
+.pulse { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--color-action); animation: pulse 1s ease-in-out infinite; margin-right: 6px; }
+@keyframes pulse { 50% { opacity: .25; } }
+
+/* ===== Trimestres: the AEAT-style form ===== */
+.tabs { display: flex; gap: 0; border: 1px solid var(--color-rule-strong); border-radius: var(--radius-s); width: max-content; overflow: hidden; }
+.tabs button { font: inherit; font-weight: 600; padding: 8px 18px; background: var(--color-sheet); border: none; border-left: 1px solid var(--color-rule-strong); cursor: pointer; color: var(--color-ink); }
+.tabs button:first-child { border-left: none; }
+.tabs button[aria-pressed="true"] { background: var(--color-ink); color: #FCFDFB; }
+.tabs button:disabled { color: #9AA6A0; cursor: not-allowed; }
+.tax-form { background: #FFFFFF; border: 1px solid var(--color-ink); border-radius: 2px; }
+.tax-form-head { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); padding: var(--space-3) var(--space-4); background: var(--color-ink); color: #FCFDFB; }
+.tax-form-head h2 { margin: 0; color: #FCFDFB; font-size: 18px; }
+.tax-form-head .model { font-family: var(--font-head); font-size: 28px; font-weight: 700; line-height: 1; }
+.tax-group { padding: var(--space-3) var(--space-4) var(--space-4); border-top: 1px solid var(--color-ink); }
+.tax-group:first-of-type { border-top: none; }
+.tax-group > h3 { font-size: 13px; color: var(--color-ink-soft); margin: 0 0 var(--space-2); }
+.box-row { display: grid; grid-template-columns: 44px 1fr auto; gap: var(--space-3); align-items: center; padding: 5px 0; border-bottom: 1px dotted var(--color-rule); }
+.box-row:last-child { border-bottom: none; }
+.box-num { font-size: 12px; font-weight: 700; text-align: center; border: 1px solid var(--color-ink); border-radius: 2px; padding: 1px 0; font-variant-numeric: tabular-nums; background: var(--color-paper); }
+.box-amount { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 120px; text-align: right; border: 1px solid var(--color-rule-strong); padding: 3px 8px; background: var(--color-sheet); }
+.box-row.result .box-num { background: var(--color-ink); color: #FCFDFB; }
+.box-row.result .box-amount { border: 2px solid var(--color-ink); }
+.box-row details { grid-column: 2 / -1; font-size: 13px; color: var(--color-ink-soft); }
+.box-row details summary { cursor: pointer; color: var(--color-action); font-weight: 600; width: max-content; }
+.box-row details ul { margin: var(--space-2) 0 0; padding-left: var(--space-5); }
+.tax-foot { padding: var(--space-3) var(--space-4); border-top: 1px solid var(--color-ink); background: var(--color-paper); font-size: 14px; }
+.verdict { font-weight: 700; }
+
+/* ===== Invoice preview dialog ===== */
+dialog { border: none; border-radius: var(--radius-m); padding: 0; max-width: 760px; width: calc(100% - 32px); box-shadow: 0 18px 50px rgba(27, 42, 51, .28); }
+dialog::backdrop { background: rgba(27, 42, 51, .45); }
+.invoice-paper { padding: var(--space-6); background: #FFFFFF; }
+.invoice-top { display: flex; justify-content: space-between; gap: var(--space-5); align-items: flex-start; }
+.qr-box { width: 92px; height: 92px; border: 1px dashed var(--color-rule-strong); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 11px; color: var(--color-ink-soft); padding: 4px; }
+.parties { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); margin: var(--space-5) 0; font-size: 14px; }
+.invoice-dialog-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-6); background: var(--color-paper); border-top: 1px solid var(--color-rule); flex-wrap: wrap; }
+
+/* ===== Toast ===== */
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--color-ink); color: #FCFDFB; padding: 10px 18px; border-radius: var(--radius-s); font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 10; }
+.toast.show { opacity: 1; }
+
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { position: static; height: auto; flex-direction: row; align-items: center; padding: var(--space-3) var(--space-4); gap: var(--space-4); overflow-x: auto; }
+  .nav { flex-direction: row; }
+  .nav a { white-space: nowrap; }
+  .sidebar-foot { display: none; }
+  main { padding: var(--space-5) var(--space-4) var(--space-7); }
+  .grid-2 { grid-template-columns: 1fr; }
+  .strip { grid-template-columns: 1fr 1fr; }
+  .strip > div:nth-child(3) { border-left: none; }
+  .strip > div:nth-child(n+3) { border-top: 1px solid var(--color-rule); }
+  .parties { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) {
+  .strip { grid-template-columns: 1fr; }
+  .strip > div { border-left: none; border-top: 1px solid var(--color-rule); }
+  .strip > div:first-child { border-top: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pulse { animation: none; }
+  .toast { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <a class="brand" href="#inicio">Cuadre</a>
+    <nav class="nav" aria-label="Apartados">
+      <a href="#inicio" data-route="inicio">Inicio</a>
+      <a href="#clientes" data-route="clientes">Clientes</a>
+      <a href="#facturas" data-route="facturas">Facturas</a>
+      <a href="#gastos" data-route="gastos">Gastos <span class="count" id="nav-review-count" hidden></span></a>
+      <a href="#mensual" data-route="mensual">Contabilidad mensual</a>
+      <a href="#trimestres" data-route="trimestres">Trimestres</a>
+    </nav>
+    <div class="sidebar-foot">
+      <strong id="profile-name"></strong>
+      <span id="profile-meta"></span>
+      <p>Prototipo con datos ficticios. Los cambios se pierden al recargar la página.</p>
+    </div>
+  </aside>
+  <main id="main" tabindex="-1"></main>
+</div>
+
+<dialog id="invoice-dialog" aria-labelledby="invoice-dialog-title"></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* =====================================================================
+   Datos y reglas simulados.
+   En la aplicación real, cada función de `api` será una llamada a la
+   API FastAPI (el operation_id previsto va en el comentario) y estos
+   cálculos vivirán en src/cuadre/tax/. Importes siempre en céntimos.
+   ===================================================================== */
+
+const TODAY = new Date();
+const YEAR = TODAY.getFullYear();
+const CUR_MONTH = TODAY.getMonth() + 1;
+const CUR_DAY = TODAY.getDate();
+const CUR_QUARTER = Math.ceil(CUR_MONTH / 3);
+const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+const EU = new Set(['AT','BE','BG','CY','CZ','DE','DK','EE','ES','FI','FR','GR','HR','HU','IE','IT','LT','LU','LV','MT','NL','PL','PT','RO','SE','SI','SK']);
+const COUNTRIES = { ES: 'España', DE: 'Alemania', FR: 'Francia', IT: 'Italia', PT: 'Portugal', NL: 'Países Bajos', IE: 'Irlanda', BE: 'Bélgica', MX: 'México', US: 'Estados Unidos', GB: 'Reino Unido', CH: 'Suiza', AR: 'Argentina', CO: 'Colombia' };
+const SCOPE_LABEL = { national: 'Nacional', eu: 'UE', non_eu: 'Fuera de la UE' };
+const NOTE_EU = 'Inversión del sujeto pasivo.';
+const NOTE_NON_EU = 'Operación no sujeta a IVA por reglas de localización (art. 69 de la Ley del IVA).';
+const CATEGORIES = ['Software', 'Coworking y oficina', 'Material', 'Suministros y teléfono', 'Asesoría', 'Cuota de autónomos', 'Formación', 'Otros'];
+
+const scopeOf = country => country === 'ES' ? 'national' : (EU.has(country) ? 'eu' : 'non_eu');
+const iso = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+const TODAY_ISO = iso(YEAR, CUR_MONTH, CUR_DAY);
+const monthOf = d => Number(d.slice(5, 7));
+const yearOf = d => Number(d.slice(0, 4));
+
+/* ---------- Validación de NIF (en la app real: python-stdnum) ---------- */
+function normTaxId(v) { return String(v || '').toUpperCase().replace(/[\s.-]/g, ''); }
+function checkSpanishTaxId(raw) {
+  const v = normTaxId(raw).replace(/^ES/, '');
+  const L = 'TRWAGMYFPDXBNJZSQVHLCKE';
+  if (/^\d{8}[A-Z]$/.test(v)) return L[Number(v.slice(0, 8)) % 23] === v[8];
+  if (/^[XYZ]\d{7}[A-Z]$/.test(v)) return L[Number('XYZ'.indexOf(v[0]) + v.slice(1, 8)) % 23] === v[8];
+  if (/^[ABCDEFGHJNPQRSUVW]\d{7}[0-9A-J]$/.test(v)) {
+    const d = v.slice(1, 8).split('').map(Number);
+    let sum = 0;
+    d.forEach((n, i) => { if (i % 2 === 1) sum += n; else { const x = n * 2; sum += Math.floor(x / 10) + (x % 10); } });
+    const ctrl = (10 - (sum % 10)) % 10;
+    return v[8] === String(ctrl) || v[8] === 'JABCDEFGHI'[ctrl];
+  }
+  return false;
+}
+
+/* ---------- Formato y lectura de importes ---------- */
+const eurFmt = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', useGrouping: 'always' });
+const fmt = c => eurFmt.format((c || 0) / 100);
+const dateFmt = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+const longDateFmt = new Intl.DateTimeFormat('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+const fmtDate = d => dateFmt.format(new Date(d + 'T00:00:00'));
+const fmtLongDate = d => longDateFmt.format(new Date(d + 'T00:00:00'));
+function parseCents(s) {
+  if (s == null) return null;
+  s = String(s).trim().replace(/\s|€/g, '');
+  if (!s) return null;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) return null;
+  const [i, d = ''] = s.split('.');
+  return Number(i) * 100 + Number(d.padEnd(2, '0'));
+}
+const centsToInput = c => c == null ? '' : (c / 100).toFixed(2).replace('.', ',');
+const pct = (base, rate) => Math.round(base * rate / 100);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ---------- Base de datos en memoria ---------- */
+let seq = 1;
+const uid = p => `${p}${seq++}`;
+const db = {
+  profile: { name: 'Lucía Ferrer', taxId: '12345678Z', activity: 'Diseño gráfico', irpfRate: 7, monthlyFee: 20000, address: 'Calle Ficticia 12, 46001 Valencia' },
+  clients: [],
+  invoices: [],
+  expenses: [],
+  documents: []
+};
+
+function seed() {
+  const c = (name, taxId, country, kind, address) => {
+    const client = { id: uid('c'), name, taxId, country, kind, address, vies: scopeOf(country) === 'eu' ? 'valid' : null };
+    db.clients.push(client); return client;
+  };
+  const norte = c('Estudio Norte S.L.', 'B00000018', 'ES', 'empresa', 'Avenida Inventada 4, Madrid');
+  const liebre = c('Café Liebre S.L.', 'B00000026', 'ES', 'empresa', 'Plaza Ejemplo 1, Valencia');
+  const kreativ = c('Kreativ Agentur GmbH', 'DE000000001', 'DE', 'empresa', 'Beispielstraße 8, Berlín');
+  const lumbre = c('Casa Lumbre S.A. de C.V.', 'CLU000000AA0', 'MX', 'empresa', 'Calle Muestra 22, Ciudad de México');
+  const marta = c('Marta Gil Ortega', '00000000T', 'ES', 'particular', 'Valencia');
+
+  const raw = [];
+  const dayIn = (m, d) => m === CUR_MONTH ? Math.min(d, CUR_DAY) : d;
+  for (let m = 1; m <= CUR_MONTH; m++) {
+    raw.push({ client: norte, date: iso(YEAR, m, dayIn(m, 2)), concept: `Dirección de arte, ${MONTHS[m - 1]}`, base: 120000, vat: 21 });
+    if (m % 2 === 0) raw.push({ client: kreativ, date: iso(YEAR, m, dayIn(m, 12)), concept: 'Ilustraciones para campaña', base: 180000 });
+    if (m % 3 === 0) raw.push({ client: lumbre, date: iso(YEAR, m, dayIn(m, 18)), concept: 'Diseño de packaging', base: 95000 });
+    if ([2, 5, 8].includes(m)) raw.push({ client: liebre, date: iso(YEAR, m, dayIn(m, 21)), concept: 'Carta y señalética', base: 64000, vat: 21 });
+    if ([4, 7].includes(m)) raw.push({ client: marta, date: iso(YEAR, m, dayIn(m, 25)), concept: 'Invitaciones de boda', base: 30000, vat: 21 });
+  }
+  raw.sort((a, b) => a.date.localeCompare(b.date));
+  raw.forEach(r => {
+    const t = invoiceTerms(r.client);
+    const inv = buildInvoice({ clientId: r.client.id, date: r.date, concept: r.concept, baseCents: r.base, vatRate: r.vat ?? t.vatRate });
+    inv.paid = monthOf(r.date) < CUR_MONTH - 1 || (monthOf(r.date) === CUR_MONTH - 1 && r.client !== lumbre);
+    db.invoices.push(inv);
+  });
+
+  const e = (date, supplier, taxId, number, category, base, rate, source, hasFullInvoice = true) => {
+    const vat = pct(base, rate);
+    db.expenses.push({ id: uid('e'), date, supplier, taxId, number, category, baseCents: base, vatRate: rate, vatCents: vat, totalCents: base + vat, source, deductibleVat: hasFullInvoice && rate > 0 });
+  };
+  for (let m = 1; m <= CUR_MONTH; m++) {
+    const mm = String(m).padStart(2, '0');
+    e(iso(YEAR, m, dayIn(m, 1)), 'Espacio Común S.L.', 'B00000034', `EC-${YEAR}-${mm}`, 'Coworking y oficina', 15000, 21, 'pdf');
+    e(iso(YEAR, m, dayIn(m, 3)), 'Nubesoft S.L.', 'B00000042', `NS-${YEAR}-${mm}17`, 'Software', 2479, 21, 'pdf');
+    e(iso(YEAR, m, dayIn(m, 10)), 'Telefonía Brisa S.A.', 'A00000083', `TB${mm}0042`, 'Suministros y teléfono', 3000, 21, 'pdf');
+    if ([2, 6, 9].includes(m)) e(iso(YEAR, m, dayIn(m, 14)), 'Papelería Arce S.L.', 'B00000059', `PA-${mm}88`, 'Material', 6400, 21, 'foto');
+    if ([1, 4, 7, 10].includes(m)) e(iso(YEAR, m, dayIn(m, 5)), 'Gestoría Puerta S.L.', 'B00000067', `GP/${YEAR}/${mm}`, 'Asesoría', 6000, 21, 'pdf');
+    if (m < CUR_MONTH || CUR_DAY >= 28) e(iso(YEAR, m, 28), 'Seguridad Social', '', '', 'Cuota de autónomos', db.profile.monthlyFee, 0, 'manual', false);
+  }
+
+  db.documents.push({
+    id: uid('d'), fileName: 'factura_imprenta.jpg', kind: 'foto', status: 'review', docType: 'Factura completa',
+    form: { issuer: 'Imprenta Sol S.L.', taxId: '', number: 'A-311', date: iso(YEAR, CUR_MONTH, Math.max(1, CUR_DAY - 2)), base: '120,00', vatRate: '21', vat: '25,20', total: '145,20', category: 'Material' },
+    doubtful: ['taxId']
+  });
+}
+
+/* ---------- Reglas de facturación ---------- */
+function invoiceTerms(client) {
+  const scope = scopeOf(client.country);
+  if (scope === 'national') return { scope, vatEditable: true, vatRate: 21, irpfRate: client.kind === 'empresa' ? db.profile.irpfRate : 0, legalNote: '' };
+  if (scope === 'eu' && client.kind === 'empresa') return { scope, vatEditable: false, vatRate: 0, irpfRate: 0, legalNote: NOTE_EU };
+  if (scope === 'eu') return { scope, vatEditable: true, vatRate: 21, irpfRate: 0, legalNote: '' };
+  return { scope, vatEditable: false, vatRate: 0, irpfRate: 0, legalNote: NOTE_NON_EU };
+}
+function describeTerms(kind, country) {
+  const t = invoiceTerms({ kind, country });
+  if (t.scope === 'national') return t.irpfRate ? `Sus facturas llevarán IVA (21 % por defecto) y una retención de IRPF del ${t.irpfRate} %.` : 'Sus facturas llevarán IVA (21 % por defecto) y no llevarán retención.';
+  if (t.scope === 'eu' && kind === 'empresa') return 'Sus facturas irán sin IVA, con la mención «Inversión del sujeto pasivo». Cuentan en la casilla 59 del 303 y en el modelo 349.';
+  if (t.scope === 'eu') return 'Particular de la UE: sus facturas llevarán IVA español.';
+  return 'Sus facturas irán sin IVA por reglas de localización. Cuentan en la casilla 120 del 303.';
+}
+function buildInvoice({ clientId, date, concept, baseCents, vatRate }) {
+  const client = db.clients.find(c => c.id === clientId);
+  const t = invoiceTerms(client);
+  const rate = t.vatEditable ? Number(vatRate) : t.vatRate;
+  const vat = pct(baseCents, rate);
+  const irpf = pct(baseCents, t.irpfRate);
+  const series = String(yearOf(date));
+  const n = db.invoices.filter(i => i.series === series).length + 1;
+  return {
+    id: uid('f'), series, number: `${series}-${String(n).padStart(3, '0')}`, date, clientId, concept,
+    scope: t.scope, baseCents, vatRate: rate, vatCents: vat, irpfRate: t.irpfRate, irpfCents: irpf,
+    totalCents: baseCents + vat - irpf, legalNote: t.legalNote, paid: false
+  };
+}
+
+/* ---------- API simulada ---------- */
+const api = {
+  // operation_id: create_client
+  createClient(input) {
+    const errors = {};
+    if (!input.name.trim()) errors.name = 'Escribe el nombre o la razón social.';
+    const scope = scopeOf(input.country);
+    const tax = normTaxId(input.taxId);
+    if (scope === 'national' && !checkSpanishTaxId(tax)) errors.taxId = 'El NIF no es válido: revisa el dígito o la letra de control.';
+    if (scope === 'eu' && input.kind === 'empresa' && !tax.startsWith(input.country)) errors.taxId = `El NIF-IVA debe empezar por ${input.country}.`;
+    if (scope === 'non_eu' && input.kind === 'empresa' && !tax) errors.taxId = 'Escribe el identificador fiscal del cliente.';
+    if (Object.keys(errors).length) return { errors };
+    const client = { id: uid('c'), name: input.name.trim(), taxId: tax, country: input.country, kind: input.kind, address: input.address.trim(), vies: scope === 'eu' && input.kind === 'empresa' ? 'valid' : null };
+    db.clients.push(client);
+    return { client };
+  },
+  // operation_id: issue_invoice
+  issueInvoice(input) {
+    const errors = {};
+    if (!input.clientId) errors.clientId = 'Elige un cliente.';
+    if (!input.concept.trim()) errors.concept = 'Describe el servicio facturado.';
+    if (input.baseCents == null || input.baseCents <= 0) errors.base = 'Escribe un importe mayor que cero, por ejemplo 1.200,00.';
+    if (!input.date) errors.date = 'Elige la fecha de expedición.';
+    const series = String(yearOf(input.date || TODAY_ISO));
+    const last = db.invoices.filter(i => i.series === series).sort((a, b) => b.date.localeCompare(a.date))[0];
+    if (input.date && last && input.date < last.date) errors.date = `La fecha no puede ser anterior a la de la última factura de la serie (${fmtDate(last.date)}).`;
+    if (input.date > TODAY_ISO) errors.date = 'La fecha no puede ser futura.';
+    if (Object.keys(errors).length) return { errors };
+    const inv = buildInvoice({ ...input, concept: input.concept.trim() });
+    db.invoices.push(inv);
+    return { invoice: inv };
+  },
+  // operation_id: set_invoice_payment
+  setPaid(id, paid) { const inv = db.invoices.find(i => i.id === id); if (inv) inv.paid = paid; },
+  // operation_id: upload_document
+  uploadDocument(file) {
+    const doc = { id: uid('d'), fileName: file.name, kind: /pdf$/i.test(file.name) ? 'pdf' : 'foto', status: 'processing', form: {}, doubtful: [] };
+    db.documents.unshift(doc);
+    setTimeout(() => { api._simulateExtraction(doc); if (state.route === 'gastos') render(); updateNavCount(); }, 1400);
+    return doc;
+  },
+  _sampleIndex: 0,
+  _simulateExtraction(doc) {
+    const d = iso(YEAR, CUR_MONTH, Math.max(1, CUR_DAY - 1));
+    const samples = [
+      { docType: 'Factura completa', doubtful: [], form: { issuer: 'Nubesoft S.L.', taxId: 'B00000042', number: `NS-${YEAR}-9921`, date: d, base: '24,79', vatRate: '21', vat: '5,21', total: '30,00' } },
+      { docType: 'Factura simplificada', doubtful: ['taxId'], form: { issuer: 'Papelería Arce S.L.', taxId: '', number: 'T-58213', date: d, base: '33,05', vatRate: '21', vat: '6,94', total: '39,99' } },
+      { docType: 'Factura completa', doubtful: ['total'], form: { issuer: 'Imprenta Sol S.L.', taxId: 'B00000075', number: 'A-318', date: d, base: '120,00', vatRate: '21', vat: '25,20', total: '147,00' } }
+    ];
+    const s = samples[api._sampleIndex++ % samples.length];
+    Object.assign(doc, { status: 'review', docType: s.docType, doubtful: [...s.doubtful], form: { ...s.form, category: suggestCategory(s.form.issuer) } });
+  },
+  // operation_id: validate_extraction (validadores deterministas, SPEC-005)
+  checks(doc) {
+    const f = doc.form;
+    const base = parseCents(f.base), vat = parseCents(f.vat), total = parseCents(f.total);
+    const rate = Number(f.vatRate);
+    const dup = db.expenses.some(e => e.taxId && normTaxId(e.taxId) === normTaxId(f.taxId) && e.number.trim() === String(f.number || '').trim());
+    return [
+      { label: 'NIF del proveedor válido', ok: checkSpanishTaxId(f.taxId) },
+      { label: 'Fecha correcta y no futura', ok: /^\d{4}-\d{2}-\d{2}$/.test(f.date || '') && f.date <= TODAY_ISO },
+      { label: 'Cuota acorde al tipo de IVA', ok: base != null && vat != null && Math.abs(pct(base, rate) - vat) <= 1 },
+      { label: 'Base más IVA igual al total', ok: base != null && vat != null && total != null && Math.abs(base + vat - total) <= 1 },
+      { label: 'No está registrada ya', ok: !dup }
+    ];
+  },
+  // operation_id: confirm_document
+  confirmDocument(id) {
+    const doc = db.documents.find(d => d.id === id);
+    if (!doc || !api.checks(doc).every(c => c.ok)) return false;
+    const f = doc.form;
+    const base = parseCents(f.base), vat = parseCents(f.vat);
+    db.expenses.push({ id: uid('e'), date: f.date, supplier: f.issuer.trim(), taxId: normTaxId(f.taxId), number: f.number.trim(), category: f.category, baseCents: base, vatRate: Number(f.vatRate), vatCents: vat, totalCents: base + vat, source: doc.kind, deductibleVat: doc.docType === 'Factura completa' && vat > 0 });
+    db.documents = db.documents.filter(d => d.id !== id);
+    return true;
+  },
+  discardDocument(id) { db.documents = db.documents.filter(d => d.id !== id); },
+  // operation_id: create_expense (gasto sin factura)
+  createExpense(input) {
+    const errors = {};
+    if (!input.supplier.trim()) errors.supplier = 'Describe el gasto, por ejemplo «Cuota de autónomos».';
+    if (input.amount == null || input.amount <= 0) errors.amount = 'Escribe un importe mayor que cero.';
+    if (!input.date || input.date > TODAY_ISO) errors.date = 'Elige una fecha que no sea futura.';
+    if (Object.keys(errors).length) return { errors };
+    db.expenses.push({ id: uid('e'), date: input.date, supplier: input.supplier.trim(), taxId: '', number: '', category: input.category, baseCents: input.amount, vatRate: 0, vatCents: 0, totalCents: input.amount, source: 'manual', deductibleVat: false });
+    return { ok: true };
+  },
+  // operation_id: get_monthly_closings
+  monthly() {
+    let ytd = 0;
+    const rows = [];
+    for (let m = 1; m <= CUR_MONTH; m++) {
+      const invs = db.invoices.filter(i => yearOf(i.date) === YEAR && monthOf(i.date) === m);
+      const exps = db.expenses.filter(e => yearOf(e.date) === YEAR && monthOf(e.date) === m);
+      const by = { national: 0, eu: 0, non_eu: 0 };
+      invs.forEach(i => { by[i.scope] += i.baseCents; });
+      const total = by.national + by.eu + by.non_eu;
+      ytd += total;
+      const byClient = {};
+      invs.forEach(i => { byClient[i.clientId] = (byClient[i.clientId] || 0) + i.baseCents; });
+      rows.push({ month: m, count: invs.length, ...by, total, expenses: exps.reduce((s, e) => s + e.baseCents + (e.deductibleVat ? 0 : e.vatCents), 0), ytd, closed: m < CUR_MONTH, byClient });
+    }
+    return rows;
+  },
+  // operation_id: get_quarter_draft
+  quarter(q) {
+    const inQ = d => yearOf(d) === YEAR && Math.ceil(monthOf(d) / 3) === q;
+    const upTo = d => yearOf(d) === YEAR && monthOf(d) <= 3 * q;
+    const qInv = db.invoices.filter(i => inQ(i.date));
+    const qExp = db.expenses.filter(e => inQ(e.date));
+
+    const byRate = { 4: { b: 0, c: 0, list: [] }, 10: { b: 0, c: 0, list: [] }, 21: { b: 0, c: 0, list: [] } };
+    qInv.filter(i => i.vatRate > 0).forEach(i => { byRate[i.vatRate].b += i.baseCents; byRate[i.vatRate].c += i.vatCents; byRate[i.vatRate].list.push(i); });
+    const c27 = byRate[4].c + byRate[10].c + byRate[21].c;
+    const ded = qExp.filter(e => e.deductibleVat);
+    const c28 = ded.reduce((s, e) => s + e.baseCents, 0);
+    const c29 = ded.reduce((s, e) => s + e.vatCents, 0);
+    const eu = qInv.filter(i => i.vatRate === 0 && i.scope === 'eu');
+    const nonEu = qInv.filter(i => i.vatRate === 0 && i.scope === 'non_eu');
+    const m303 = {
+      byRate, c27, c28, c29, c45: c29, c46: c27 - c29, dedList: ded,
+      c59: eu.reduce((s, i) => s + i.baseCents, 0), euList: eu,
+      c120: nonEu.reduce((s, i) => s + i.baseCents, 0), nonEuList: nonEu
+    };
+
+    const ytdInv = db.invoices.filter(i => upTo(i.date));
+    const ytdExp = db.expenses.filter(e => upTo(e.date));
+    const c01 = ytdInv.reduce((s, i) => s + i.baseCents, 0);
+    const c02 = ytdExp.reduce((s, e) => s + e.baseCents + (e.deductibleVat ? 0 : e.vatCents), 0);
+    const c03 = c01 - c02;
+    const c04 = c03 > 0 ? pct(c03, 20) : 0;
+    let c05 = 0;
+    for (let k = 1; k < q; k++) c05 += Math.max(0, api.quarter(k).m130.c07);
+    const c06 = ytdInv.reduce((s, i) => s + i.irpfCents, 0);
+    const withheld = ytdInv.filter(i => i.irpfCents > 0).reduce((s, i) => s + i.baseCents, 0);
+    const m130 = { c01, c02, c03, c04, c05, c06, c07: c04 - c05 - c06, withheldShare: c01 ? Math.round(withheld * 100 / c01) : 0 };
+
+    return { q, m303, m130, deadline: deadlineOf(YEAR, q) };
+  }
+};
+
+function suggestCategory(name) {
+  const n = name.toLowerCase();
+  if (/soft|nube|cloud|app/.test(n)) return 'Software';
+  if (/papeler|imprenta|material/.test(n)) return 'Material';
+  if (/cowork|espacio|oficina/.test(n)) return 'Coworking y oficina';
+  if (/telef|fibra|brisa|luz|energ/.test(n)) return 'Suministros y teléfono';
+  if (/gestor|asesor/.test(n)) return 'Asesoría';
+  return 'Otros';
+}
+function deadlineOf(y, q) { return q === 4 ? iso(y + 1, 1, 30) : iso(y, 3 * q + 1, 20); }
+function nextDeadline() {
+  const list = [{ y: YEAR - 1, q: 4 }, { y: YEAR, q: 1 }, { y: YEAR, q: 2 }, { y: YEAR, q: 3 }, { y: YEAR, q: 4 }].map(x => ({ ...x, date: deadlineOf(x.y, x.q) }));
+  const next = list.find(x => x.date >= TODAY_ISO);
+  const days = Math.round((new Date(next.date + 'T00:00:00') - new Date(TODAY_ISO + 'T00:00:00')) / 864e5);
+  return { ...next, days };
+}
+const clientName = id => (db.clients.find(c => c.id === id) || {}).name || '';
+const scopeBadge = s => `<span class="badge scope-${s}">${SCOPE_LABEL[s]}</span>`;
+
+/* =====================================================================
+   Vistas
+   ===================================================================== */
+const state = { route: 'inicio', clientFormOpen: false, invoiceFormOpen: false, expenseFormOpen: false, invoiceFilter: { scope: 'all', paid: 'all' }, selectedMonth: Math.max(1, CUR_MONTH - 1), quarter: CUR_QUARTER, formErrors: {} };
+
+function renderInicio() {
+  const months = api.monthly();
+  const cur = months.find(r => r.month === CUR_MONTH) || { total: 0, count: 0 };
+  const ytd = months.reduce((s, r) => s + r.total, 0);
+  const qd = api.quarter(CUR_QUARTER);
+  const iva = Math.max(0, qd.m303.c46), pago = Math.max(0, qd.m130.c07), cuota = db.profile.monthlyFee;
+  const next = nextDeadline();
+  const reviewCount = db.documents.filter(d => d.status === 'review').length;
+  const unpaid = db.invoices.filter(i => !i.paid);
+  const unpaidTotal = unpaid.reduce((s, i) => s + i.totalCents, 0);
+  const recent = [...db.invoices].sort((a, b) => b.date.localeCompare(a.date) || b.number.localeCompare(a.number)).slice(0, 5);
+  const nextMonth = CUR_MONTH === 12 ? `1 de enero` : `1 de ${MONTHS[CUR_MONTH]}`;
+
+  return `
+  <div class="page-head">
+    <div>
+      <h1>Hola, ${esc(db.profile.name.split(' ')[0])}</h1>
+      <p class="lead">Así están tus cuentas a ${fmtLongDate(TODAY_ISO)}.</p>
+    </div>
+  </div>
+
+  <div class="strip">
+    <div><div class="label">Facturado en ${MONTHS[CUR_MONTH - 1]}</div><div class="value">${fmt(cur.total)}</div><div class="hint">${cur.count} ${cur.count === 1 ? 'factura' : 'facturas'}, sin IVA</div></div>
+    <div><div class="label">Facturado en ${YEAR}</div><div class="value">${fmt(ytd)}</div><div class="hint">Base imponible acumulada</div></div>
+    <div><div class="label">Pendiente de cobro</div><div class="value">${fmt(unpaidTotal)}</div><div class="hint">${unpaid.length} ${unpaid.length === 1 ? 'factura' : 'facturas'}</div></div>
+    <div><div class="label">Próximo plazo</div><div class="value">${next.days} días</div><div class="hint">303 y 130 del T${next.q}, hasta el ${fmtDate(next.date)}</div></div>
+  </div>
+
+  <div class="grid-2 section">
+    <section class="panel">
+      <h2>Lo que conviene apartar</h2>
+      <p class="muted small">Estimación del T${CUR_QUARTER} con lo registrado hasta hoy. No es dinero tuyo aunque esté en tu cuenta.</p>
+      <table class="ledger">
+        <tbody>
+          <tr><td>IVA a ingresar (modelo 303)</td><td class="num">${fmt(iva)}</td></tr>
+          <tr><td>Pago fraccionado de IRPF (modelo 130)</td><td class="num">${fmt(pago)}</td></tr>
+          <tr><td>Cuota de autónomos del próximo mes</td><td class="num">${fmt(cuota)}</td></tr>
+        </tbody>
+        <tfoot><tr><td>Total a apartar</td><td class="num">${fmt(iva + pago + cuota)}</td></tr></tfoot>
+      </table>
+      <p class="small"><a href="#trimestres">Ver el borrador del trimestre</a></p>
+    </section>
+    <section class="panel">
+      <h2>Pendiente</h2>
+      <table class="ledger">
+        <tbody>
+          <tr><td>${reviewCount ? `<a href="#gastos">${reviewCount} ${reviewCount === 1 ? 'factura de compra por revisar' : 'facturas de compra por revisar'}</a>` : 'No hay facturas de compra por revisar'}</td><td class="num">${reviewCount ? '<span class="badge st-doubt">Revisar</span>' : '<span class="badge st-ok">Al día</span>'}</td></tr>
+          <tr><td><a href="#facturas">${unpaid.length} ${unpaid.length === 1 ? 'factura emitida sin cobrar' : 'facturas emitidas sin cobrar'}</a></td><td class="num">${fmt(unpaidTotal)}</td></tr>
+          <tr><td>Cierre automático de ${MONTHS[CUR_MONTH - 1]}</td><td class="num">${nextMonth}</td></tr>
+          <tr><td>Presentar 303 y 130 del T${next.q}</td><td class="num">${fmtDate(next.date)}</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <section class="section">
+    <div class="page-head"><h2>Últimas facturas emitidas</h2><a class="small" href="#facturas">Ver todas</a></div>
+    ${invoiceTable(recent)}
+  </section>`;
+}
+
+function renderClientes() {
+  const billed = id => db.invoices.filter(i => i.clientId === id && yearOf(i.date) === YEAR).reduce((s, i) => s + i.baseCents, 0);
+  const err = state.formErrors;
+  const rows = [...db.clients].sort((a, b) => a.name.localeCompare(b.name, 'es')).map(c => {
+    const s = scopeOf(c.country);
+    const vies = c.vies === 'valid' ? '<span class="badge st-ok">VIES válido</span>' : (s === 'eu' && c.kind === 'empresa' ? '<span class="badge st-doubt">Sin comprobar</span>' : '<span class="muted">No aplica</span>');
+    return `<tr>
+      <td><strong>${esc(c.name)}</strong><div class="muted small">${c.kind === 'empresa' ? 'Empresa o profesional' : 'Particular'}</div></td>
+      <td>${esc(c.taxId) || '<span class="muted">Sin NIF</span>'}</td>
+      <td>${esc(COUNTRIES[c.country] || c.country)}</td>
+      <td>${scopeBadge(s)}</td>
+      <td>${vies}</td>
+      <td class="num">${fmt(billed(c.id))}</td>
+    </tr>`;
+  }).join('');
+  const countryOptions = Object.entries(COUNTRIES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+
+  return `
+  <div class="page-head">
+    <div><h1>Clientes</h1><p class="lead">El país y el tipo de cliente deciden si la factura lleva IVA, retención y qué mención legal incluye.</p></div>
+    <div class="actions"><button class="btn" data-action="toggle-client-form" aria-expanded="${state.clientFormOpen}">${state.clientFormOpen ? 'Cerrar formulario' : 'Añadir cliente'}</button></div>
+  </div>
+
+  ${state.clientFormOpen ? `
+  <form class="panel" id="client-form" novalidate>
+    <h2>Nuevo cliente</h2>
+    <div class="form-grid">
+      <div class="field wide"><label for="cf-name">Nombre o razón social</label><input id="cf-name" name="name" autocomplete="off">${err.name ? `<span class="error-text">${err.name}</span>` : ''}</div>
+      <div class="field"><label for="cf-kind">Tipo</label><select id="cf-kind" name="kind"><option value="empresa">Empresa o profesional</option><option value="particular">Particular</option></select></div>
+      <div class="field"><label for="cf-country">País</label><select id="cf-country" name="country">${countryOptions}</select></div>
+      <div class="field"><label for="cf-tax">NIF o NIF-IVA</label><input id="cf-tax" name="taxId" autocomplete="off" placeholder="B00000018">${err.taxId ? `<span class="error-text">${err.taxId}</span>` : ''}</div>
+      <div class="field wide"><label for="cf-address">Domicilio</label><input id="cf-address" name="address" autocomplete="off"></div>
+    </div>
+    <p class="note" id="client-terms">${describeTerms('empresa', 'ES')}</p>
+    <div class="form-foot"><span class="muted small">Los NIF-IVA de la UE se comprueban en VIES (simulado en este prototipo).</span><button class="btn" type="submit">Guardar cliente</button></div>
+  </form>` : ''}
+
+  <div class="table-wrap section">
+    <table class="ledger">
+      <thead><tr><th>Cliente</th><th>NIF</th><th>País</th><th>Ámbito</th><th>VIES</th><th class="num">Facturado en ${YEAR}</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+function invoiceTable(list, withPayButton = false) {
+  if (!list.length) return `<div class="table-wrap"><p class="empty">No hay facturas con estos filtros.</p></div>`;
+  return `<div class="table-wrap"><table class="ledger">
+    <thead><tr><th>Número</th><th>Fecha</th><th>Cliente</th><th>Ámbito</th><th class="num">Base</th><th class="num">IVA</th><th class="num">Retención</th><th class="num">Total</th><th>Cobro</th></tr></thead>
+    <tbody>${list.map(i => `<tr class="clickable" data-action="open-invoice" data-id="${i.id}" tabindex="0" aria-label="Ver factura ${i.number}">
+      <td class="nowrap"><strong>${i.number}</strong></td>
+      <td class="nowrap">${fmtDate(i.date)}</td>
+      <td>${esc(clientName(i.clientId))}</td>
+      <td>${scopeBadge(i.scope)}</td>
+      <td class="num">${fmt(i.baseCents)}</td>
+      <td class="num">${i.vatRate ? fmt(i.vatCents) : '<span class="muted">Sin IVA</span>'}</td>
+      <td class="num">${i.irpfCents ? '−' + fmt(i.irpfCents) : '<span class="muted">—</span>'}</td>
+      <td class="num"><strong>${fmt(i.totalCents)}</strong></td>
+      <td>${withPayButton
+        ? `<button class="btn small ${i.paid ? 'quiet' : 'secondary'}" data-action="toggle-paid" data-id="${i.id}">${i.paid ? 'Cobrada' : 'Marcar cobrada'}</button>`
+        : (i.paid ? '<span class="badge st-ok">Cobrada</span>' : '<span class="badge st-doubt">Pendiente</span>')}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function renderFacturas() {
+  const f = state.invoiceFilter;
+  const err = state.formErrors;
+  const list = [...db.invoices]
+    .filter(i => f.scope === 'all' || i.scope === f.scope)
+    .filter(i => f.paid === 'all' || (f.paid === 'paid' ? i.paid : !i.paid))
+    .sort((a, b) => b.date.localeCompare(a.date) || b.number.localeCompare(a.number));
+  const clientOptions = [...db.clients].sort((a, b) => a.name.localeCompare(b.name, 'es')).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  const nextNumber = `${YEAR}-${String(db.invoices.filter(i => i.series === String(YEAR)).length + 1).padStart(3, '0')}`;
+
+  return `
+  <div class="page-head">
+    <div><h1>Facturas</h1><p class="lead">Una factura emitida no se edita ni se borra: si hay un error, se corrige con una factura rectificativa.</p></div>
+    <div class="actions"><button class="btn" data-action="toggle-invoice-form" aria-expanded="${state.invoiceFormOpen}">${state.invoiceFormOpen ? 'Cerrar formulario' : 'Nueva factura'}</button></div>
+  </div>
+
+  ${state.invoiceFormOpen ? `
+  <form class="panel" id="invoice-form" novalidate>
+    <h2>Nueva factura ${nextNumber}</h2>
+    <div class="form-grid">
+      <div class="field"><label for="if-client">Cliente</label><select id="if-client" name="clientId"><option value="">Elige un cliente</option>${clientOptions}</select>${err.clientId ? `<span class="error-text">${err.clientId}</span>` : ''}</div>
+      <div class="field"><label for="if-date">Fecha de expedición</label><input id="if-date" name="date" type="date" value="${TODAY_ISO}" max="${TODAY_ISO}">${err.date ? `<span class="error-text">${err.date}</span>` : ''}</div>
+      <div class="field wide"><label for="if-concept">Concepto</label><input id="if-concept" name="concept" autocomplete="off" placeholder="Diseño de identidad visual">${err.concept ? `<span class="error-text">${err.concept}</span>` : ''}</div>
+      <div class="field"><label for="if-base">Base imponible (€)</label><input id="if-base" name="base" class="amount" inputmode="decimal" placeholder="1.200,00">${err.base ? `<span class="error-text">${err.base}</span>` : ''}</div>
+      <div class="field"><label for="if-vat">Tipo de IVA</label><select id="if-vat" name="vatRate"><option value="21">21 %</option><option value="10">10 %</option><option value="4">4 %</option></select></div>
+    </div>
+    <div id="invoice-preview" class="section"></div>
+    <div class="form-foot"><span class="muted small">Al emitirla recibe el número ${nextNumber} y ya no se puede modificar.</span><button class="btn" type="submit">Emitir factura</button></div>
+  </form>` : ''}
+
+  <div class="filters section">
+    <div class="field"><label for="flt-scope">Ámbito</label><select id="flt-scope" data-filter="scope">
+      <option value="all" ${f.scope === 'all' ? 'selected' : ''}>Todos</option>
+      <option value="national" ${f.scope === 'national' ? 'selected' : ''}>Nacional</option>
+      <option value="eu" ${f.scope === 'eu' ? 'selected' : ''}>UE</option>
+      <option value="non_eu" ${f.scope === 'non_eu' ? 'selected' : ''}>Fuera de la UE</option></select></div>
+    <div class="field"><label for="flt-paid">Cobro</label><select id="flt-paid" data-filter="paid">
+      <option value="all" ${f.paid === 'all' ? 'selected' : ''}>Todas</option>
+      <option value="unpaid" ${f.paid === 'unpaid' ? 'selected' : ''}>Pendientes</option>
+      <option value="paid" ${f.paid === 'paid' ? 'selected' : ''}>Cobradas</option></select></div>
+  </div>
+  ${invoiceTable(list, true)}`;
+}
+
+function updateInvoicePreview() {
+  const form = document.getElementById('invoice-form');
+  if (!form) return;
+  const box = document.getElementById('invoice-preview');
+  const client = db.clients.find(c => c.id === form.clientId.value);
+  if (!client) { box.innerHTML = '<p class="note">Elige un cliente para ver qué impuestos y qué mención llevará la factura.</p>'; form.vatRate.disabled = false; return; }
+  const t = invoiceTerms(client);
+  form.vatRate.disabled = !t.vatEditable;
+  if (!t.vatEditable) form.vatRate.value = '21';
+  const base = parseCents(form.base.value) || 0;
+  const rate = t.vatEditable ? Number(form.vatRate.value) : 0;
+  const vat = pct(base, rate), irpf = pct(base, t.irpfRate);
+  box.innerHTML = `
+    <div class="table-wrap"><table class="ledger"><tbody>
+      <tr><td>Ámbito del cliente</td><td class="num">${scopeBadge(t.scope)}</td></tr>
+      <tr><td>Base imponible</td><td class="num">${fmt(base)}</td></tr>
+      <tr><td>IVA ${rate ? rate + ' %' : ''}</td><td class="num">${rate ? fmt(vat) : 'Sin IVA'}</td></tr>
+      <tr><td>Retención de IRPF ${t.irpfRate ? t.irpfRate + ' %' : ''}</td><td class="num">${t.irpfRate ? '−' + fmt(irpf) : 'No aplica'}</td></tr>
+    </tbody><tfoot><tr><td>Total a cobrar</td><td class="num">${fmt(base + vat - irpf)}</td></tr></tfoot></table></div>
+    ${t.legalNote ? `<p class="note">Mención que se añadirá a la factura: «${t.legalNote}»</p>` : ''}`;
+}
+
+function renderGastos() {
+  const err = state.formErrors;
+  const docs = db.documents;
+  const exps = [...db.expenses].sort((a, b) => b.date.localeCompare(a.date));
+  const sourceLabel = { pdf: 'PDF', foto: 'Foto', manual: 'Sin factura' };
+  const catOptions = sel => CATEGORIES.map(c => `<option ${c === sel ? 'selected' : ''}>${c}</option>`).join('');
+
+  const reviewCards = docs.map(d => {
+    if (d.status === 'processing') return `<article class="review processing" aria-busy="true"><div class="review-head"><h3><span class="pulse" aria-hidden="true"></span>Leyendo ${esc(d.fileName)}</h3><span class="muted small">La IA extrae los datos; tardará unos segundos.</span></div></article>`;
+    const f = d.form;
+    const fld = (key, label, attrs = '') => {
+      const doubt = d.doubtful.includes(key);
+      return `<div class="field ${doubt ? 'doubt' : ''}"><label for="${d.id}-${key}">${label}</label><input id="${d.id}-${key}" data-doc="${d.id}" data-key="${key}" value="${esc(f[key])}" ${attrs}>${doubt ? '<span class="flag">La IA no lo ha leído con claridad: compruébalo</span>' : ''}</div>`;
+    };
+    const checks = api.checks(d);
+    const allOk = checks.every(c => c.ok);
+    return `<article class="review" id="review-${d.id}">
+      <div class="review-head">
+        <h3>${esc(d.fileName)}</h3>
+        <span class="small muted">${d.docType}${d.doubtful.length ? ` · <span class="badge st-doubt">${d.doubtful.length} ${d.doubtful.length === 1 ? 'dato dudoso' : 'datos dudosos'}</span>` : ' · <span class="badge st-ok">Lectura completa</span>'}</span>
+      </div>
+      <div class="form-grid">
+        ${fld('issuer', 'Proveedor')}
+        ${fld('taxId', 'NIF del proveedor')}
+        ${fld('number', 'Número de factura')}
+        ${fld('date', 'Fecha', 'type="date"')}
+        ${fld('base', 'Base imponible (€)', 'class="amount" inputmode="decimal"')}
+        <div class="field"><label for="${d.id}-vatRate">Tipo de IVA</label><select id="${d.id}-vatRate" data-doc="${d.id}" data-key="vatRate">${['21', '10', '4', '0'].map(r => `<option value="${r}" ${r === f.vatRate ? 'selected' : ''}>${r} %</option>`).join('')}</select></div>
+        ${fld('vat', 'Cuota de IVA (€)', 'class="amount" inputmode="decimal"')}
+        ${fld('total', 'Total (€)', 'class="amount" inputmode="decimal"')}
+        <div class="field"><label for="${d.id}-category">Categoría sugerida</label><select id="${d.id}-category" data-doc="${d.id}" data-key="category">${catOptions(f.category)}</select></div>
+      </div>
+      <ul class="checks" id="checks-${d.id}">${checksHtml(checks)}</ul>
+      ${d.docType === 'Factura simplificada' ? '<p class="note">Es una factura simplificada: se registra el gasto, pero su IVA no es deducible salvo que incluya tu NIF.</p>' : ''}
+      <div class="form-foot">
+        <button class="btn quiet" data-action="discard-doc" data-id="${d.id}">Descartar</button>
+        <button class="btn" data-action="confirm-doc" data-id="${d.id}" id="confirm-${d.id}" ${allOk ? '' : 'disabled'}>Registrar gasto</button>
+      </div>
+    </article>`;
+  }).join('');
+
+  const totals = exps.filter(e => yearOf(e.date) === YEAR).reduce((s, e) => ({ base: s.base + e.baseCents, vat: s.vat + (e.deductibleVat ? e.vatCents : 0) }), { base: 0, vat: 0 });
+
+  return `
+  <div class="page-head">
+    <div><h1>Gastos</h1><p class="lead">Sube una factura de compra y la aplicación lee sus datos. Tú solo revisas lo dudoso antes de registrarla.</p></div>
+    <div class="actions"><button class="btn secondary" data-action="toggle-expense-form" aria-expanded="${state.expenseFormOpen}">${state.expenseFormOpen ? 'Cerrar formulario' : 'Añadir gasto sin factura'}</button></div>
+  </div>
+
+  <div class="dropzone" id="dropzone">
+    <div>
+      <h2>Sube una factura de compra</h2>
+      <p class="muted">Arrastra aquí un PDF o una foto (JPG, PNG o HEIC, hasta 10 MB).</p>
+    </div>
+    <div class="actions">
+      <label class="btn" for="file-input">Elegir archivo</label>
+      <input class="visually-hidden" id="file-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp,application/pdf,image/*" multiple>
+      <label class="btn secondary" for="camera-input">Hacer una foto</label>
+      <input class="visually-hidden" id="camera-input" type="file" accept="image/*" capture="environment">
+    </div>
+  </div>
+  <p class="muted small">En este prototipo la lectura está simulada: devuelve facturas de ejemplo, no el contenido de tu archivo.</p>
+
+  ${state.expenseFormOpen ? `
+  <form class="panel section" id="expense-form" novalidate>
+    <h2>Gasto sin factura</h2>
+    <p class="muted small">Para gastos que no llevan factura con IVA, como la cuota de autónomos o las comisiones del banco.</p>
+    <div class="form-grid">
+      <div class="field"><label for="ef-date">Fecha</label><input id="ef-date" name="date" type="date" value="${TODAY_ISO}" max="${TODAY_ISO}">${err.date ? `<span class="error-text">${err.date}</span>` : ''}</div>
+      <div class="field"><label for="ef-supplier">Concepto</label><input id="ef-supplier" name="supplier" autocomplete="off" placeholder="Cuota de autónomos">${err.supplier ? `<span class="error-text">${err.supplier}</span>` : ''}</div>
+      <div class="field"><label for="ef-category">Categoría</label><select id="ef-category" name="category">${catOptions('Cuota de autónomos')}</select></div>
+      <div class="field"><label for="ef-amount">Importe (€)</label><input id="ef-amount" name="amount" class="amount" inputmode="decimal" placeholder="200,00">${err.amount ? `<span class="error-text">${err.amount}</span>` : ''}</div>
+    </div>
+    <div class="form-foot"><span></span><button class="btn" type="submit">Guardar gasto</button></div>
+  </form>` : ''}
+
+  <section class="section">
+    <h2>Por revisar</h2>
+    ${reviewCards || '<div class="table-wrap"><p class="empty">No hay facturas pendientes de revisión. Las que subas aparecerán aquí.</p></div>'}
+  </section>
+
+  <section class="section">
+    <div class="page-head"><h2>Gastos registrados en ${YEAR}</h2><span class="muted small">Base ${fmt(totals.base)}, IVA deducible ${fmt(totals.vat)}</span></div>
+    <div class="table-wrap"><table class="ledger">
+      <thead><tr><th>Fecha</th><th>Proveedor</th><th>Categoría</th><th class="num">Base</th><th class="num">IVA</th><th class="num">Total</th><th>Origen</th></tr></thead>
+      <tbody>${exps.map(e => `<tr>
+        <td class="nowrap">${fmtDate(e.date)}</td>
+        <td><strong>${esc(e.supplier)}</strong>${e.number ? `<div class="muted small">${esc(e.number)}</div>` : ''}</td>
+        <td>${esc(e.category)}</td>
+        <td class="num">${fmt(e.baseCents)}</td>
+        <td class="num">${e.vatCents ? fmt(e.vatCents) + (e.deductibleVat ? '' : '<div class="muted small">No deducible</div>') : '<span class="muted">—</span>'}</td>
+        <td class="num"><strong>${fmt(e.totalCents)}</strong></td>
+        <td><span class="badge st-neutral">${sourceLabel[e.source]}</span></td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </section>`;
+}
+function checksHtml(checks) {
+  return checks.map(c => `<li><span class="${c.ok ? 'ok' : 'ko'}" aria-hidden="true">${c.ok ? '✓' : '✗'}</span><span>${c.label}${c.ok ? '' : ': <strong>revisar</strong>'}</span></li>`).join('');
+}
+
+function renderMensual() {
+  const rows = api.monthly();
+  const sel = rows.find(r => r.month === state.selectedMonth) || rows[rows.length - 1];
+  const sum = k => rows.reduce((s, r) => s + r[k], 0);
+  const clientRows = Object.entries(sel.byClient).sort((a, b) => b[1] - a[1]);
+
+  return `
+  <div class="page-head">
+    <div><h1>Contabilidad mensual</h1><p class="lead">Cada mes se cierra solo el día 1 del siguiente. Los importes de ingresos son bases imponibles, sin IVA.</p></div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="ledger">
+      <thead><tr><th>Mes</th><th>Estado</th><th class="num">Facturas</th><th class="num">Nacional</th><th class="num">UE</th><th class="num">Fuera de la UE</th><th class="num">Total del mes</th><th class="num">Gastos</th><th class="num">Acumulado del año</th></tr></thead>
+      <tbody>${rows.map(r => `<tr class="clickable ${r.month === sel.month ? 'selected' : ''}" data-action="select-month" data-month="${r.month}" tabindex="0" aria-label="Ver detalle de ${MONTHS[r.month - 1]}">
+        <td><strong>${MONTHS[r.month - 1][0].toUpperCase() + MONTHS[r.month - 1].slice(1)}</strong></td>
+        <td>${r.closed ? '<span class="badge st-ok">Cerrado</span>' : '<span class="badge st-neutral">En curso</span>'}</td>
+        <td class="num">${r.count}</td>
+        <td class="num">${fmt(r.national)}</td>
+        <td class="num">${fmt(r.eu)}</td>
+        <td class="num">${fmt(r.non_eu)}</td>
+        <td class="num"><strong>${fmt(r.total)}</strong></td>
+        <td class="num">${fmt(r.expenses)}</td>
+        <td class="num">${fmt(r.ytd)}</td>
+      </tr>`).join('')}</tbody>
+      <tfoot><tr><td>Total ${YEAR}</td><td></td><td class="num">${sum('count')}</td><td class="num">${fmt(sum('national'))}</td><td class="num">${fmt(sum('eu'))}</td><td class="num">${fmt(sum('non_eu'))}</td><td class="num">${fmt(sum('total'))}</td><td class="num">${fmt(sum('expenses'))}</td><td></td></tr></tfoot>
+    </table>
+  </div>
+
+  <div class="grid-2 section">
+    <section class="panel">
+      <h2>Ingresos por cliente en ${MONTHS[sel.month - 1]}</h2>
+      ${clientRows.length ? `<table class="ledger"><tbody>${clientRows.map(([id, v]) => {
+        const c = db.clients.find(x => x.id === id);
+        return `<tr><td>${esc(c.name)}</td><td>${scopeBadge(scopeOf(c.country))}</td><td class="num">${fmt(v)}</td></tr>`;
+      }).join('')}</tbody><tfoot><tr><td>Total</td><td></td><td class="num">${fmt(sel.total)}</td></tr></tfoot></table>` : '<p class="muted">No hay facturas emitidas este mes.</p>'}
+    </section>
+    <section class="panel">
+      <h2>Resultado de ${MONTHS[sel.month - 1]}</h2>
+      <table class="ledger"><tbody>
+        <tr><td>Ingresos</td><td class="num">${fmt(sel.total)}</td></tr>
+        <tr><td>Gastos deducibles</td><td class="num">−${fmt(sel.expenses)}</td></tr>
+      </tbody><tfoot><tr><td>Rendimiento del mes</td><td class="num">${fmt(sel.total - sel.expenses)}</td></tr></tfoot></table>
+      <p class="muted small">${sel.closed ? `Cerrado automáticamente el 1 de ${MONTHS[sel.month % 12]}. Si llega una factura atrasada, el mes se reabre y se vuelve a cerrar.` : `Este mes se cerrará el 1 de ${MONTHS[sel.month % 12]}.`}</p>
+    </section>
+  </div>`;
+}
+
+function boxRow(num, label, amount, opts = {}) {
+  const n = opts.list ? opts.list.length : 0;
+  const noun = n === 1 ? (opts.listOne || 'la factura') : `las ${n} ${opts.listNoun || 'facturas'}`;
+  const list = n ? `<details><summary>Ver ${noun}</summary><ul>${opts.list.map(opts.item).join('')}</ul></details>` : '';
+  return `<div class="box-row ${opts.result ? 'result' : ''}"><span class="box-num">${num}</span><span>${label}</span><span class="box-amount">${fmt(amount)}</span>${list}</div>`;
+}
+const invItem = i => `<li>${i.number}, ${esc(clientName(i.clientId))}: ${fmt(i.baseCents)}</li>`;
+const expItem = e => `<li>${esc(e.supplier)} (${fmtDate(e.date)}): IVA ${fmt(e.vatCents)}</li>`;
+
+function renderTrimestres() {
+  const q = state.quarter;
+  const d = api.quarter(q);
+  const m = d.m303, h = d.m130;
+  let status;
+  if (q === CUR_QUARTER) status = `<span class="badge st-neutral">Trimestre en curso</span> Se presenta del 1 al ${q === 4 ? '30' : '20'} de ${q === 4 ? 'enero' : MONTHS[3 * q]}.`;
+  else if (TODAY_ISO <= d.deadline) status = `<span class="badge st-doubt">Plazo abierto</span> Presenta antes del ${fmtLongDate(d.deadline)}.`;
+  else status = `<span class="badge st-ok">Plazo cerrado</span> El plazo terminó el ${fmtLongDate(d.deadline)}.`;
+
+  const verdict303 = m.c46 > 0 ? `Resultado: <span class="verdict">${fmt(m.c46)} a ingresar</span>` : (m.c46 < 0 ? `Resultado: <span class="verdict">${fmt(-m.c46)} a compensar</span> en próximos trimestres` : 'Resultado: <span class="verdict">sin actividad</span>');
+  const verdict130 = h.c07 > 0 ? `Resultado: <span class="verdict">${fmt(h.c07)} a ingresar</span>` : 'Resultado: <span class="verdict">nada que ingresar</span> este trimestre';
+
+  return `
+  <div class="page-head">
+    <div><h1>Trimestres</h1><p class="lead">Borradores de los modelos con lo registrado. Cada casilla enlaza a las facturas que la componen.</p></div>
+    <div class="tabs" role="group" aria-label="Trimestre">
+      ${[1, 2, 3, 4].map(k => `<button data-action="select-quarter" data-q="${k}" aria-pressed="${k === q}" ${k > CUR_QUARTER ? 'disabled' : ''}>T${k}</button>`).join('')}
+    </div>
+  </div>
+  <p>${status}</p>
+
+  <div class="grid-2">
+    <section class="tax-form" aria-labelledby="h303">
+      <div class="tax-form-head"><h2 id="h303">IVA, autoliquidación<br><span class="small">T${q} de ${YEAR}</span></h2><span class="model">303</span></div>
+      <div class="tax-group">
+        <h3>IVA devengado</h3>
+        ${m.byRate[4].b ? boxRow('01', 'Base imponible al 4 %', m.byRate[4].b) + boxRow('03', 'Cuota al 4 %', m.byRate[4].c) : ''}
+        ${m.byRate[10].b ? boxRow('04', 'Base imponible al 10 %', m.byRate[10].b) + boxRow('06', 'Cuota al 10 %', m.byRate[10].c) : ''}
+        ${boxRow('07', 'Base imponible al 21 %', m.byRate[21].b, { list: m.byRate[21].list, item: invItem })}
+        ${boxRow('09', 'Cuota al 21 %', m.byRate[21].c)}
+        ${boxRow('27', 'Total cuota devengada', m.c27)}
+      </div>
+      <div class="tax-group">
+        <h3>IVA deducible</h3>
+        ${boxRow('28', 'Base de operaciones interiores corrientes', m.c28, { list: m.dedList, item: expItem, listNoun: 'gastos', listOne: 'el gasto' })}
+        ${boxRow('29', 'Cuota deducible', m.c29)}
+        ${boxRow('45', 'Total a deducir', m.c45)}
+      </div>
+      <div class="tax-group">
+        <h3>Resultado</h3>
+        ${boxRow('46', 'Régimen general (27 − 45)', m.c46, { result: true })}
+      </div>
+      <div class="tax-group">
+        <h3>Información adicional</h3>
+        ${boxRow('59', 'Servicios a empresas de la UE', m.c59, { list: m.euList, item: invItem })}
+        ${boxRow('120', 'Operaciones no sujetas por reglas de localización', m.c120, { list: m.nonEuList, item: invItem })}
+      </div>
+      <div class="tax-foot">${verdict303}${m.c59 ? '. Las ventas a la UE también van en el modelo 349.' : '.'}</div>
+    </section>
+
+    <section class="tax-form" aria-labelledby="h130">
+      <div class="tax-form-head"><h2 id="h130">IRPF, pago fraccionado<br><span class="small">T${q} de ${YEAR}, importes acumulados desde enero</span></h2><span class="model">130</span></div>
+      <div class="tax-group">
+        <h3>Actividades económicas en estimación directa</h3>
+        ${boxRow('01', 'Ingresos computables', h.c01)}
+        ${boxRow('02', 'Gastos fiscalmente deducibles', h.c02)}
+        ${boxRow('03', 'Rendimiento neto (01 − 02)', h.c03)}
+        ${boxRow('04', '20 % del rendimiento neto', h.c04)}
+        ${boxRow('05', 'Pagos fraccionados de trimestres anteriores', h.c05)}
+        ${boxRow('06', 'Retenciones soportadas', h.c06)}
+      </div>
+      <div class="tax-group">
+        <h3>Resultado</h3>
+        ${boxRow('07', 'Pago fraccionado (04 − 05 − 06)', h.c07, { result: true })}
+      </div>
+      <div class="tax-foot">${verdict130}.<br><span class="muted small">El ${h.withheldShare} % de tus ingresos de este año lleva retención. Si en el año anterior superaste el 70 %, no estás obligada a presentar el 130.</span></div>
+    </section>
+  </div>
+
+  <p class="note section">Borrador orientativo calculado con tus registros. No incluye el 5 % de gastos de difícil justificación, la minoración de la casilla 13 ni compensaciones de periodos anteriores, y no se presenta ante la AEAT desde la aplicación.</p>
+  <div class="actions"><button class="btn secondary" disabled title="Próximamente">Exportar libros registro (XLSX)</button><span class="muted small">Disponible en una próxima versión.</span></div>`;
+}
+
+/* =====================================================================
+   Navegación y eventos
+   ===================================================================== */
+const routes = { inicio: renderInicio, clientes: renderClientes, facturas: renderFacturas, gastos: renderGastos, mensual: renderMensual, trimestres: renderTrimestres };
+const $main = document.getElementById('main');
+
+function render() {
+  const r = location.hash.slice(1);
+  state.route = routes[r] ? r : 'inicio';
+  $main.innerHTML = routes[state.route]();
+  document.querySelectorAll('.nav a').forEach(a => {
+    if (a.dataset.route === state.route) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+  updateInvoicePreview();
+  updateNavCount();
+  bindDropzone();
+}
+function updateNavCount() {
+  const n = db.documents.filter(d => d.status === 'review').length;
+  const el = document.getElementById('nav-review-count');
+  el.hidden = !n; el.textContent = n; el.setAttribute('aria-label', `${n} por revisar`);
+}
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+function openInvoice(id) {
+  const i = db.invoices.find(x => x.id === id);
+  const c = db.clients.find(x => x.id === i.clientId);
+  const p = db.profile;
+  const dlg = document.getElementById('invoice-dialog');
+  dlg.innerHTML = `
+    <div class="invoice-paper">
+      <div class="invoice-top">
+        <div><h2 id="invoice-dialog-title">Factura ${i.number}</h2><p class="muted">Fecha de expedición: ${fmtLongDate(i.date)}</p></div>
+        <div class="qr-box">QR VeriFactu simulado, no remitido a la AEAT</div>
+      </div>
+      <div class="parties">
+        <div><h3>Emisora</h3>${esc(p.name)}<br>NIF ${esc(p.taxId)}<br>${esc(p.address)}</div>
+        <div><h3>Cliente</h3>${esc(c.name)}<br>${c.taxId ? `${scopeOf(c.country) === 'eu' ? 'NIF-IVA' : 'NIF'} ${esc(c.taxId)}<br>` : ''}${esc(c.address || '')}${c.address ? '<br>' : ''}${esc(COUNTRIES[c.country] || c.country)}</div>
+      </div>
+      <div class="table-wrap"><table class="ledger">
+        <thead><tr><th>Concepto</th><th class="num">Importe</th></tr></thead>
+        <tbody>
+          <tr><td>${esc(i.concept)}</td><td class="num">${fmt(i.baseCents)}</td></tr>
+        </tbody>
+        <tfoot>
+          <tr><td>Base imponible</td><td class="num">${fmt(i.baseCents)}</td></tr>
+          <tr><td>IVA${i.vatRate ? ' ' + i.vatRate + ' %' : ''}</td><td class="num">${i.vatRate ? fmt(i.vatCents) : 'Sin IVA'}</td></tr>
+          ${i.irpfCents ? `<tr><td>Retención IRPF ${i.irpfRate} %</td><td class="num">−${fmt(i.irpfCents)}</td></tr>` : ''}
+          <tr><td>Total</td><td class="num">${fmt(i.totalCents)}</td></tr>
+        </tfoot>
+      </table></div>
+      ${i.legalNote ? `<p class="note section">${i.legalNote}</p>` : ''}
+    </div>
+    <div class="invoice-dialog-foot">
+      <span class="small muted">Emitida y bloqueada. Para corregirla, emite una rectificativa.</span>
+      <div class="actions">
+        <button class="btn quiet" disabled title="Próximamente">Emitir rectificativa</button>
+        <button class="btn" data-action="close-dialog">Cerrar</button>
+      </div>
+    </div>`;
+  dlg.showModal();
+}
+
+const actions = {
+  'toggle-client-form': () => { state.clientFormOpen = !state.clientFormOpen; state.formErrors = {}; render(); },
+  'toggle-invoice-form': () => { state.invoiceFormOpen = !state.invoiceFormOpen; state.formErrors = {}; render(); },
+  'toggle-expense-form': () => { state.expenseFormOpen = !state.expenseFormOpen; state.formErrors = {}; render(); },
+  'open-invoice': el => openInvoice(el.dataset.id),
+  'toggle-paid': el => { const i = db.invoices.find(x => x.id === el.dataset.id); api.setPaid(i.id, !i.paid); toast(i.paid ? `Factura ${i.number} marcada como cobrada` : `Factura ${i.number} marcada como pendiente`); render(); },
+  'close-dialog': () => document.getElementById('invoice-dialog').close(),
+  'confirm-doc': el => { if (api.confirmDocument(el.dataset.id)) { toast('Gasto registrado'); render(); } },
+  'discard-doc': el => { api.discardDocument(el.dataset.id); toast('Factura descartada'); render(); },
+  'select-month': el => { state.selectedMonth = Number(el.dataset.month); render(); },
+  'select-quarter': el => { state.quarter = Number(el.dataset.q); render(); }
+};
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-action]');
+  if (!el) return;
+  if (el.dataset.action === 'open-invoice' && e.target.closest('button')) return;
+  e.preventDefault();
+  actions[el.dataset.action](el, e);
+});
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('tr[data-action]')) { e.preventDefault(); actions[e.target.dataset.action](e.target, e); }
+});
+
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.closest('#invoice-form')) updateInvoicePreview();
+  if (t.closest('#client-form')) {
+    const f = document.getElementById('client-form');
+    document.getElementById('client-terms').textContent = describeTerms(f.kind.value, f.country.value);
+  }
+  if (t.dataset.doc) {
+    const doc = db.documents.find(d => d.id === t.dataset.doc);
+    doc.form[t.dataset.key] = t.value;
+    const field = t.closest('.field');
+    if (field && field.classList.contains('doubt')) { field.classList.remove('doubt'); const flag = field.querySelector('.flag'); if (flag) flag.remove(); doc.doubtful = doc.doubtful.filter(k => k !== t.dataset.key); }
+    const checks = api.checks(doc);
+    document.getElementById(`checks-${doc.id}`).innerHTML = checksHtml(checks);
+    document.getElementById(`confirm-${doc.id}`).disabled = !checks.every(c => c.ok);
+  }
+});
+
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.filter) { state.invoiceFilter[t.dataset.filter] = t.value; render(); return; }
+  if (t.id === 'file-input' || t.id === 'camera-input') { handleFiles(t.files); t.value = ''; return; }
+  if (t.closest('#invoice-form') || t.closest('#client-form') || t.dataset.doc) t.dispatchEvent(new Event('input', { bubbles: true }));
+});
+
+document.addEventListener('submit', e => {
+  e.preventDefault();
+  const f = e.target;
+  if (f.id === 'client-form') {
+    const res = api.createClient({ name: f.name.value, kind: f.kind.value, country: f.country.value, taxId: f.taxId.value, address: f.address.value });
+    if (res.errors) { state.formErrors = res.errors; keepValues(f, render); return; }
+    state.clientFormOpen = false; state.formErrors = {};
+    toast(`Cliente ${res.client.name} guardado`); render();
+  }
+  if (f.id === 'invoice-form') {
+    const res = api.issueInvoice({ clientId: f.clientId.value, date: f.date.value, concept: f.concept.value, baseCents: parseCents(f.base.value), vatRate: f.vatRate.value });
+    if (res.errors) { state.formErrors = res.errors; keepValues(f, render); return; }
+    state.invoiceFormOpen = false; state.formErrors = {};
+    toast(`Factura ${res.invoice.number} emitida`); render(); openInvoice(res.invoice.id);
+  }
+  if (f.id === 'expense-form') {
+    const res = api.createExpense({ date: f.date.value, supplier: f.supplier.value, category: f.category.value, amount: parseCents(f.amount.value) });
+    if (res.errors) { state.formErrors = res.errors; keepValues(f, render); return; }
+    state.expenseFormOpen = false; state.formErrors = {};
+    toast('Gasto guardado'); render();
+  }
+});
+
+/* Re-render keeping what the person typed, so errors appear next to their input */
+function keepValues(form, rerender) {
+  const values = {};
+  [...form.elements].forEach(el => { if (el.name) values[el.name] = el.value; });
+  rerender();
+  const again = document.getElementById(form.id);
+  Object.entries(values).forEach(([k, v]) => { if (again.elements[k]) again.elements[k].value = v; });
+  again.dispatchEvent(new Event('input', { bubbles: true }));
+  const firstError = again.querySelector('.error-text');
+  if (firstError) firstError.previousElementSibling?.focus();
+}
+
+function handleFiles(files) {
+  const ok = /\.(pdf|jpe?g|png|heic|webp)$/i;
+  let added = 0;
+  [...files].forEach(file => {
+    if (!ok.test(file.name)) { toast(`Formato no admitido en ${file.name}: usa PDF, JPG, PNG o HEIC.`); return; }
+    if (file.size > 10 * 1024 * 1024) { toast(`${file.name} pesa más de 10 MB.`); return; }
+    api.uploadDocument(file); added++;
+  });
+  if (added) { if (state.route !== 'gastos') location.hash = '#gastos'; else render(); }
+}
+function bindDropzone() {
+  const z = document.getElementById('dropzone');
+  if (!z) return;
+  ['dragenter', 'dragover'].forEach(ev => z.addEventListener(ev, e => { e.preventDefault(); z.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => z.addEventListener(ev, e => { e.preventDefault(); z.classList.remove('over'); }));
+  z.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
+}
+
+window.addEventListener('hashchange', () => { state.formErrors = {}; render(); $main.focus(); window.scrollTo(0, 0); });
+
+/* Arranque */
+seed();
+document.getElementById('profile-name').textContent = db.profile.name;
+document.getElementById('profile-meta').textContent = `${db.profile.activity}, retención del ${db.profile.irpfRate} %`;
+render();
+</script>
+</body>
+</html>

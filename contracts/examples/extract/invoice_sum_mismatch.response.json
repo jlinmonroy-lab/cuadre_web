@@ -1,0 +1,23 @@
+{
+  "extraction": {
+    "doc_type": "full_invoice",
+    "supplier_name": "Imprenta Sol S.L.",
+    "supplier_tax_id": "B00000075",
+    "recipient_tax_id": "12345678Z",
+    "invoice_number": "A-318",
+    "issue_date": "2026-11-02",
+    "currency": "EUR",
+    "tax_breakdown": [
+      { "vat_rate": "21", "base": "120.00", "vat_amount": "25.20" }
+    ],
+    "withholding": null,
+    "total": "147.00",
+    "doubtful_fields": [
+      { "field": "total", "line_index": null, "reason": "inconsistent", "raw_text": "147,00" }
+    ],
+    "injection_suspected": false,
+    "warnings": ["El total impreso no coincide con base más IVA."]
+  },
+  "usage": { "input_tokens": 1990, "output_tokens": 228, "cost_eur": "0.003400" },
+  "trace_id": "trc_synthetic_0003"
+}

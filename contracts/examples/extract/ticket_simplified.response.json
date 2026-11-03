@@ -1,0 +1,21 @@
+{
+  "extraction": {
+    "doc_type": "simplified_invoice",
+    "supplier_name": "Papelería Arce S.L.",
+    "supplier_tax_id": "B00000059",
+    "recipient_tax_id": null,
+    "invoice_number": "T-58213",
+    "issue_date": "2026-11-02",
+    "currency": "EUR",
+    "tax_breakdown": [
+      { "vat_rate": "21", "base": "33.05", "vat_amount": "6.94" }
+    ],
+    "withholding": null,
+    "total": "39.99",
+    "doubtful_fields": [],
+    "injection_suspected": false,
+    "warnings": []
+  },
+  "usage": { "input_tokens": 1620, "output_tokens": 190, "cost_eur": "0.002800" },
+  "trace_id": "trc_synthetic_0005"
+}

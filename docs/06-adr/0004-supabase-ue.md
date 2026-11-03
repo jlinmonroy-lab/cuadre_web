@@ -25,7 +25,9 @@ gestionados de Supabase evitan construir autenticación, permisos y almacenamien
   lee con URL firmada de corta duración (≈120 s) que emite el backend con el token del usuario.
 - **Esquema `private`** para funciones auxiliares (`private.app_role()`, `private.gestor_has_access(...)`, ...),
   sin permisos para `anon` ni `authenticated` salvo `EXECUTE` en las funciones que lo necesitan.
-- **Extensiones:** `citext` para correos.
+- **Correos como `text` en minúsculas con `CHECK`, no `citext`:** con `search_path = ''` (obligatorio en las funciones
+  `SECURITY DEFINER`) el operador `=` de `citext` no se resuelve y PostgreSQL compara como `text`, sin avisar y sensible a
+  mayúsculas. Se normaliza a minúsculas en la entrada.
 
 ## Alternativas descartadas
 

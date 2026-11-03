@@ -71,7 +71,7 @@ El valor entregable es la **confianza demostrada** en el aislamiento. La interfa
 - `supabase/` con `config.toml` y migraciones (§5.2).
 
 ### 3.2 Base de datos (migraciones SQL en `supabase/migrations/`)
-- Tipos enumerados, extensión `citext`, esquemas `private` y `app`.
+- Tipos enumerados, esquemas `private` y `app`.
 - Tablas `profiles`, `business_profiles`, `gestor_access` y `activity_log` con RLS activada y forzada.
 - Funciones auxiliares de las políticas (`private.*`) y funciones de negocio invocables por el backend (`app.*`):
   aceptar, rechazar y revocar un acceso de gestor; cambiar rol y estado de una cuenta.
@@ -171,7 +171,6 @@ Todo en migraciones; el nombre sigue `YYYYMMDDHHMMSS_descripcion.sql`; sin migra
 #### 5.2.1 Tipos y esquemas
 
 ```
-CREATE EXTENSION IF NOT EXISTS citext;
 CREATE SCHEMA private;  -- auxiliares de políticas; sin acceso de lectura directa
 CREATE SCHEMA app;      -- funciones que invoca el backend
 
@@ -181,12 +180,17 @@ CREATE TYPE gestor_access_status  AS ENUM ('pending', 'active', 'revoked', 'decl
 CREATE TYPE activity_category     AS ENUM ('access', 'account', 'data');
 ```
 
+**Correos: `text` en minúsculas con `CHECK (email = lower(email))`, no `citext`.** Las funciones `SECURITY DEFINER` fijan
+`search_path = ''` (ADR-0005) y, sin el esquema de la extensión en la ruta, el operador `=` de `citext` no se resuelve: PostgreSQL cae en
+silencio a `text = text`, que distingue mayúsculas. Normalizar a minúsculas en la entrada (el trigger de alta lo hace; el backend lo hará
+al invitar) evita esa trampa sin depender de la ruta de búsqueda.
+
 #### 5.2.2 Tablas
 
 ```
 profiles
   id           uuid PK  REFERENCES auth.users(id) ON DELETE CASCADE
-  email        citext   NOT NULL UNIQUE
+  email        text     NOT NULL UNIQUE CHECK (email = lower(email))
   display_name text     NOT NULL DEFAULT ''
   role         user_role       NOT NULL DEFAULT 'usuario'
   status       account_status  NOT NULL DEFAULT 'active'
@@ -205,7 +209,7 @@ business_profiles                                   -- tabla «canario» financi
 gestor_access
   id            uuid PK DEFAULT gen_random_uuid()
   owner_id      uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE
-  gestor_email  citext NOT NULL
+  gestor_email  text NOT NULL CHECK (gestor_email = lower(gestor_email))
   gestor_id     uuid REFERENCES profiles(id) ON DELETE SET NULL
   status        gestor_access_status NOT NULL DEFAULT 'pending'
   invited_at    timestamptz NOT NULL DEFAULT now()
@@ -240,7 +244,7 @@ Todas `SECURITY DEFINER`, `STABLE` (salvo `log_activity`), con `SET search_path 
 | `private.is_admin()` | `app_role() = 'admin'` |
 | `private.app_email()` | correo del `auth.uid()` |
 | `private.gestor_has_access(p_owner uuid)` | `true` si `app_role() = 'gestor'` **y** existe un `gestor_access` con `owner_id = p_owner`, `gestor_id = auth.uid()` y `status = 'active'`. Se evalúa en cada consulta |
-| `private.log_activity(p_category, p_actor_id, p_actor_role, p_owner_id, p_action, p_entity_type, p_entity_id, p_metadata)` | inserta en `activity_log` |
+| `private.log_activity(p_category, p_actor_id, p_actor_role, p_owner_id, p_action, p_entity_type, p_entity_id, p_metadata)` | inserta en `activity_log`. **`EXECUTE` solo para `service_role`** (y para el dueño de las funciones `app.*`, que la invocan): si `authenticated` pudiera ejecutarla, cualquiera falsificaría entradas del registro |
 
 #### 5.2.4 Políticas RLS (normativas)
 
@@ -257,7 +261,7 @@ Todas `SECURITY DEFINER`, `STABLE` (salvo `log_activity`), con `SET search_path 
 | `gestor_access` | SELECT | las suyas (`owner_id = auth.uid()`) | siempre que `private.app_role() = 'gestor'`: las suyas (`gestor_id = auth.uid()`) y las dirigidas a su correo (`gestor_email = private.app_email()`) | **ninguna** |
 | `gestor_access` | INSERT | `owner_id = auth.uid()`, `status = 'pending'`, `gestor_id IS NULL`, `expires_at` por defecto, y el correo no es el suyo | denegado | denegado |
 | `gestor_access` | UPDATE / DELETE | denegado (solo `app.revoke_gestor_access`) | denegado (solo `app.accept_…` y `app.decline_…`) | denegado |
-| `activity_log` | SELECT | filas con `owner_id = auth.uid()` | filas con `actor_id = auth.uid()` | filas con `category = 'account'` |
+| `activity_log` | SELECT | filas con `owner_id = auth.uid()` | filas con `actor_id = auth.uid()` (esta política no depende del rol) | filas con `category = 'account'` |
 | `activity_log` | INSERT / UPDATE / DELETE | denegado | denegado | denegado (solo `private.log_activity`) |
 
 `anon` no tiene ninguna política: no ve ni escribe nada.
@@ -294,7 +298,8 @@ Cada función es `SECURITY DEFINER` con `search_path = ''`, verifica quién llam
 | `app.admin_set_status(p_target uuid, p_status account_status)` | `admin` | Igual para el estado. No sobre sí mismo. Registra `account.status_changed` |
 
 Códigos de error de negocio: `gestor_access_not_found`, `gestor_access_not_pending`, `gestor_access_expired`,
-`not_the_owner`, `cannot_modify_self`, `target_not_found`.
+`gestor_access_not_open` (revocar un vínculo que ya está revocado o rechazado), `not_the_owner`, `cannot_modify_self`,
+`target_not_found`. Quien no es parte de un vínculo recibe `gestor_access_not_found`, igual que si no existiera: no se revela su existencia.
 
 Al cambiar un usuario de `gestor` a otro rol, sus vínculos dejan de dar acceso **en la petición siguiente** porque
 `private.gestor_has_access` exige `app_role() = 'gestor'`; no hace falta tocar `gestor_access`.
@@ -313,7 +318,8 @@ Al cambiar un usuario de `gestor` a otro rol, sus vínculos dejan de dar acceso 
 
 - `cuadre_app`: `LOGIN NOBYPASSRLS` con `GRANT authenticated, anon TO cuadre_app WITH INHERIT FALSE, SET TRUE` (PostgreSQL 17:
   puede hacer `SET ROLE` pero no hereda sus privilegios). Sin privilegios propios sobre tablas.
-- `cuadre_jobs`: `LOGIN` con `GRANT service_role TO cuadre_jobs WITH INHERIT TRUE, SET TRUE`. Solo `cuadre.jobs` y `cuadre.cli`.
+- `cuadre_jobs`: `LOGIN NOBYPASSRLS` con `GRANT service_role TO cuadre_jobs WITH INHERIT FALSE, SET TRUE`. Tampoco tiene privilegios propios:
+  `cuadre.db.service_transaction` hace `SET LOCAL ROLE service_role`. Solo `cuadre.jobs` y `cuadre.cli`.
 - Las contraseñas **no** están en las migraciones: en local las fija `supabase/seed.sql` con un valor de desarrollo; en cualquier
   otro entorno, la plataforma.
 - `supabase/seed.sql` crea cinco usuarios sintéticos con identidad de correo (pueden iniciar sesión), contraseña de desarrollo
@@ -527,7 +533,7 @@ Feature: Base, autenticación con tres roles y RLS (SPEC-W-001)
     When consulta profiles
     Then ve todas las cuentas con id, correo, rol, estado y fecha de alta
     When consulta business_profiles y gestor_access
-    Then ve 0 filas
+    Then no ve ninguna fila de otra cuenta (solo, en su caso, su propia ficha de negocio vacía, que crea el alta de toda cuenta)
     When consulta activity_log
     Then solo ve filas con category "account"
     When ejecuta app.admin_set_role sobre Beto para convertirlo en "gestor"
@@ -626,9 +632,9 @@ secuencia anterior para dar la spec por hecha.
 | AC-05 | `backend/tests/api/test_auth.py::test_invalid_tokens`, `::test_suspended_account` |
 | AC-06 | `backend/tests/rls/test_rls_roles.py::test_no_privilege_escalation` |
 | AC-07 | `backend/tests/rls/test_rls_roles.py` (parametrizada con `rls_matrix.yaml`) |
-| AC-08 | `backend/tests/rls/test_gestor_access.py::test_active_link` |
-| AC-09 | `backend/tests/rls/test_gestor_access.py::test_lifecycle`, `::test_role_change_cuts_access` |
-| AC-10 | `backend/tests/rls/test_gestor_access.py::test_gestor_cannot_write` |
+| AC-08 | `backend/tests/rls/test_gestor_access.py::test_an_active_link_reads_only_the_client` |
+| AC-09 | `backend/tests/rls/test_gestor_access.py::test_the_full_lifecycle_and_its_audit_trail`, `::test_changing_the_gestor_role_cuts_access_immediately`, `::test_only_the_addressed_gestor_can_accept` |
+| AC-10 | `backend/tests/rls/test_gestor_access.py::test_a_gestor_cannot_write_in_the_users_tables`; `test_rls_roles.py::test_nobody_else_can_write_alicias_rows` |
 | AC-11 | `backend/tests/rls/test_admin.py` |
 | AC-12 | `backend/tests/rls/test_activity_log.py` |
 | AC-13 | `backend/tests/rls/test_rls_guard.py` |
@@ -676,10 +682,16 @@ Resueltas en el hito 0 (spike del 2026-11-03, CLI 3.0.0, PostgreSQL 17.11, GoTru
   `FORCE ROW LEVEL SECURITY` sin políticas. Comprobado.
 - **Triggers sobre `auth.users`:** `postgres` puede crearlos aunque el dueño de la tabla sea `supabase_auth_admin`.
 - **Privilegios por defecto:** ver §5.2.4, «Privilegios de tabla»: `Dxtm` para `anon`/`authenticated`/`service_role` hay que revocarlo.
-- **Pooler local:** Supavisor en el puerto 54329 con usuarios `<rol>.pooler-dev` (p. ej. `postgres.pooler-dev`); `SET LOCAL ROLE` y las
-  claims funcionan a través de él con `prepare_threshold=None`.
+- **Pooler local:** Supavisor en el puerto 54329 con usuarios `<rol>.pooler-dev`. Comprobado en el hito 1 con el propio `cuadre_app`
+  (`cuadre_app.pooler-dev`): `SET LOCAL ROLE`, las claims y la RLS funcionan a través de él con `prepare_threshold=None`
+  (`test_the_identity_survives_a_transaction_pooler`, marcador `pooler`).
 - **Seed de usuarios:** `auth.users` solo exige `id` sin valor por defecto; las columnas de token (`confirmation_token`, `recovery_token`,
   `email_change_token_new`, `email_change`, `phone_change`, `phone_change_token`, `email_change_token_current`, `reauthentication_token`)
-  se siembran con `''`. Falta comprobar que el inicio de sesión funciona con el seed (hito 1).
+  se siembran con `''`. Comprobado en el hito 1: los cinco usuarios del seed inician sesión con GoTrue (`password` grant) y una contraseña
+  incorrecta devuelve `invalid_credentials`.
+- **Mutaciones (hito 1):** se rompió a propósito la RLS de 12 maneras (política abierta, vínculo que ignora el estado o el rol,
+  `TRUNCATE` concedido, `FORCE RLS` retirada, `log_activity` ejecutable, trigger de solo-inserción eliminado, política extra para el
+  administrador, escalada de `role`, `anon` con `SELECT`, política de escritura del gestor, `search_path` sin fijar). Las 12 hacen
+  fallar la suite; tras revertirlas, vuelve a verde.
 
 Pendientes: la forma exacta del *helper* de Playwright para Mailpit (hito 4) y las versiones definitivas de T-01 (hito 5).

@@ -8,3 +8,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [lint.isort]
 known-first-party = ["cuadre", "cuadre_contracts"]
+
+[lint.per-file-ignores]
+# Los tests llevan SQL en línea y docstrings largos en español; el formato ya parte lo que se puede partir.
+"backend/tests/**" = ["E501"]

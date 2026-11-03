@@ -1,0 +1,73 @@
+# Matriz de RLS de cuadre-web (SPEC-W-001 §5.2.4 y §8.3). Es el registro que vigila `test_rls_guard`:
+# toda tabla de `public` debe figurar aquí. Cada spec que añada una tabla la añade a este archivo.
+#
+# Reparto de cada test (cinco usuarios nuevos):
+#   alicia, beto = usuario · gina, gus = gestor · adan = admin
+# Estados del vínculo Alicia -> Gina (`scenarios`):
+#   baseline (sin vínculo) · pending · active · revoked · declined
+#
+# `select`: para cada persona, los DUEÑOS (por clave del reparto) de las filas que ve. `default` vale para todos los estados
+# y cada estado solo lista lo que cambia. `all` = todas las cuentas del reparto (y quizá más: el administrador ve metadatos de
+# cuentas de otros tests).
+version: 1
+
+scenarios: [baseline, pending, active, revoked, declined]
+
+tables:
+  profiles:
+    kind: identity
+    owner_column: id
+    grants:                 # privilegios de `authenticated` (el resto de roles de aplicación no tiene ninguno)
+      table: [SELECT]
+      columns:
+        UPDATE: [display_name]
+    probe_insert: "insert into public.profiles (id, email) values (%(owner)s, %(email)s)"
+    probe_update: { column: display_name, value: hacked }
+    select:
+      default: { alicia: [alicia], beto: [beto], gina: [gina], gus: [gus], adan: all }
+      active: { gina: [gina, alicia] }
+
+  business_profiles:
+    kind: financial
+    owner_column: owner_id
+    grants:
+      table: [SELECT]
+      columns:
+        UPDATE: [legal_name, tax_id, fiscal_address, activity, iae_epigraph, activity_start_date, vat_regime, irpf_rate, logo_path, iban, home_pct]
+    probe_insert: "insert into public.business_profiles (owner_id) values (%(owner)s)"
+    probe_update: { column: legal_name, value: hacked }
+    select:
+      # Toda cuenta tiene su ficha (la crea el trigger de alta) y su dueño la ve; el administrador ve la suya, NUNCA la de otro (D3).
+      default: { alicia: [alicia], beto: [beto], gina: [gina], gus: [gus], adan: [adan] }
+      active: { gina: [gina, alicia] }
+
+  gestor_access:
+    kind: financial
+    owner_column: owner_id
+    grants:
+      table: [SELECT]
+      columns:
+        INSERT: [owner_id, gestor_email]
+    probe_insert: "insert into public.gestor_access (owner_id, gestor_email) values (%(owner)s, %(email)s)"
+    probe_update: { column: status, value: revoked }
+    select:
+      default: { alicia: [], beto: [], gina: [], gus: [], adan: [] }
+      pending: { alicia: [alicia], gina: [alicia] }
+      active: { alicia: [alicia], gina: [alicia] }
+      revoked: { alicia: [alicia], gina: [alicia] }
+      declined: { alicia: [alicia], gina: [alicia] }
+
+  activity_log:
+    kind: log
+    owner_column: owner_id
+    grants:
+      table: [SELECT]
+    probe_insert: "insert into public.activity_log (category, action) values ('data', 'forged')"
+    probe_update: { column: action, value: forged }
+    select:
+      # Todo alta registra «account.created» (categoría account, sin actor): cada persona ve el suyo y el administrador, todos.
+      default: { alicia: [alicia], beto: [beto], gina: [gina], gus: [gus], adan: all }
+      # Gina actúa al aceptar o rechazar: ve su propia acción sobre la cuenta de Alicia.
+      active: { gina: [gina, alicia] }
+      revoked: { gina: [gina, alicia] }
+      declined: { gina: [gina, alicia] }

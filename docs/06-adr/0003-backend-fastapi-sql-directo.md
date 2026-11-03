@@ -1,6 +1,7 @@
 # ADR-0003 · Backend: FastAPI + Pydantic v2, PostgreSQL por SQL directo con la identidad del usuario
 
-- **Estado:** Aceptado
+- **Estado:** Aceptado. Parcialmente sustituido por [ADR-0015](0015-psycopg-sincrono.md): el acceso a Postgres es
+  **síncrono**, no asíncrono. El resto de esta decisión sigue vigente.
 - **Fecha:** 2026-11-03
 - **Cambia el enunciado inicial en un punto:** no se accede a los datos a través de PostgREST ni de `supabase-py`.
 
@@ -13,7 +14,7 @@ El stack de partida es FastAPI + Pydantic v2 sobre Python 3.12.
 ## Decisión
 
 - **FastAPI + Pydantic v2** sobre Python 3.12, con `operation_id` explícito por ruta (ADR-0011).
-- **Postgres por SQL directo con psycopg 3** (asíncrono, con pool), sin ORM. Las consultas se escriben a mano y
+- **Postgres por SQL directo con psycopg 3** (con pool; síncrono según ADR-0015), sin ORM. Las consultas se escriben a mano y
   devuelven modelos Pydantic.
 - **La identidad del usuario llega a la base de datos en cada petición.** Un único módulo, `cuadre.db.session`,
   abre una transacción y ejecuta, dentro de ella, `SET LOCAL ROLE authenticated` y

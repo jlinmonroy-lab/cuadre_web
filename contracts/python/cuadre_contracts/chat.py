@@ -30,7 +30,9 @@ class UserContext(ContractModel):
         description="Rol de quien pregunta. Solo el rol «usuario» recibe herramientas de datos."
     )
     has_gestor: bool = Field(description="Si el usuario tiene un gestor vinculado: decide a quién se deriva.")
-    current_date: date = Field(description="Fecha de hoy en Europe/Madrid, para resolver «este año» o «este trimestre».")
+    current_date: date = Field(
+        description="Fecha de hoy en Europe/Madrid, para resolver «este año» o «este trimestre»."
+    )
 
 
 class ChatRequest(ContractModel):

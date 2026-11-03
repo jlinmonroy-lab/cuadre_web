@@ -11,7 +11,7 @@ umbrales deben ser ejecutables antes de la defensa.
 
 ## Decisión
 
-- **Backend:** `pytest` (con `pytest-asyncio`), marcadores `rls`, `contract` y `slow`; `ruff` para lint y formato.
+- **Backend:** `pytest` (síncrono, ADR-0015), marcadores `rls`, `contract` y `slow`; `ruff` para lint y formato.
   Los tests de RLS e integración corren contra la **pila local de Supabase**, no contra mocks: la RLS solo vale si se
   prueba en Postgres con el esquema `auth` real.
 - **Frontend:** `eslint` y `tsc --noEmit`; `playwright` para extremo a extremo en Chromium, Firefox y WebKit (NFR-10),

@@ -5,6 +5,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .ruff_cache/
+*.egg-info/
 .mypy_cache/
 
 # Secretos y datos reales (RES-07): nunca al repositorio
@@ -29,6 +30,8 @@ test-results/
 # Supabase local
 supabase/.temp/
 supabase/.branches/
+# Clave privada ES256 de desarrollo (npm run gen:signing-key). Nunca al repositorio.
+supabase/signing_keys.json
 
 # Editores y sistema
 .idea/

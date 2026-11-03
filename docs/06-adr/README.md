@@ -7,7 +7,7 @@ descartadas, consecuencias. Un ADR aceptado no se edita: se sustituye por otro q
 |---|---|---|
 | [0001](0001-monorepo.md) | Monorepo `frontend/` + `backend/` + `supabase/` + `contracts/` | Aceptado |
 | [0002](0002-frontend-nextjs.md) | Frontend: Next.js (App Router), TypeScript, Tailwind y shadcn/ui | Aceptado |
-| [0003](0003-backend-fastapi-sql-directo.md) | Backend: FastAPI + Pydantic v2, Postgres por SQL directo con la identidad del usuario | Aceptado |
+| [0003](0003-backend-fastapi-sql-directo.md) | Backend: FastAPI + Pydantic v2, Postgres por SQL directo con la identidad del usuario | Aceptado (parcialmente sustituido por 0015) |
 | [0004](0004-supabase-ue.md) | Supabase en la UE: Postgres, Auth, RLS y Storage privado | Aceptado |
 | [0005](0005-autenticacion-roles-rls.md) | Autenticación, roles y autorización | Aceptado |
 | [0006](0006-importes-en-centimos.md) | Importes: céntimos enteros en base y API, `Decimal` en el cálculo | Aceptado |
@@ -19,3 +19,4 @@ descartadas, consecuencias. Un ADR aceptado no se edita: se sustituye por otro q
 | [0012](0012-frontera-web-agentes.md) | Frontera entre cuadre-web y cuadre-agents | Aceptado |
 | [0013](0013-mcp-solo-lectura-token-derivado.md) | Servidor MCP de solo lectura con token derivado y acotado | Aceptado |
 | [0014](0014-despliegue-ue.md) | Despliegue 100 % en la UE | Propuesto |
+| [0015](0015-psycopg-sincrono.md) | psycopg síncrono con pool de conexiones | Aceptado |

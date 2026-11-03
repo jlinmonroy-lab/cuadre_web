@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-001
 titulo: Base del monorepo, autenticación con tres roles y RLS probada
-estado: especificada
+estado: en-progreso
 prioridad: must
 riesgo: alto
 historias: [US-004]
@@ -155,8 +155,10 @@ X-Request-Id`; no usa cookies.
 1. Se lee `Authorization: Bearer <jwt>`.
 2. Se verifica con `PyJWT`: firma contra el JWKS de `{SUPABASE_URL}/auth/v1/.well-known/jwks.json` (con caché), algoritmos
    `ES256` y `RS256` únicamente; `aud = "authenticated"`; `iss = {SUPABASE_URL}/auth/v1`; `exp` y `nbf`. `alg: none` se
-   rechaza. Si la pila local aún firma con secreto simétrico (HS256), se admite **solo** con `APP_ENV=local` y
-   `SUPABASE_JWT_SECRET`; la primera tarea de implementación lo confirma y deja constancia en este apartado.
+   rechaza. **No existe camino HS256.** Comprobado el 2026-11-03 con la CLI 3.0: con `[auth] signing_keys_path` apuntando
+   a una clave ES256 de desarrollo (`supabase/signing_keys.json`, generada con `npm run gen:signing-key`, gitignorada; el CI la
+   genera antes de `supabase start`), la pila local firma con ES256, su JWKS publica esa clave y los tokens llevan
+   `iss = http://127.0.0.1:54321/auth/v1` y `aud = authenticated`. Es el mismo camino que usa producción.
 3. Se construye `CurrentUser(id, role, status, email, claims)` leyendo `profiles` **dentro de la transacción del usuario**
    (el rol sale de la base de datos, no del token; ADR-0005).
 4. `require_role(*roles)` devuelve 403 `forbidden` si el rol no está en la lista; cualquier ruta autenticada devuelve 403
@@ -260,6 +262,23 @@ Todas `SECURITY DEFINER`, `STABLE` (salvo `log_activity`), con `SET search_path 
 
 `anon` no tiene ninguna política: no ve ni escribe nada.
 
+**Privilegios de tabla (defensa en profundidad).** Comprobado en el spike: aunque `auto_expose_new_tables = false` retira
+SELECT/INSERT/UPDATE/DELETE, los privilegios por defecto de Supabase siguen concediendo `TRUNCATE`, `REFERENCES`, `TRIGGER` y
+`MAINTAIN` a `anon`, `authenticated` y `service_role` sobre las tablas nuevas de `public`, y `TRUNCATE` **no está sujeto a la RLS**.
+Por eso la migración (1) ejecuta `ALTER DEFAULT PRIVILEGES … IN SCHEMA public REVOKE ALL ON TABLES, SEQUENCES FROM anon, authenticated,
+service_role` para los creadores relevantes, (2) hace `REVOKE ALL` explícito sobre cada tabla creada y (3) concede únicamente lo
+siguiente, y nada más:
+
+| Tabla | `authenticated` |
+|---|---|
+| `profiles` | `SELECT`; `UPDATE (display_name)` |
+| `business_profiles` | `SELECT`; `UPDATE` de todas las columnas salvo `owner_id` |
+| `gestor_access` | `SELECT`; `INSERT (owner_id, gestor_email)` |
+| `activity_log` | `SELECT` |
+
+`anon` no tiene ningún privilegio sobre ninguna tabla de `public`. `service_role` recibe lo estrictamente necesario para `cuadre.cli`
+y se amplía por spec cuando un job lo necesite.
+
 #### 5.2.5 Funciones de negocio (esquema `app`) y triggers
 
 Cada función es `SECURITY DEFINER` con `search_path = ''`, verifica quién llama con `auth.uid()` y `private.app_role()`, escribe
@@ -292,8 +311,9 @@ Al cambiar un usuario de `gestor` a otro rol, sus vínculos dejan de dar acceso 
 
 #### 5.2.6 Roles de login y datos de prueba
 
-- `cuadre_app`: `LOGIN NOINHERIT NOBYPASSRLS`, `GRANT authenticated, anon TO cuadre_app`. Sin privilegios propios sobre tablas.
-- `cuadre_jobs`: `LOGIN NOINHERIT`, `GRANT service_role TO cuadre_jobs`. Solo `cuadre.jobs` y `cuadre.cli`.
+- `cuadre_app`: `LOGIN NOBYPASSRLS` con `GRANT authenticated, anon TO cuadre_app WITH INHERIT FALSE, SET TRUE` (PostgreSQL 17:
+  puede hacer `SET ROLE` pero no hereda sus privilegios). Sin privilegios propios sobre tablas.
+- `cuadre_jobs`: `LOGIN` con `GRANT service_role TO cuadre_jobs WITH INHERIT TRUE, SET TRUE`. Solo `cuadre.jobs` y `cuadre.cli`.
 - Las contraseñas **no** están en las migraciones: en local las fija `supabase/seed.sql` con un valor de desarrollo; en cualquier
   otro entorno, la plataforma.
 - `supabase/seed.sql` crea cinco usuarios sintéticos con identidad de correo (pueden iniciar sesión), contraseña de desarrollo
@@ -309,6 +329,9 @@ Al cambiar un usuario de `gestor` a otro rol, sus vínculos dejan de dar acceso 
 
 Los NIF, IBAN y direcciones del seed son inventados y no válidos (RES-07).
 
+**El seed es para desarrollo y E2E, no para los tests de RLS.** Cada test de RLS crea con una *factory* su propio reparto de cinco
+usuarios (mismos roles, correos únicos) mediante `TEST_DATABASE_ADMIN_URL`, de modo que ningún test depende del estado que dejó otro.
+
 ### 5.3 Autenticación en el frontend
 
 | Ruta | Quién | Comportamiento |
@@ -322,6 +345,10 @@ Los NIF, IBAN y direcciones del seed son inventados y no válidos (RES-07).
 | `/cartera` | `gestor` | Portada del gestor |
 | `/admin` | `admin` | Portada del administrador |
 | `/403` | Con sesión | «No tienes acceso a esta sección», con enlace a su portada |
+| `/auth/confirm` | Con el enlace del correo | *Route handler* (sin interfaz): lee `token_hash`, `type` y `next` y llama a `verifyOtp`; con éxito redirige a `next` (por defecto, la portada del rol) y con error, a `/login` con un mensaje |
+
+Los correos de confirmación y de recuperación los envía Supabase Auth con plantillas en español (`supabase/templates/confirmation.html`
+y `recovery.html`) cuyos enlaces apuntan a `/auth/confirm` (flujo PKCE de `@supabase/ssr`).
 
 El middleware solo mejora la experiencia (evita parpadeos y redirige); la autorización real está en la API y en la RLS. Un
 usuario que abre la portada de otro rol ve `/403`.
@@ -345,7 +372,7 @@ exista o no la cuenta.
 |---|---|---|---|
 | `APP_ENV` | backend | sí | `local`, `staging` o `production` |
 | `SUPABASE_URL` | backend, jobs | sí | |
-| `SUPABASE_JWT_SECRET` | backend | solo `APP_ENV=local` y si la pila firma con HS256 | |
+| `TEST_DATABASE_ADMIN_URL` | solo los tests | solo para las pruebas | Conexión con el rol `postgres` de la pila local, para crear usuarios y estados de prueba. Ningún código de la aplicación la lee |
 | `SUPABASE_SERVICE_ROLE_KEY` | `cuadre.cli` | solo para la CLI | **Nunca** otro módulo ni el frontend |
 | `ADMIN_PASSWORD` | `cuadre.cli` | solo para `create-admin` | Contraseña del primer administrador; no se pasa por argumento para que no quede en el historial del terminal |
 | `DATABASE_URL` | backend | sí | Rol `cuadre_app` |
@@ -392,7 +419,7 @@ Cada una tiene un test o una comprobación asociada (§8).
 
 | ID | Restricción |
 |---|---|
-| T-01 | **Versiones fijadas** (consultadas el 2026-11-03; se confirman al instalar): Python 3.12; FastAPI 0.162; Pydantic 2.14; psycopg 3.3; PyJWT 2.15; pytest 9.2; ruff 0.17; Node 24; Next.js 16.4; React 19.3; Tailwind 4.3; Supabase CLI 3.0; supabase-js 2.118; `@supabase/ssr` 0.12; Playwright 1.64; openapi-typescript 7.13; openapi-fetch 0.17. TypeScript sale como 7.0.2: si no es compatible con Next, ESLint o typescript-eslint, se fija la 5.x que genere `create-next-app` y se anota aquí |
+| T-01 | **Versiones fijadas** (consultadas el 2026-11-03; se confirman al instalar): Python 3.12; FastAPI 0.162; Pydantic 2.14; psycopg 3.3; PyJWT 2.15; pytest 9.2; ruff 0.17; Node 24; Next.js 16.4; React 19.3; Tailwind 4.3; Supabase CLI 3.0; supabase-js 2.118; `@supabase/ssr` 0.12; Playwright 1.64; openapi-typescript 7.13; openapi-fetch 0.17. **TypeScript 5.9.3**: la 7.0.2 (la más reciente) es incompatible, porque `typescript-eslint` 8.72 exige `typescript <6.1` y `openapi-typescript` 7.13 pide `^5.x`. Versiones definitivas de Python y Node: las instaladas en el hito 0; se actualizan aquí al cerrar la spec |
 | T-02 | **Sin `float`** (RES-02, ADR-0006): ni en `backend/src/cuadre/` ni en `supabase/migrations/` (`real`, `double precision`, `float`). Test `test_no_float` |
 | T-03 | **Solo datos sintéticos y ningún secreto en git** (RES-07). `.env` y `.env.local` en `.gitignore`; `.env.example` solo con marcadores. Test `test_no_secrets_tracked` |
 | T-04 | **La service key y `DATABASE_SERVICE_URL` solo se usan en `cuadre.jobs` y `cuadre.cli`** (`cuadre.config` únicamente los declara como ajustes). Nunca en rutas que actúan en nombre de un usuario ni en el frontend. Test `test_service_key_scope` (analiza el código) y comprobación del *bundle* |
@@ -521,6 +548,8 @@ Feature: Base, autenticación con tres roles y RLS (SPEC-W-001)
     Then todas tienen RLS activada y forzada
       And todas figuran en backend/tests/rls/rls_matrix.yaml
       And ninguna política menciona user_metadata ni raw_user_meta_data
+      And anon no tiene ningún privilegio sobre ninguna tabla de public
+      And authenticated solo tiene los privilegios de la tabla de §5.2.4 (ni TRUNCATE, REFERENCES, TRIGGER ni MAINTAIN)
     When se crea en una prueba una tabla de public sin RLS
     Then la guardia falla
 
@@ -608,15 +637,18 @@ secuencia anterior para dar la spec por hecha.
 | T-02 a T-11 | `backend/tests/rules/` (`test_no_float`, `test_service_key_scope`, `test_db_access_scope`, `test_data_api_off`, `test_no_llm_sdk`, `test_operation_ids`, `test_no_secrets_tracked`) |
 
 **`rls_matrix.yaml`** vive en `backend/tests/rls/` y registra, por tabla, su tipo (`identity`, `financial` o `log`), la columna
-de dueño y la expectativa de cada rol según §5.2.4. `test_rls_roles` la recorre con los cinco usuarios del seed y los estados del
-vínculo (sin vínculo, pendiente, activo, revocado, rechazado) y comprueba lectura, inserción, actualización y borrado. Cada spec
+de dueño y la expectativa de cada rol según §5.2.4. `test_rls_roles` la recorre con un reparto de cinco usuarios creado por la *factory* de cada test y
+los estados del vínculo (sin vínculo, pendiente, activo, revocado, rechazado) y comprueba lectura, inserción, actualización y
+borrado. `cuadre.db.session` tiene además su propio test de que el rol de una petición **no se filtra** a la siguiente que reutiliza
+la misma conexión del pool. Cada spec
 posterior que añada una tabla la añade aquí; sin eso, `test_rls_guard` falla.
 
 ### 8.4 Definición de hecho
 
 - [ ] La secuencia de §8.2 termina con código 0 en local **y** en el CI.
 - [ ] `pytest backend/tests/rls -m rls` marcado como requisito obligatorio de fusión.
-- [ ] §5.1 actualizado con el resultado de la comprobación JWKS/HS256 y T-01 con las versiones finales y el veredicto sobre TypeScript.
+- [x] §5.1 actualizado con el resultado de la comprobación JWKS (ES256, sin HS256) y T-01 con el veredicto sobre TypeScript (hito 0).
+- [ ] T-01 con las versiones definitivas de todo lo instalado.
 - [ ] `docs/04-specs/tasks.json`: SPEC-W-001 en `hecha`.
 - [ ] `README.md` con los comandos de §5.5 comprobados en un clon limpio.
 - [ ] `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
@@ -631,9 +663,23 @@ posterior que añada una tabla la añade aquí; sin eso, `test_rls_guard` falla.
 6. Cliente generado; Playwright (`auth`, `roles`, `responsive`, `bundle`).
 7. CI y README; pasada completa de §8.2.
 
-## Anexo B · Decisiones que esta spec deja a la implementación (se anotan al resolverlas)
+## Anexo B · Decisiones que esta spec dejó a la implementación
 
-- Firma del JWT en la pila local de la CLI 3.0: ¿JWKS asimétrico o HS256? (§5.1, punto 2.)
-- Nombre y puerto del buzón de pruebas de la CLI de Supabase (Mailpit o Inbucket según versión) para el *helper* de Playwright.
-- Compatibilidad de TypeScript 7 con Next.js 16, ESLint 10 y typescript-eslint (T-01).
-- Forma exacta de crear en `seed.sql` usuarios de `auth.users` con identidad de correo que puedan iniciar sesión.
+Resueltas en el hito 0 (spike del 2026-11-03, CLI 3.0.0, PostgreSQL 17.11, GoTrue 2.197):
+
+- **Firma del JWT local:** ES256 con `signing_keys_path` y JWKS (§5.1, punto 2). Sin camino HS256.
+- **Buzón de pruebas:** sección `[local_smtp]` (Mailpit), interfaz y API en `http://127.0.0.1:54324` (`GET /api/v1/messages`,
+  `GET /api/v1/message/{id}`). `[inbucket]` está obsoleto.
+- **TypeScript:** 5.9.3 (T-01).
+- **Data API desactivada (`[api] enabled = false`):** Auth y Storage siguen funcionando; solo desaparece `/rest/v1` (T-07).
+- **Dueño de las funciones `SECURITY DEFINER`:** el rol `postgres` tiene `BYPASSRLS` (no es superusuario) y sus funciones leen tablas con
+  `FORCE ROW LEVEL SECURITY` sin políticas. Comprobado.
+- **Triggers sobre `auth.users`:** `postgres` puede crearlos aunque el dueño de la tabla sea `supabase_auth_admin`.
+- **Privilegios por defecto:** ver §5.2.4, «Privilegios de tabla»: `Dxtm` para `anon`/`authenticated`/`service_role` hay que revocarlo.
+- **Pooler local:** Supavisor en el puerto 54329 con usuarios `<rol>.pooler-dev` (p. ej. `postgres.pooler-dev`); `SET LOCAL ROLE` y las
+  claims funcionan a través de él con `prepare_threshold=None`.
+- **Seed de usuarios:** `auth.users` solo exige `id` sin valor por defecto; las columnas de token (`confirmation_token`, `recovery_token`,
+  `email_change_token_new`, `email_change`, `phone_change`, `phone_change_token`, `email_change_token_current`, `reauthentication_token`)
+  se siembran con `''`. Falta comprobar que el inicio de sesión funciona con el seed (hito 1).
+
+Pendientes: la forma exacta del *helper* de Playwright para Mailpit (hito 4) y las versiones definitivas de T-01 (hito 5).

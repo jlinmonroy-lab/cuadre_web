@@ -1,0 +1,10 @@
+# Configuración de ruff compartida por backend/ y contracts/ (se ejecuta desde la raíz).
+line-length = 120
+target-version = "py312"
+extend-exclude = [".venv", "node_modules", "frontend"]
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[lint.isort]
+known-first-party = ["cuadre", "cuadre_contracts"]

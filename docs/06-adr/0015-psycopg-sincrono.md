@@ -23,9 +23,20 @@ caso de uso en el que la E/S asíncrona de la base de datos aporte algo medible.
 - **Las rutas que tocan la base de datos son funciones `def`**: FastAPI las ejecuta en su pool de hilos. Las que
   necesiten ser asíncronas (el streaming SSE del chat, el servidor MCP) llaman a la base de datos con
   `run_in_threadpool`.
-- **Los hilos disponibles no superan el tamaño del pool** (el límite de `anyio` se fija al configurar la aplicación) para que
-  ninguna petición espere una conexión que otra petición, a su vez, no puede liberar.
+- **Esperar una conexión más de 5 s falla rápido** (`PoolTimeout` → 503 `database_busy`). Acotar el número de hilos al tamaño
+  del pool NO evita los bloqueos, aunque parezca que sí: quien espera una conexión ocupa un hilo, y quien ya la tiene
+  necesita otro hilo para terminar su ruta; con la aplicación saturada podrían quedarse todos esperando. Lo que acota el daño es
+  el tiempo de espera corto, que convierte la sobrecarga en errores inmediatos en lugar de peticiones colgadas.
+- **La transacción de la petición se abre en una dependencia con `scope="function"`**, de modo que se confirma antes de enviar
+  la respuesta y un fallo de commit llega al cliente como un 500 (lo fija un test que observa el orden de los eventos).
 - **Los tests son síncronos**: no se usa `pytest-asyncio` para la base de datos.
+
+## Comprobación
+
+Verificado el 2026-11-03 en Windows 11 con Python 3.12: `asyncio.run` por defecto crea un `ProactorEventLoop` y
+`psycopg.AsyncConnection.connect` falla con «Psycopg cannot use the 'ProactorEventLoop' to run in async mode»; con
+`WindowsSelectorEventLoopPolicy` funciona. No se ha probado el comportamiento concreto de `uvicorn` con y sin `--reload`: la
+decisión no depende de él.
 
 ## Alternativas descartadas
 

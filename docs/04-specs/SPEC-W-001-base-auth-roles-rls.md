@@ -148,7 +148,14 @@ X-Request-Id`; no usa cookies.
 | `profile_missing` | 403 | Token válido sin fila en `profiles` (no debería ocurrir; se registra como incidencia) |
 | `validation_error` | 422 | Cuerpo o parámetros inválidos, con `errors: [{loc, msg}]` |
 | `not_found` | 404 | Ruta o recurso inexistente (o inaccesible por RLS: no se distingue) |
-| `internal_error` | 500 | Cualquier otro; `detail` genérico y sin trazas |
+| `method_not_allowed` | 405 | Método HTTP no admitido en la ruta (lleva la cabecera `Allow`) |
+| `http_error` | otro 4xx | Cualquier otro error HTTP de Starlette no previsto arriba |
+| `internal_error` | 500 | Cualquier otro; `detail` genérico y sin trazas. Lleva `X-Request-Id` y las cabeceras de CORS |
+| `auth_unavailable` | 503 | No se puede alcanzar el JWKS de Supabase para verificar el token (lleva `Retry-After`) |
+| `database_busy` | 503 | El pool de conexiones está saturado: esperar una conexión más de 5 s (lleva `Retry-After`) |
+
+El cuerpo es siempre `{type, title, status, code, detail, request_id}`; `validation_error` añade `errors: [{loc, msg}]` **sin el dato
+enviado** (`input`), que podría ser sensible. Los errores de FastAPI (404/405/422) se convierten a este formato.
 
 **Autenticación del backend.**
 
@@ -159,8 +166,10 @@ X-Request-Id`; no usa cookies.
    a una clave ES256 de desarrollo (`supabase/signing_keys.json`, generada con `npm run gen:signing-key`, gitignorada; el CI la
    genera antes de `supabase start`), la pila local firma con ES256, su JWKS publica esa clave y los tokens llevan
    `iss = http://127.0.0.1:54321/auth/v1` y `aud = authenticated`. Es el mismo camino que usa producción.
-3. Se construye `CurrentUser(id, role, status, email, claims)` leyendo `profiles` **dentro de la transacción del usuario**
-   (el rol sale de la base de datos, no del token; ADR-0005).
+3. Se construye `CurrentUser(id, email, display_name, role, status, claims)` leyendo `profiles` **dentro de la transacción del
+   usuario** (el rol sale de la base de datos, no del token; ADR-0005). Esa transacción la abre la dependencia `get_tx` con
+   `Depends(get_tx, scope="function")`: se confirma **antes** de enviar la respuesta, de modo que un fallo de commit llega al
+   cliente como un 500 en vez de un 200 falso (test `test_the_transaction_is_committed_before_the_response_is_sent`).
 4. `require_role(*roles)` devuelve 403 `forbidden` si el rol no está en la lista; cualquier ruta autenticada devuelve 403
    `account_suspended` si la cuenta no está activa.
 
@@ -379,6 +388,11 @@ exista o no la cuenta.
 | `APP_ENV` | backend | sí | `local`, `staging` o `production` |
 | `SUPABASE_URL` | backend, jobs | sí | |
 | `TEST_DATABASE_ADMIN_URL` | solo los tests | solo para las pruebas | Conexión con el rol `postgres` de la pila local, para crear usuarios y estados de prueba. Ningún código de la aplicación la lee |
+| `TEST_SUPABASE_ANON_KEY` | solo los tests `live` | solo para las pruebas | Clave publicable (`sb_publishable_…`) de la pila local; permite pedir tokens reales a GoTrue. Sin ella, los tests `live` se omiten |
+
+`conftest.py` carga primero las variables ya definidas (CI), después el `.env` local de la raíz (gitignorado) y por último unos valores por
+defecto de la pila local; así `pytest` funciona tras `supabase start` y `db reset` sin configurar nada. `SUPABASE_SERVICE_ROLE_KEY` acepta tanto la
+clave secreta nueva (`sb_secret_…`, solo cabecera `apikey`) como el JWT de servicio.
 | `SUPABASE_SERVICE_ROLE_KEY` | `cuadre.cli` | solo para la CLI | **Nunca** otro módulo ni el frontend |
 | `ADMIN_PASSWORD` | `cuadre.cli` | solo para `create-admin` | Contraseña del primer administrador; no se pasa por argumento para que no quede en el historial del terminal |
 | `DATABASE_URL` | backend | sí | Rol `cuadre_app` |
@@ -410,14 +424,20 @@ Con el entorno virtual activado y desde la raíz del repositorio (valen igual en
 backend/src/cuadre/
   main.py          create_app(), registro de rutas y errores; `app = create_app()` para uvicorn
   config.py        Settings (pydantic-settings)
-  core/            errors.py (problem+json), auth.py (JWT, CurrentUser, require_role), logging.py
-  db/              session.py: user_transaction(claims) y service_connection() — ÚNICO sitio que abre conexiones
-  api/             routes_health.py, routes_me.py
+  core/            errors.py (problem+json), auth.py (verificación JWKS, CurrentUser, get_tx, require_role),
+                   observability.py (registro JSON y middleware de contexto de petición), routing.py (new_router, exige operation_id)
+  db/              session.py: user_transaction() y service_transaction() — ÚNICO sitio que abre conexiones
+  api/             routes_health.py, routes_me.py (los routers se crean solo con core.routing.new_router)
   jobs/            __init__.py (vacío; reservado para SPEC-W-012 y 014)
   cli.py           create-admin
+backend/scripts/   export_openapi.py
+backend/openapi.json
 backend/tests/
-  conftest.py  rls/  api/  rules/
+  conftest.py  support.py  rls/  api/  rules/  test_session.py  test_cli_create_admin.py
 ```
+
+El cliente HTTP del backend (CLI y tests) es `httpx2` y no `httpx`: Starlette 1.x lo exige para su `TestClient` sin avisos de obsolescencia
+y es el sucesor mantenido por el autor original (Pydantic Services Inc.).
 
 ## 6. Restricciones técnicas
 
@@ -437,7 +457,7 @@ Cada una tiene un test o una comprobación asociada (§8).
 | T-10 | **Errores `problem+json`** con `code` estable y `detail` en español, sin trazas ni datos internos |
 | T-11 | **`operation_id` explícito, único y `verbo_objeto`** en todas las rutas. Test `test_operation_ids` |
 | T-12 | **El rol sale de la base de datos**, nunca de claims del JWT. Los tokens con `aud` distinto, `alg: none` o sin firma se rechazan |
-| T-13 | **Logs sin tokens, contraseñas ni correos**: solo `request_id`, `user_id`, ruta, código y duración |
+| T-13 | **Logs sin tokens, contraseñas ni correos**: solo `request_id`, `user_id`, la plantilla de la ruta (nunca la query), código y duración. El registro de accesos propio de `uvicorn` imprime la query y se desactiva al configurar la aplicación (`uvicorn.access`), arranque como arranque. Test `test_requests_are_logged_without_tokens_or_emails` |
 | T-14 | **Interfaz** en español, con los tokens de diseño del prototipo, fuentes con `next/font` (nada se pide a Google desde el navegador), sin scroll horizontal a 390 y 1.440 px, foco visible y etiquetas asociadas a cada campo |
 | T-15 | **El frontend nunca importa la clave de servicio ni la URL de la base de datos**; solo `NEXT_PUBLIC_*` |
 | T-16 | **Contraseñas** de al menos 10 caracteres (`minimum_password_length` en `config.toml`); confirmación de correo activa también en local, para que el entorno se parezca a producción |
@@ -628,8 +648,8 @@ secuencia anterior para dar la spec por hecha.
 | AC-01 | `frontend/e2e/auth.spec.ts` · «registro»; `backend/tests/rls/test_signup_trigger.py` |
 | AC-02 | `frontend/e2e/roles.spec.ts` · «portada por rol» |
 | AC-03 | `frontend/e2e/auth.spec.ts` · «recuperación» (lee el buzón de pruebas de Supabase local) |
-| AC-04 | `frontend/e2e/auth.spec.ts` · «sin sesión»; `backend/tests/api/test_auth.py::test_missing_token` |
-| AC-05 | `backend/tests/api/test_auth.py::test_invalid_tokens`, `::test_suspended_account` |
+| AC-04 | `frontend/e2e/auth.spec.ts` · «sin sesión»; `backend/tests/api/test_auth.py::test_no_authorization_header_is_401`, `::test_wrong_scheme_or_empty_credentials_is_401`, `::test_a_malformed_token_is_401` |
+| AC-05 | `backend/tests/api/test_auth.py` (caducado, no vigente, audiencia/emisor/`exp`/`sub` inválidos, firma ajena o alterada, `kid` desconocido, `alg: none`, confusión HS256, JWKS caído, `::test_a_suspended_account_is_403`, `::test_a_valid_token_without_a_profile_is_403`); `test_me_live.py` (token real de GoTrue) |
 | AC-06 | `backend/tests/rls/test_rls_roles.py::test_no_privilege_escalation` |
 | AC-07 | `backend/tests/rls/test_rls_roles.py` (parametrizada con `rls_matrix.yaml`) |
 | AC-08 | `backend/tests/rls/test_gestor_access.py::test_an_active_link_reads_only_the_client` |

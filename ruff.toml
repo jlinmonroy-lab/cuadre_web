@@ -5,10 +5,8 @@ extend-exclude = [".venv", "node_modules", "frontend"]
 
 [lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+# E501 fuera: `ruff format` ya parte el código a 120 columnas y los comentarios/docstrings en español pueden pasarse un poco.
+ignore = ["E501"]
 
 [lint.isort]
 known-first-party = ["cuadre", "cuadre_contracts"]
-
-[lint.per-file-ignores]
-# Los tests llevan SQL en línea y docstrings largos en español; el formato ya parte lo que se puede partir.
-"backend/tests/**" = ["E501"]

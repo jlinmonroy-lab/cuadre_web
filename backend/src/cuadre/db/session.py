@@ -26,12 +26,17 @@ from psycopg_pool import ConnectionPool
 
 
 def open_pool(dsn: str, *, name: str, min_size: int = 1, max_size: int = 10) -> ConnectionPool[Connection[DictRow]]:
-    """Abre un pool de conexiones síncronas que devuelven filas como diccionarios."""
+    """Abre un pool de conexiones síncronas que devuelven filas como diccionarios.
+
+    Esperar una conexión más de 5 s lanza `PoolTimeout`, que la API convierte en un 503 `database_busy`: ante una sobrecarga se
+    prefiere un error rápido a peticiones colgadas que, a su vez, retienen los hilos que otras necesitan para terminar.
+    """
     pool: ConnectionPool[Connection[DictRow]] = ConnectionPool(
         dsn,
         name=name,
         min_size=min_size,
         max_size=max_size,
+        timeout=5,
         kwargs={"row_factory": dict_row, "prepare_threshold": None},
         open=False,
     )

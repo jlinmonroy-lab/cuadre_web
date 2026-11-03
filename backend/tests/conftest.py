@@ -5,13 +5,20 @@ npx supabase start && npx supabase db reset
 
 import os
 from collections.abc import Iterator
+from pathlib import Path
 
 import psycopg
 import pytest
+from dotenv import dotenv_values
 from psycopg import Connection
 from psycopg.rows import DictRow, dict_row
 
-# Valores de la pila local. Se aplican antes de importar la configuración y NO pisan variables ya definidas (CI).
+# Orden de prioridad: variables ya definidas (CI) > `.env` local de la raíz (gitignorado) > valores por defecto de la pila local.
+# Todo se aplica antes de importar la configuración de la aplicación.
+for _key, _value in dotenv_values(Path(__file__).resolve().parents[2] / ".env").items():
+    if _value:
+        os.environ.setdefault(_key, _value)
+
 os.environ.setdefault("APP_ENV", "local")
 os.environ.setdefault("SUPABASE_URL", "http://127.0.0.1:54321")
 os.environ.setdefault("DATABASE_URL", "postgresql://cuadre_app:cuadre-dev-only@127.0.0.1:54322/postgres")

@@ -6,7 +6,7 @@
     "name": "cuadre-agents",
     "spec_prefix": "SPEC-A"
   },
-  "updated": "2026-11-03",
+  "updated": "2026-11-04",
   "status_values": [
     "propuesta",
     "especificada",
@@ -23,7 +23,7 @@
       "id": "SPEC-W-001",
       "title": "Base: monorepo, autenticación con tres roles y RLS probada",
       "file": "docs/04-specs/SPEC-W-001-base-auth-roles-rls.md",
-      "status": "en-progreso",
+      "status": "en-revision",
       "priority": "must",
       "risk": "alto",
       "stories": [
@@ -63,7 +63,7 @@
         "npm --prefix frontend run test:e2e",
         "secuencia completa: SPEC-W-001 §8.2"
       ],
-      "notes": "Tabla canario de NFR-06: business_profiles. Las funciones SQL de invitación/revocación se prueban a nivel de base de datos; las rutas y pantallas son de W-010."
+      "notes": "Tabla canario de NFR-06: business_profiles. Las funciones SQL de invitación/revocación se prueban a nivel de base de datos; las rutas y pantallas son de W-010. Hitos 0 a 5 hechos; verificación en local y en un clon limpio. El CI está escrito y validado, pero sin ejecutar en un runner de GitHub (no hay remoto): pasa a hecha tras la primera ejecución y al marcar «RLS (NFR-06)» como requisito obligatorio de fusión."
     },
     {
       "id": "SPEC-W-002",

@@ -1,0 +1,37 @@
+name: Pila local de Supabase
+description: >-
+  Instala la CLI de Supabase (dependencias de la raíz), arranca la pila en Docker, recrea la base con migraciones y seed y genera
+  `.env` y `frontend/.env.local` a partir de ella. Efímera: todo desaparece con el runner. Equivale a la sección «Supabase local» del README.
+
+runs:
+  using: composite
+  steps:
+    - name: Node 24
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: 24
+        cache: npm
+        cache-dependency-path: |
+          package-lock.json
+          frontend/package-lock.json
+
+    - name: CLI de Supabase (dependencias de la raíz)
+      shell: bash
+      run: npm ci
+
+    - name: Clave de firma ES256 de desarrollo
+      shell: bash
+      run: npm run gen:signing-key
+
+    - name: Arrancar Supabase
+      shell: bash
+      # La CLI imprime en la salida estándar las claves de la pila; el progreso y los errores van por la de error y se siguen viendo.
+      run: npx supabase start -x studio > /dev/null
+
+    - name: Migraciones y seed
+      shell: bash
+      run: npx supabase db reset
+
+    - name: Variables de entorno de la pila (.env y frontend/.env.local)
+      shell: bash
+      run: npm run env:local -- --ci

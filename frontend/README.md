@@ -5,7 +5,7 @@ puesta en marcha, las reglas y las decisiones están en el [README de la raíz](
 [`SPEC-W-001`](../docs/04-specs/SPEC-W-001-base-auth-roles-rls.md).
 
 ```powershell
-copy .env.example .env.local        # solo variables públicas (NEXT_PUBLIC_*); ver el comentario del archivo
+# .env.local: desde la raíz, `npm run env:local` lo genera con las claves de la pila en marcha (plantilla: .env.example, solo NEXT_PUBLIC_*)
 npm ci
 npm run dev                          # http://localhost:3000  (abre SIEMPRE localhost, no 127.0.0.1: las cookies de sesión van por host)
 npm run lint ; npm run typecheck ; npm run test:unit

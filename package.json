@@ -8,7 +8,9 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:status": "supabase status",
-    "gen:signing-key": "node scripts/gen-signing-key.mjs"
+    "gen:signing-key": "node scripts/gen-signing-key.mjs",
+    "env:local": "node scripts/write-env.mjs",
+    "test:scripts": "node --test \"scripts/**/*.test.mjs\""
   },
   "devDependencies": {
     "supabase": "3.0.0"

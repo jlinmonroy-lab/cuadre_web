@@ -62,7 +62,8 @@ El valor entregable es la **confianza demostrada** en el aislamiento. La interfa
 ## 3. Alcance explícito
 
 ### 3.1 Esqueleto y herramientas
-- Archivos de raíz: `README.md`, `package.json` (CLI de Supabase y scripts), `.github/workflows/ci.yml`; `CLAUDE.md`,
+- Archivos de raíz: `README.md`, `package.json` (CLI de Supabase y scripts), `scripts/` (clave de firma local y generador de entornos),
+  `.github/workflows/ci.yml` y `.github/actions/` (acciones compuestas); `CLAUDE.md`,
   `.gitignore`, `.env.example` y `.editorconfig` ya existen y se ajustan si hace falta.
 - `backend/` con `pyproject.toml` (extra `dev`, versiones fijadas, `contracts/python` como dependencia local) y el paquete
   `backend/src/cuadre/` descrito en §5.6.
@@ -419,7 +420,8 @@ clave secreta nueva (`sb_secret_…`, solo cabecera `apikey`) como el JWT de ser
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | frontend | sí | Públicas por naturaleza (la segunda es la clave publicable `sb_publishable_…`). Viven en `frontend/.env.local` (plantilla `frontend/.env.example`): Next.js solo lee el `.env` de su carpeta y el `.env` de la raíz no debe llegar nunca al frontend |
 | `NEXT_PUBLIC_API_BASE_URL` | frontend | sí | URL de la API (`http://127.0.0.1:8000` en local) |
 
-`.env.example` las documenta con marcadores de posición.
+`.env.example` las documenta con marcadores de posición. `npm run env:local` genera `.env` y `frontend/.env.local` con las claves de la
+pila local en marcha (`supabase status -o env`); no pisa los archivos existentes salvo con `--force`.
 
 ### 5.5 Comandos
 
@@ -430,6 +432,9 @@ Con el entorno virtual activado y desde la raíz del repositorio (valen igual en
 | Arrancar Supabase local | `npx supabase start` |
 | Recrear la base con migraciones y seed | `npx supabase db reset` |
 | Parar Supabase | `npx supabase stop` |
+| Clave de firma local (una vez por clon) | `npm run gen:signing-key` |
+| Generar `.env` y `frontend/.env.local` desde la pila en marcha | `npm run env:local` (`-- --force` para rehacerlos) |
+| Pruebas de los scripts de la raíz | `npm run test:scripts` |
 | Arrancar la API | `uvicorn cuadre.main:app --reload --port 8000 --app-dir backend/src` |
 | Arrancar el frontend | `npm --prefix frontend run dev` (abrir siempre `http://localhost:3000`: las cookies de sesión van por host) |
 | Pruebas unitarias del frontend | `npm --prefix frontend run test:unit` (`node --test`, sin dependencias) |
@@ -464,7 +469,7 @@ Cada una tiene un test o una comprobación asociada (§8).
 
 | ID | Restricción |
 |---|---|
-| T-01 | **Versiones fijadas** (consultadas el 2026-11-03; se confirman al instalar): Python 3.12; FastAPI 0.162; Pydantic 2.14; psycopg 3.3; PyJWT 2.15; pytest 9.2; ruff 0.17; Node 24; Next.js 16.4; React 19.3; Tailwind 4.3; Supabase CLI 3.0; supabase-js 2.118; `@supabase/ssr` 0.12; Playwright 1.64; openapi-typescript 7.13; openapi-fetch 0.17. **TypeScript 5.9.3**: la 7.0.2 (la más reciente) es incompatible, porque `typescript-eslint` 8.72 exige `typescript <6.1` y `openapi-typescript` 7.13 pide `^5.x`. Versiones definitivas de Python y Node: las instaladas en el hito 0; se actualizan aquí al cerrar la spec |
+| T-01 | **Versiones fijadas** (instaladas y comprobadas el 2026-11-04 al cerrar la spec; las de `pyproject.toml` y `package.json` son exactas): Python 3.12.10; FastAPI 0.162.0 (Starlette 1.10.0); Pydantic 2.14.2 (pydantic-settings 2.16.2); psycopg 3.3.7 (psycopg-pool 3.3.3); PyJWT 2.15.1; Uvicorn 0.54.0; httpx2 2.16.0; pytest 9.2.0; ruff 0.17.3; PyYAML 6.0.3; Node 24.16.0 (npm 11.17.0); Next.js 16.4.5; React 19.3.0; Tailwind 4.3.4; ESLint 10.14.0; shadcn 4.23.0; supabase-js 2.118.0; `@supabase/ssr` 0.12.7; openapi-typescript 7.13.0; openapi-fetch 0.17.0; Playwright 1.64.1 (Chromium 156, Firefox 157, WebKit 27.2); Supabase CLI 3.0.0 con PostgreSQL 17.11, GoTrue 2.197.0 y Mailpit 1.31.3. **TypeScript 5.9.3**: la 7.0.2 (la más reciente) es incompatible, porque `typescript-eslint` 8.72 exige `typescript <6.1` y `openapi-typescript` 7.13 pide `^5.x`. En el CI: Python 3.12 y Node 24 (`setup-python` y `setup-node`) sobre `ubuntu-24.04` |
 | T-02 | **Sin `float`** (RES-02, ADR-0006): ni en `backend/src/cuadre/` ni en `supabase/migrations/` (`real`, `double precision`, `float`). Test `test_no_float` |
 | T-03 | **Solo datos sintéticos y ningún secreto en git** (RES-07). `.env` y `.env.local` en `.gitignore`; `.env.example` solo con marcadores. Test `test_no_secrets_tracked` |
 | T-04 | **La service key y `DATABASE_SERVICE_URL` solo se usan en `cuadre.jobs` y `cuadre.cli`** (`cuadre.config` únicamente los declara como ajustes). Nunca en rutas que actúan en nombre de un usuario ni en el frontend. Test `test_service_key_scope` (analiza el código) y comprobación del *bundle* |
@@ -631,8 +636,10 @@ npm --prefix frontend ci
 npm --prefix frontend exec -- playwright install chromium firefox webkit
 
 # 1 · Pila local
+npm run gen:signing-key                                 # clave ES256 de desarrollo (gitignorada); una vez por clon
 npx supabase start
 npx supabase db reset                                   # migraciones + seed sin errores
+npm run env:local                                       # .env y frontend/.env.local a partir de la pila (no pisa los existentes)
 
 # 2 · Calidad estática
 ruff check backend contracts/tools contracts/python
@@ -640,6 +647,7 @@ ruff format --check backend contracts/tools contracts/python
 npm --prefix frontend run lint
 npm --prefix frontend run typecheck
 npm --prefix frontend run test:unit
+npm run test:scripts                                    # scripts de la raíz (generador de entornos)
 
 # 3 · Contratos y deriva
 python contracts/tools/export_schemas.py --check
@@ -681,6 +689,7 @@ secuencia anterior para dar la spec por hecha.
 | AC-13 | `backend/tests/rls/test_rls_guard.py` |
 | AC-14 | `frontend/e2e/responsive.spec.ts` (proyectos 390 y 1.440 px) |
 | AC-15 | `backend/tests/rules/test_openapi_drift.py`; `npm --prefix frontend run gen:api -- --check`; `npm --prefix frontend run check:bundle` (con `frontend/scripts/bundle-scan.test.mjs`); `frontend/e2e/bundle.spec.ts` (lo que `next start` sirve de verdad) |
+| §3.5 (CI) | `backend/tests/rules/test_ci_workflow.py` (forma del workflow y deriva spec ↔ CI); `backend/tests/rules/test_ci_gate.py` (en el CI un test omitido falla la sesión); `scripts/write-env.test.mjs` (`npm run test:scripts`) |
 | T-02 a T-11, T-15 | `backend/tests/rules/` (`test_no_float`, `test_service_key_scope`, `test_db_access_scope`, `test_data_api_off`, `test_no_llm_sdk`, `test_operation_ids`, `test_no_secrets_tracked`, `test_frontend_scope`) |
 
 **`rls_matrix.yaml`** vive en `backend/tests/rls/` y registra, por tabla, su tipo (`identity`, `financial` o `log`), la columna
@@ -692,13 +701,13 @@ posterior que añada una tabla la añade aquí; sin eso, `test_rls_guard` falla.
 
 ### 8.4 Definición de hecho
 
-- [ ] La secuencia de §8.2 termina con código 0 en local **y** en el CI.
-- [ ] `pytest backend/tests/rls -m rls` marcado como requisito obligatorio de fusión.
+- [ ] La secuencia de §8.2 termina con código 0 en local **y** en el CI. *En local, hecho (clon limpio, hito 5). En el CI, pendiente de la primera ejecución en GitHub: aún no hay repositorio remoto.*
+- [ ] `pytest backend/tests/rls -m rls` marcado como requisito obligatorio de fusión. *Pendiente del remoto: el trabajo es «RLS (NFR-06)», `test_ci_workflow` impide que se pueda saltar y el README explica cómo marcarlo.*
 - [x] §5.1 actualizado con el resultado de la comprobación JWKS (ES256, sin HS256) y T-01 con el veredicto sobre TypeScript (hito 0).
-- [ ] T-01 con las versiones definitivas de todo lo instalado.
-- [ ] `docs/04-specs/tasks.json`: SPEC-W-001 en `hecha`.
-- [ ] `README.md` con los comandos de §5.5 comprobados en un clon limpio.
-- [ ] `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
+- [x] T-01 con las versiones definitivas de todo lo instalado.
+- [ ] `docs/04-specs/tasks.json`: SPEC-W-001 en `hecha`. *Ahora `en-revision` (su comando de verificación termina con 0 en local); pasa a `hecha` cuando la revisión la acepte, tras la primera ejecución del CI.*
+- [x] `README.md` con los comandos de §5.5 comprobados en un clon limpio.
+- [x] `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
 
 ## Anexo A · Orden de implementación sugerido
 
@@ -777,4 +786,29 @@ Resueltas en el hito 4 (pruebas de extremo a extremo; Playwright 1.64.1 con Chro
 - **Fuera de las pruebas E2E:** cuenta suspendida y API caída (necesitan escribir en la base o parar la API; se comprobaron a mano en el hito 3), accesibilidad automática y Lighthouse.
 - **Guarda del backend:** la regla «solo `NEXT_PUBLIC_*`» de `test_frontend_scope` aplica al código de la aplicación (`frontend/src`); las pruebas E2E y su configuración leen variables propias (`CI`, `E2E_*`).
 
-Pendientes: las versiones definitivas de T-01 (hito 5).
+Resueltas en el hito 5 (CI y cierre, 2026-11-04):
+
+- **Workflow** `.github/workflows/ci.yml`: cinco trabajos independientes y en paralelo (`python`, **`rls`** «RLS (NFR-06)», `backend`, `frontend`, `e2e`) sobre `ubuntu-24.04`, con dos
+  acciones compuestas (`.github/actions/python-env` y `local-stack`). Permisos `contents: read`, sin secretos de repositorio, `timeout-minutes` en cada trabajo y las actions de terceros
+  fijadas por SHA (checkout 7.0.1, setup-node 7.1.0, setup-python 7.1.0, upload-artifact 7.0.2). El informe de Playwright se sube solo si el trabajo falla.
+- **Sin filtros de ruta** (ADR-0001 los sugería): un check obligatorio que no se dispara deja el PR bloqueado, y la puerta RLS debe correr siempre. Un ADR aceptado no se edita; manda esta spec.
+- **Entorno generado:** `npm run env:local` (`scripts/write-env.mjs`) escribe `.env` y `frontend/.env.local` desde `supabase status -o env`. La clave de servicio es la secreta nueva (`sb_secret_…`) y los tests
+  `live` usan la publicable. Con `--ci` enmascara las claves. `supabase start` imprime las claves de la pila en la salida estándar (no son secretas, pero un registro no es sitio para ellas):
+  se redirige a `/dev/null`; el progreso y los errores salen por la de error. Sustituye el paso manual del README.
+- **Sin omitidos en el CI:** `backend/tests/ci_gate.py` (plugin cargado desde `conftest.py`) termina la sesión con código 1 si existe `CI` y algún test se omitió. Sin él, que faltase
+  `TEST_SUPABASE_ANON_KEY` o `SUPABASE_SERVICE_ROLE_KEY` omitía en silencio los tests `live` y `create-admin`: la puerta NFR-06 podía dar un falso verde.
+- **La forma del workflow la vigila un test** (`test_ci_workflow.py`): la puerta RLS ejecuta exactamente `pytest backend/tests/rls -m rls -q`, con la pila real y sin `if` ni `continue-on-error`;
+  permisos de solo lectura; sin `secrets.`, `pull_request_target` ni expresiones dentro de `run`; SHA con su versión; tiempo máximo; sin filtros de ruta; y **cada comando de §8.2 aparece en el
+  workflow** (deriva spec ↔ CI). Dos líneas de §8.2 se ejecutan distinto: el venv (`setup-python` ya deja el intérprete en el PATH) y `playwright install --with-deps` (librerías del sistema de Linux).
+- **Validación sin remoto:** `actionlint` 1.7.12 (imagen de Docker Hub, puntual; no se versiona) no da hallazgos y sí detecta errores en una copia rota. **Clon limpio** en `C:\cuadre-clean`: el árbol
+  exacto del commit (`git archive` del índice), un `.venv` nuevo, `npm ci`, clave de firma nueva y `CI=true`, repitiendo los pasos de cada trabajo: `python`, `frontend`, pila + `rls` (111), `backend`
+  (123) y `e2e` (221 en 2,2 min), todo en verde y con 0 omitidos. El único fallo fue del propio clon (no era un repositorio de git y `test_no_secrets_tracked` necesita `git ls-files`;
+  `actions/checkout` sí deja uno). `supabase start -x studio` funciona, `npm run test:scripts` no necesita instalar la raíz y la compilación del frontend se hace con la plantilla `.env.example`.
+- **Mutaciones sobre lo nuevo (25):** `ci_gate` (3), `write-env` (6) y workflow, acciones y README (16: puerta sin `-m rls`, `continue-on-error`, `if: false`, action sin SHA o sin versión, permisos de
+  escritura, secreto o expresión en `run`, trabajo sin `timeout`, comando de §8.2 ausente, filtro de rutas, RLS sin pila, nombre cambiado, acción sin `shell`, trabajo sin documentar, `supabase start` que
+  imprime las claves…). Las 25 las detecta algún test.
+- **Sin verificar: la ejecución en un runner de GitHub.** Riesgos conocidos: rutas sensibles a mayúsculas, `localhost` por IPv6, el WebKit de Linux (el salto con Tab ya se comprueba solo en Chromium y
+  Firefox), `playwright install --with-deps`, el tiempo (tres trabajos arrancan Supabase: se esperan 10-15 minutos) y los límites de Docker Hub o de la red al bajar las imágenes. Lo normal es que la
+  primera ejecución pida algún ajuste.
+- **Pendiente, requiere remoto:** primera ejecución del CI y marcar «RLS (NFR-06)» como obligatorio en la protección de `main`. Fuera de esta spec: Lighthouse CI (ADR-0010, propuesto), Dependabot para las
+  actions, cachés de imágenes y navegadores, y `npm audit` en el CI.

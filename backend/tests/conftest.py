@@ -28,6 +28,8 @@ os.environ.setdefault("TEST_DATABASE_ADMIN_URL", "postgresql://postgres:postgres
 from cuadre.db import open_pool  # noqa: E402
 from tests.support import Cast, Pool, make_cast  # noqa: E402
 
+pytest_plugins = ["tests.ci_gate"]  # en el CI, un test omitido hace fallar la sesión
+
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     """Todo lo que cuelga de tests/rls lleva el marcador `rls` (puerta NFR-06) sin repetirlo en cada prueba."""

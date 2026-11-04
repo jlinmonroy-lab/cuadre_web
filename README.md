@@ -5,9 +5,10 @@ Este repositorio contiene la web (interfaz, API, base de datos, roles, lógica f
 interfaz del chatbot). El agente de lectura de facturas y el del chatbot viven en **cuadre-agents** y se consumen a través
 de los contratos de [`contracts/`](contracts/README.md).
 
-> Desarrollo guiado por specs (spec-anchored). Se está implementando
-> [`SPEC-W-001`](docs/04-specs/SPEC-W-001-base-auth-roles-rls.md) por hitos: cimientos, base de datos con RLS, API y frontend
-> y pruebas de extremo a extremo están hechos; falta el CI (el estado de cada spec está en `docs/04-specs/tasks.json`).
+> Desarrollo guiado por specs (spec-anchored). [`SPEC-W-001`](docs/04-specs/SPEC-W-001-base-auth-roles-rls.md) se ha implementado por
+> hitos (cimientos, base de datos con RLS, API, frontend, pruebas de extremo a extremo y CI) y está en revisión: el CI está escrito
+> y comprobado en un clon limpio, pero aún no se ha ejecutado en GitHub porque no hay repositorio remoto (ver «Integración continua»).
+> El estado de cada spec está en `docs/04-specs/tasks.json`.
 
 ## Dónde mirar
 
@@ -44,14 +45,16 @@ npm run gen:signing-key                            # una vez: clave ES256 de des
 npx supabase start                                 # y `npx supabase db reset` para recrear migraciones + seed
 
 # Variables de entorno (nunca se suben valores reales)
-copy .env.example .env                             # backend y tests; rellena con `npx supabase status`
-copy frontend\.env.example frontend\.env.local     # solo NEXT_PUBLIC_*
+npm run env:local                                  # con la pila en marcha: genera .env y frontend/.env.local; no pisa los existentes (--force)
 
 # Arranque
 uvicorn cuadre.main:app --reload --port 8000 --app-dir backend/src
 npm --prefix frontend ci
 npm --prefix frontend run dev                      # http://localhost:3000
 ```
+
+`npm run env:local` escribe `.env` (backend, tests y CLI; nunca llega al frontend) y `frontend/.env.local` (solo `NEXT_PUBLIC_*`) con las claves de la
+pila local. `ADMIN_PASSWORD` solo hace falta para `python -m cuadre.cli create-admin`: añádela tú. [`.env.example`](.env.example) documenta cada variable.
 
 Abre **siempre `http://localhost:3000`** (no `127.0.0.1`): las cookies de sesión van por host y la CORS de la API solo admite ese
 origen. `npm --prefix frontend run build` descarga las fuentes: necesita red.
@@ -68,7 +71,7 @@ pytest backend/tests/rls -m rls -q                 # aislamiento por rol (NFR-06
 pytest backend/tests -m "not rls" -q               # API y guardas de reglas
 python contracts/tools/export_schemas.py --check ; python contracts/tools/validate_examples.py
 python backend/scripts/export_openapi.py --check
-npm --prefix frontend run lint ; npm --prefix frontend run typecheck ; npm --prefix frontend run test:unit
+npm --prefix frontend run lint ; npm --prefix frontend run typecheck ; npm --prefix frontend run test:unit ; npm run test:scripts
 npm --prefix frontend run gen:api -- --check
 npm --prefix frontend run build ; npm --prefix frontend run check:bundle
 npm --prefix frontend run e2e:install              # una vez: Chromium, Firefox y WebKit de Playwright
@@ -77,6 +80,32 @@ npm --prefix frontend run test:e2e                 # contra `next start` (lo con
 
 Las pruebas E2E arrancan solas la API y la web (producción); no reutilizan un servidor ya levantado, para no probar sin querer el de
 desarrollo (`E2E_REUSE_SERVER=1` lo permite). Dejan cuentas `e2e-…@example.test` en la base local: `npm run db:reset` la limpia.
+
+## Integración continua
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) repite en un runner limpio (Ubuntu) la secuencia de comprobaciones de la spec (§8.2) en cinco
+trabajos independientes y en paralelo:
+
+| Trabajo | Qué comprueba | Pila de Supabase |
+|---|---|---|
+| **RLS (NFR-06)** | `pytest backend/tests/rls -m rls`: 0 accesos indebidos entre usuario, gestor y administrador | sí |
+| Python: estilo y deriva | ruff, esquemas de contratos, ejemplos y `openapi.json` | no |
+| Backend: API y reglas | `pytest backend/tests -m "not rls"` | sí |
+| Frontend: calidad y build | lint, typecheck, pruebas unitarias, cliente generado, build y búsqueda de fugas | no |
+| E2E: Playwright | Chromium, Firefox y WebKit a 390 y 1.440 px contra `next start` | sí |
+
+- Sin secretos de repositorio: la pila de Supabase es efímera y sus claves se generan en cada ejecución (`npm run env:local -- --ci` las enmascara en el registro).
+- En el CI **un test omitido hace fallar la sesión**: una clave que falte no puede convertir la puerta RLS en un falso verde.
+- Las actions de terceros van fijadas por SHA. `backend/tests/rules/test_ci_workflow.py` vigila que la puerta RLS no se pueda saltar, que los permisos sean de solo lectura
+  y que el workflow ejecute cada comando de la secuencia de la spec.
+- Sin filtros de ruta a propósito: un check obligatorio que no se dispara deja el PR bloqueado.
+
+**Estado:** el workflow está validado con `actionlint` y sus pasos se repitieron, uno a uno, en un clon limpio con `CI=true`, pero **no se ha ejecutado en un runner de
+GitHub** porque aún no hay repositorio remoto. Cuando exista:
+
+1. Sube `main` y lanza el workflow a mano (pestaña *Actions* → *CI* → *Run workflow*). Es previsible que la primera ejecución en Linux pida algún ajuste.
+2. Protege `main` (*Settings* → *Rules* → *Rulesets*): exige pull request y marca como comprobación obligatoria **`RLS (NFR-06)`** (NFR-06 como puerta de
+   despliegue, ADR-0010). Recomendadas: los otros cuatro trabajos.
 
 ## Reglas que no se negocian
 

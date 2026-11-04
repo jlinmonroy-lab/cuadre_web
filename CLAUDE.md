@@ -46,7 +46,8 @@ mensual, reporte, recordatorios e interfaz del chatbot. Todo lo que usa modelos 
 - **Backend** `backend/src/cuadre/`: Python 3.12, FastAPI, Pydantic v2, psycopg 3 con SQL explícito (sin ORM).
 - **Datos** `supabase/`: PostgreSQL, Auth, RLS y Storage privado, región UE. Las migraciones SQL son la única fuente del
   esquema. La Data API (PostgREST) está desactivada.
-- **Calidad**: pytest, Playwright (Chromium, Firefox, WebKit), ruff, eslint, Lighthouse CI.
+- **Calidad**: pytest, Playwright (Chromium, Firefox, WebKit), ruff, eslint, Lighthouse CI (propuesto).
+- **CI**: GitHub Actions, `.github/workflows/ci.yml`. La puerta obligatoria es «RLS (NFR-06)»; en el CI un test omitido falla la sesión.
 - **Jobs** (cierre mensual, recordatorios): funciones Python con reloj inyectado, no n8n (ADR-0007).
 
 ## Estructura
@@ -68,12 +69,14 @@ Entorno virtual de Python en la **raíz**: `.venv/` (Python 3.12). Docker Deskto
 .\.venv\Scripts\Activate.ps1            # PowerShell  (Git Bash: source .venv/Scripts/activate · Linux: .venv/bin/activate)
 pip install -r contracts/requirements.txt   # tooling de contratos (hoy). Backend: pip install -e "backend[dev]" (W-001)
 npx supabase start | stop | db reset    # pila local de Supabase
+npm run gen:signing-key ; npm run env:local   # una vez por clon: clave ES256 y .env / frontend/.env.local desde la pila en marcha
 python contracts/tools/export_schemas.py [--check]     # regenera / comprueba esquemas y tools.json
 python contracts/tools/validate_examples.py            # ejemplos, aritmética al céntimo y OpenAPI
 ruff check backend ; ruff format --check backend       # (a partir de W-001)
 pytest backend/tests/rls -m rls -q                     # NFR-06, puerta de despliegue
 pytest backend/tests -m "not rls" -q
 npm --prefix frontend run lint | typecheck | test:unit | gen:api | build | check:bundle | test:e2e
+npm run test:scripts                                   # scripts de la raíz (generador de entornos)
 uvicorn cuadre.main:app --reload --port 8000 --app-dir backend/src
 ```
 

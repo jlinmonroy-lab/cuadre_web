@@ -9,7 +9,7 @@ historias: [US-001, US-011]
 requisitos: [RF-008, RF-009]
 nfr: [NFR-01, NFR-07, NFR-10, NFR-11]
 restricciones: [RES-01, RES-02, RES-06, RES-07]
-adr: [0003, 0004, 0006, 0012, 0015]
+adr: [0003, 0004, 0006, 0012, 0015, 0016]
 depende_de: [SPEC-W-001]
 bloquea: [SPEC-W-003, SPEC-W-016]
 fecha: 2026-11-04
@@ -42,13 +42,15 @@ usuario); ADR-0006 (importes en céntimos; el contrato manda cadenas `"120.00"` 
 
 | ID | Decisión propuesta | Alternativa y coste de cambiarla |
 |---|---|---|
-| D-01 | **Subida directa del navegador a Storage** con URL firmada (ADR-0004), y comprobación de la firma del archivo en el servidor al completar | Subir a través de la API: valida antes de guardar, pero pasa los archivos por FastAPI. Es el plan B si el spike del hito 0 muestra que Storage no admite la subida desde `localhost:3000` |
-| D-02 | **Lectura en segundo plano dentro del proceso de la API** (`BackgroundTasks`) y sondeo desde la pantalla; sin cola ni worker | Cola o worker aparte: innecesario para una persona y 5 lecturas simultáneas por usuario. Si el proceso se reinicia, el documento queda en «No se pudo leer» y se reintenta a mano |
+| D-01 | **Subida directa del navegador a Storage** con URL firmada (ADR-0004), y comprobación de la firma del archivo en el servidor al completar | Subir a través de la API: valida antes de guardar, pero **ya no es una alternativa**: Vercel limita el cuerpo de una petición a 4,5 MB y aquí el límite es de 15 MiB (ADR-0016). Si el spike del hito 0 muestra que Storage no admite la subida desde el navegador (`localhost:3000`), se reabre esta decisión y, con ella, el límite de D-03 |
+| D-02 | **La lectura ocurre dentro de la petición**: `complete` y `retry` esperan al agente (hasta 45 s) y responden con el estado final. El estado vive en la base de datos y el sondeo de la pantalla solo cubre recargas y lecturas interrumpidas. Sin `BackgroundTasks`, cola ni worker | `BackgroundTasks` (propuesta anterior): en Vercel no se puede contar con trabajo posterior a la respuesta (ADR-0016). Cola (Vercel Queues): fiable, pero un servicio más que no hace falta para una persona y 5 lecturas simultáneas. Si la petición se interrumpe, el documento queda en «No se pudo leer» pasados 120 s y se reintenta a mano |
 | D-03 | **Límites: 15 MiB por archivo; PDF, JPG, PNG, HEIC y WebP; 5 lecturas simultáneas por usuario** | Subirlos exige tocar tres sitios a la vez (CHECK, bucket y API) y un test que comprueba que coinciden |
 | D-04 | **Vista previa del original** en la pantalla de revisión con URL firmada de 60 s (PDF e imágenes; HEIC solo descarga). **Descartar borra el archivo**; lo ya registrado se conservará (SPEC-W-003, CONF-004) | No mostrar el original: la persona no podría verificar un NIF ilegible contra el documento |
 | D-05 | **La cámara móvil entra ya** (`<input capture="environment">`); US-011 es *Must* y no cuesta más | Aplazarla a SPEC-W-016: se pierde la prueba temprana en 390 px |
 | D-06 | **`FakeAgentsClient` recorre los fixtures en orden fijo** (completa, NIF dudoso, suma que no cuadra, ticket, instrucciones ocultas, ilegible). Con `APP_ENV=production` y sin `AGENTS_BASE_URL`, **la API no arranca**: nunca un simulacro silencioso en producción | Cliente simulado también en producción: peligroso, nadie lo notaría |
 | D-07 | **Se guarda la extracción normalizada** (céntimos y textos acotados), no la respuesta cruda del agente, y las correcciones de la persona en un campo aparte (`review`) | Guardar la cruda: más fiel, pero conserva texto sin acotar de una fuente no confiable |
+
+*Revisión del 2026-11-04 (ADR-0016): al decidir que el backend se despliega en Vercel Functions, D-01 y D-02 se reescribieron. Siguen siendo propuestas a tu visto bueno, igual que D-03 a D-07.*
 
 ## 2. Objetivo
 
@@ -85,7 +87,7 @@ Al terminar esta spec:
   `retry_document_extraction` y `discard_document` (§5.1), solo para el rol `usuario`.
 - Módulo de Storage (`cuadre.documents`): emite URL firmada de subida, lee la cabecera del archivo, emite URL firmada de lectura de ≈120 s para el
   agente y de 60 s para la vista previa, y borra el archivo; **siempre con el JWT del usuario, nunca con la service key**.
-- Extracción en segundo plano, límite de lecturas simultáneas, errores `problem+json` nuevos (§5.1) y registro sin datos sensibles.
+- Lectura dentro de la petición `complete` / `retry` (D-02; sin trabajo posterior a la respuesta), límite de lecturas simultáneas, errores `problem+json` nuevos (§5.1) y registro sin datos sensibles.
 
 ### 3.4 Frontend (Next.js)
 - Apartado **Gastos** (`/gastos`) activo para `usuario`: zona de subida (archivos y «Hacer una foto»), lista de documentos con su estado y recarga
@@ -96,7 +98,7 @@ Al terminar esta spec:
 - Tokens de diseño del prototipo, etiqueta en cada campo, foco visible, sin scroll horizontal a 390 y 1.440 px.
 
 ### 3.5 Pruebas
-- `backend/tests/agents/`, `backend/tests/documents/`, ampliación de `backend/tests/rls/` (tabla y `storage.objects`), unitarias del frontend y
+- `backend/tests/agents/`, `backend/tests/documents/`, `backend/tests/rules/test_vercel_compat.py` (T2-13 y T2-14), ampliación de `backend/tests/rls/` (tabla y `storage.objects`), unitarias del frontend y
   `frontend/e2e/gastos-subida.spec.ts` en los tres motores y los dos anchos.
 
 ## 4. Alcance excluido
@@ -121,12 +123,12 @@ Todas exigen `Authorization: Bearer` y rol `usuario` (`forbidden` 403 para gesto
 | `operation_id` | Método y ruta | Cuerpo / respuesta |
 |---|---|---|
 | `upload_document` | `POST /api/documents` | Cuerpo `{ "filename": string, "mime_type": enum, "size_bytes": int, "source": "file"\|"camera" }`. **201** `{ "id": uuid, "status": "uploading", "upload": { "url": string, "method": "PUT", "headers": { "Content-Type": string } }, "max_bytes": int }` |
-| `complete_document_upload` | `POST /api/documents/{id}/complete` | Sin cuerpo. Comprueba que el archivo existe, que su tamaño es el declarado y que su **firma** coincide con el tipo; pasa a `processing`. **202** `{ "id", "status": "processing" }`. Idempotente: en `processing` o `review` responde igual con el estado actual |
+| `complete_document_upload` | `POST /api/documents/{id}/complete` | Sin cuerpo. Comprueba que el archivo existe, que su tamaño es el declarado y que su **firma** coincide con el tipo; pasa a `processing` y **lee el documento dentro de esta misma petición** (hasta 45 s, D-02). **200** `{ "id", "status" }` con el estado final: `review` o `extraction_failed`. Idempotente: en `processing` (otra petición lo está leyendo), `review` o `extraction_failed` responde con el estado actual sin lanzar otra lectura |
 | `list_documents` | `GET /api/documents` | Los documentos de la persona que no están `uploading` ni `discarded`, del más reciente al más antiguo: `[{ id, status, original_filename, mime_type, created_at, doc_type, supplier_name, total_cents, doubtful_count, injection_suspected, error }]` |
-| `get_document` | `GET /api/documents/{id}` | El documento completo (§5.3). Un `processing` con más de 120 s sin cambios se presenta como `extraction_failed` con `error.code = "timeout"` (sin escribir nada en un GET) |
+| `get_document` | `GET /api/documents/{id}` | El documento completo (§5.3). Un `processing` con más de 120 s sin cambios se presenta como `extraction_failed` con `error.code = "timeout"` (sin escribir nada en un GET); es lo que se ve si se interrumpió la petición que lo leía |
 | `get_document_preview` | `GET /api/documents/{id}/preview` | `{ "url": string, "expires_in": 60, "previewable": bool }`; `previewable` es `false` para HEIC |
 | `save_document_review` | `PUT /api/documents/{id}/review` | Cuerpo = lo editable de §5.3 (`review`). Valida **la forma** (tipos, fechas ISO, importes en céntimos, longitudes), no la fiscalidad. **200** con el documento. Solo en `review` o `extraction_failed` (relleno a mano) |
-| `retry_document_extraction` | `POST /api/documents/{id}/retry` | **202**. Solo en `extraction_failed` o `processing` caducado. Reutiliza el mismo `document_id` (la lectura es idempotente por él) |
+| `retry_document_extraction` | `POST /api/documents/{id}/retry` | Solo en `extraction_failed` o `processing` caducado. Reutiliza el mismo `document_id` (la lectura es idempotente por él) y, como `complete`, **lee dentro de la petición**: **200** `{ "id", "status" }` con `review` o `extraction_failed` |
 | `discard_document` | `DELETE /api/documents/{id}` | **204**. Pasa a `discarded` y borra el archivo. Estados `uploading`, `processing`, `review`, `extraction_failed` |
 
 `operation_id` del prototipo reservados para SPEC-W-003: `validate_extraction`, `confirm_document`, `create_expense`.
@@ -252,8 +254,8 @@ class AgentsClient(Protocol):
 | `/gastos` | `usuario` | Subir archivos (`<input type=file multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.webp">`) y «Hacer una foto» (`accept="image/*" capture="environment"`); lista de documentos con estado «Leyendo…», «Para revisar» o «No se pudo leer»; se actualiza sola mientras alguno se lee |
 | `/gastos/[id]` | `usuario` | Revisión: original (vista previa o descarga), formulario, aviso de dudosos y de sospecha de inyección, «Guardar cambios», «Volver a leer», «Descartar» y «Registrar gasto» desactivado con «Próximamente» |
 
-El flujo de subida lo orquesta un componente de cliente: acción de servidor `upload_document` → `PUT` del archivo a la URL firmada (el navegador nunca tiene el JWT) → acción de servidor `complete_document_upload`. El estado se refresca con `router.refresh()` cada 2 s mientras
-haya algún documento en `processing`. Un fallo en cualquier paso se muestra en la fila del archivo, con su motivo y la opción de reintentar, sin perder los demás.
+El flujo de subida lo orquesta un componente de cliente: acción de servidor `upload_document` → `PUT` del archivo a la URL firmada (el navegador nunca tiene el JWT) → acción de servidor `complete_document_upload`, que **espera la lectura** (hasta 45 s): mientras tanto la fila muestra «Leyendo…». El estado se
+refresca con `router.refresh()` cada 2 s mientras haya algún documento en `processing`, para cubrir recargas de la página y lecturas interrumpidas. Un fallo en cualquier paso se muestra en la fila del archivo, con su motivo y la opción de reintentar, sin perder los demás.
 
 ## 6. Restricciones técnicas
 
@@ -271,6 +273,8 @@ haya algún documento en `processing`. Un fallo en cualquier paso se muestra en 
 | T2-10 | **Tiempo**: la web no añade latencia apreciable (NFR-01 es del agente, p95 ≤ 30 s): con el cliente simulado, de «completar» a «Para revisar» pasa menos de 3 s |
 | T2-11 | **Interfaz**: tokens del prototipo, etiquetas, foco visible, estado con texto además de color, anuncios con `aria-live`, sin scroll horizontal a 390 y 1.440 px en Chromium, Firefox y WebKit |
 | T2-12 | **Migraciones sin datos reales**: el seed no añade documentos; los archivos de prueba son sintéticos (RES-07) y se generan en el test |
+| T2-13 | **Sin trabajo posterior a la respuesta** (ADR-0016): las rutas no usan `BackgroundTasks` ni hilos que sobrevivan a la petición; la lectura ocurre dentro de `complete` y `retry`. Un test recorre `backend/src/cuadre` buscándolos |
+| T2-14 | **Ningún archivo pasa por la API** (límite de 4,5 MB por petición en Vercel, ADR-0016): la subida va del navegador a Storage y el agente lee con otra URL firmada. Un test comprueba que el OpenAPI no declara `multipart/form-data` ni `application/octet-stream` |
 
 ## 7. Criterios de aceptación (Given-When-Then)
 
@@ -333,7 +337,7 @@ AC-10  Móvil (US-011, NFR-10)
     And ninguna pantalla de Gastos necesita scroll horizontal a 390 ni a 1.440 px en los tres navegadores
 
 AC-11  Estados y recuperación
-  Given un documento en processing sin cambios desde hace más de 120 s (por ejemplo, tras reiniciar la API)
+  Given un documento en processing sin cambios desde hace más de 120 s (por ejemplo, porque se interrumpió la petición que lo leía)
   Then GET lo presenta como extraction_failed con "timeout" y "Volver a leer" lo relanza con el mismo document_id
     And completar dos veces la misma subida no lanza dos lecturas
 
@@ -399,6 +403,7 @@ de SPEC-W-001 §8.2, que debe seguir en verde.
 | AC-11 a AC-14 | `backend/tests/documents/test_states.py`, `test_limits.py`, `test_discard.py`, `test_review.py`; `frontend/src/lib/money.test.ts` |
 | AC-15 | `backend/tests/rls/test_rls_guard.py` y las guardas de `backend/tests/rules/` |
 | T2-10 | `backend/tests/documents/test_upload_flow.py::test_the_web_adds_no_noticeable_latency` |
+| T2-13, T2-14 | `backend/tests/rules/test_vercel_compat.py` |
 
 ### 8.4 Definición de hecho
 
@@ -406,19 +411,19 @@ de SPEC-W-001 §8.2, que debe seguir en verde.
 - [ ] `pytest backend/tests/rls -m rls` incluye `documents` y `storage.objects`.
 - [ ] §8.2 de SPEC-W-001, `README.md` y la acción `python-env` del CI instalan `contracts/python` antes que el backend (en el mismo cambio).
 - [ ] `frontend/e2e/roles.spec.ts` y la navegación reflejan que Gastos ya no es «Próximamente» para `usuario`.
-- [ ] `docs/04-specs/tasks.json` actualizado; los ADR 0003, 0004, 0006, 0012 y 0015 enlazados.
+- [ ] `docs/04-specs/tasks.json` actualizado; los ADR 0003, 0004, 0006, 0012, 0015 y 0016 enlazados.
 - [ ] Sin secretos ni documentos reales en el cambio; `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
 
 ## Anexo A · Orden de implementación sugerido (un plan y un commit por hito)
 
-0. **Spike de Storage** (CLI 3.0, ES256): URL firmada de subida y de lectura con el JWT del usuario; que Storage acepte esa subida desde `http://localhost:3000` (CORS; si no, se aplica el plan B de D-01); políticas sobre `storage.objects` con funciones
+0. **Spike de Storage** (CLI 3.0, ES256): URL firmada de subida y de lectura con el JWT del usuario; que Storage acepte esa subida desde `http://localhost:3000` (CORS; si no, se reabre D-01: no hay plan B por la API, ADR-0016); políticas sobre `storage.objects` con funciones
    `private.document_*`; borrar con el token del usuario; bucket y límites declarados en una migración. Resultado al Anexo B.
 1. **Base de datos**: enums, `documents`, funciones `app.*`, trigger, bucket y políticas, matriz y `test_documents` / `test_storage_policies`, con mutaciones.
 2. **`cuadre.agents`**: Protocol, Fake, Http, normalización, errores y selección por entorno; pruebas de contrato con los seis ejemplos; dependencia `cuadre-contracts` (README, CI y SPEC-W-001 §8.2 en el mismo commit).
-3. **API de documentos**: rutas, módulo de Storage, lectura en segundo plano, límites y registro sin datos sensibles; `openapi.json` y `schema.d.ts` regenerados.
+3. **API de documentos**: rutas, módulo de Storage, lectura dentro de la petición `complete` / `retry`, límites y registro sin datos sensibles; `openapi.json` y `schema.d.ts` regenerados.
 4. **Frontend**: `money.ts`, `/gastos` y `/gastos/[id]`, subida y cámara, refresco, estados; navegación activa para `usuario`.
 5. **E2E y cierre**: `gastos-subida.spec.ts` (tres motores, dos anchos), `roles.spec.ts` actualizado, mutaciones, Anexo B, `tasks.json` y commit.
 
 ## Anexo B · Decisiones que esta spec dejó a la implementación
 
-*(Se rellena al implementar. Quedan abiertas hasta el spike del hito 0: forma exacta de la respuesta de Storage para la subida firmada y su caducidad; si la política de INSERT puede consultar la fila de `documents` en la subida firmada; y CORS desde `localhost:3000`.)*
+*(Se rellena al implementar. Quedan abiertas hasta el spike del hito 0: forma exacta de la respuesta de Storage para la subida firmada y su caducidad; si la política de INSERT puede consultar la fila de `documents` en la subida firmada; y CORS desde `localhost:3000`. Con el backend en Vercel (ADR-0016) quedan además para la spec de despliegue: qué pasa con `complete` si el navegador cierra la conexión antes de que acabe la lectura, y que `cuadre-contracts`, que está fuera de `backend/`, se instale en el despliegue.)*

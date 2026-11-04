@@ -1,6 +1,7 @@
 # ADR-0007 · Jobs programados en código Python, no en n8n
 
-- **Estado:** Aceptado
+- **Estado:** Aceptado. Parcialmente sustituido por [ADR-0016](0016-backend-en-vercel.md): solo cómo se invoca el cron (GET
+  protegido con `CRON_SECRET`, programado en UTC); el resto de esta decisión sigue vigente.
 - **Fecha:** 2026-11-03
 
 ## Contexto

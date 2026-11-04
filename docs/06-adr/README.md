@@ -11,7 +11,7 @@ descartadas, consecuencias. Un ADR aceptado no se edita: se sustituye por otro q
 | [0004](0004-supabase-ue.md) | Supabase en la UE: Postgres, Auth, RLS y Storage privado | Aceptado |
 | [0005](0005-autenticacion-roles-rls.md) | Autenticación, roles y autorización | Aceptado |
 | [0006](0006-importes-en-centimos.md) | Importes: céntimos enteros en base y API, `Decimal` en el cálculo | Aceptado |
-| [0007](0007-jobs-programados.md) | Jobs programados en código Python, no en n8n | Aceptado |
+| [0007](0007-jobs-programados.md) | Jobs programados en código Python, no en n8n | Aceptado (parcialmente sustituido por 0016) |
 | [0008](0008-correo-transaccional.md) | Correo transaccional detrás de una interfaz | Propuesto |
 | [0009](0009-entorno-de-desarrollo.md) | Entorno de desarrollo: venv en la raíz, npm y Supabase local | Aceptado |
 | [0010](0010-calidad-tests-ci.md) | Calidad: pytest, Playwright, ruff, eslint y CI con puertas | Aceptado |
@@ -20,3 +20,4 @@ descartadas, consecuencias. Un ADR aceptado no se edita: se sustituye por otro q
 | [0013](0013-mcp-solo-lectura-token-derivado.md) | Servidor MCP de solo lectura con token derivado y acotado | Aceptado |
 | [0014](0014-despliegue-ue.md) | Despliegue 100 % en la UE | Propuesto |
 | [0015](0015-psycopg-sincrono.md) | psycopg síncrono con pool de conexiones | Aceptado |
+| [0016](0016-backend-en-vercel.md) | Backend FastAPI desplegado en Vercel Functions (región UE) | Aceptado (a comprobar en un despliegue) |

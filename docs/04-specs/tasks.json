@@ -97,7 +97,8 @@
         "0004",
         "0006",
         "0012",
-        "0015"
+        "0015",
+        "0016"
       ],
       "depends_on": [
         "SPEC-W-001"
@@ -117,7 +118,7 @@
         "npm --prefix frontend exec -- playwright test e2e/gastos-subida.spec.ts",
         "secuencia completa: SPEC-W-002 §8.2 y SPEC-W-001 §8.2"
       ],
-      "notes": "AgentsClient con FakeAgentsClient (fixtures de contracts/examples) y HttpAgentsClient. Storage privado, subida con URL firmada y lectura del agente con URL firmada de ≈120 s. Añade documents a rls_matrix.yaml y las políticas de storage.objects. No valida ni registra gastos (W-003). Siete decisiones de diseño (D-01 a D-07) pendientes de visto bueno en §1."
+      "notes": "AgentsClient con FakeAgentsClient (fixtures de contracts/examples) y HttpAgentsClient. Storage privado, subida con URL firmada y lectura del agente con URL firmada de ≈120 s. Añade documents a rls_matrix.yaml y las políticas de storage.objects. No valida ni registra gastos (W-003). Siete decisiones de diseño (D-01 a D-07) pendientes de visto bueno en §1. D-01 y D-02 reescritas el 2026-11-04 por ADR-0016 (backend en Vercel): la lectura ocurre dentro de la petición y no hay plan B de subida por la API (límite de 4,5 MB)."
     },
     {
       "id": "SPEC-W-003",

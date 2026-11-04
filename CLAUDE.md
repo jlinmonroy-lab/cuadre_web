@@ -49,6 +49,8 @@ mensual, reporte, recordatorios e interfaz del chatbot. Todo lo que usa modelos 
 - **Calidad**: pytest, Playwright (Chromium, Firefox, WebKit), ruff, eslint, Lighthouse CI (propuesto).
 - **CI**: GitHub Actions, `.github/workflows/ci.yml`. La puerta obligatoria es «RLS (NFR-06)»; en el CI un test omitido falla la sesión.
 - **Jobs** (cierre mensual, recordatorios): funciones Python con reloj inyectado, no n8n (ADR-0007).
+- **Despliegue** (decidido, aún sin desplegar): backend FastAPI como Vercel Function en región UE (ADR-0016): sin proceso
+  persistente, sin trabajo posterior a la respuesta, sin archivos por la API (4,5 MB) y con el cron por GET en UTC.
 
 ## Estructura
 

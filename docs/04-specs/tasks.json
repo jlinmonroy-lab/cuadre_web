@@ -68,8 +68,8 @@
     {
       "id": "SPEC-W-002",
       "title": "Cliente de agentes, subida de factura de compra y pantalla de revisión (simulado/HTTP; cámara móvil)",
-      "file": null,
-      "status": "propuesta",
+      "file": "docs/04-specs/SPEC-W-002-agentes-subida-revision-facturas.md",
+      "status": "especificada",
       "priority": "must",
       "risk": "alto",
       "stories": [
@@ -81,14 +81,23 @@
         "RF-009"
       ],
       "nfr": [
-        "NFR-01"
+        "NFR-01",
+        "NFR-07",
+        "NFR-10",
+        "NFR-11"
       ],
       "constraints": [
         "RES-01",
-        "RES-06"
+        "RES-02",
+        "RES-06",
+        "RES-07"
       ],
       "adr": [
-        "0012"
+        "0003",
+        "0004",
+        "0006",
+        "0012",
+        "0015"
       ],
       "depends_on": [
         "SPEC-W-001"
@@ -101,11 +110,14 @@
       "prd_legacy_ids": [
         "SPEC-004"
       ],
+      "acceptance_criteria": 15,
       "verification": [
         "pytest backend/tests/agents backend/tests/documents",
-        "npm --prefix frontend exec -- playwright test e2e/gastos-subida.spec.ts"
+        "pytest backend/tests/rls -m rls -q",
+        "npm --prefix frontend exec -- playwright test e2e/gastos-subida.spec.ts",
+        "secuencia completa: SPEC-W-002 §8.2 y SPEC-W-001 §8.2"
       ],
-      "notes": "AgentsClient con FakeAgentsClient (fixtures de contracts/examples) y HttpAgentsClient. Storage privado y URL firmada de ≈120 s. Añade documents y su política a rls_matrix.yaml."
+      "notes": "AgentsClient con FakeAgentsClient (fixtures de contracts/examples) y HttpAgentsClient. Storage privado, subida con URL firmada y lectura del agente con URL firmada de ≈120 s. Añade documents a rls_matrix.yaml y las políticas de storage.objects. No valida ni registra gastos (W-003). Siete decisiones de diseño (D-01 a D-07) pendientes de visto bueno en §1."
     },
     {
       "id": "SPEC-W-003",

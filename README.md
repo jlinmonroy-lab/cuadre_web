@@ -7,7 +7,7 @@ de los contratos de [`contracts/`](contracts/README.md).
 
 > Desarrollo guiado por specs (spec-anchored). Se está implementando
 > [`SPEC-W-001`](docs/04-specs/SPEC-W-001-base-auth-roles-rls.md) por hitos: cimientos, base de datos con RLS, API y frontend
-> están hechos; faltan las pruebas de extremo a extremo y el CI (el estado de cada spec está en `docs/04-specs/tasks.json`).
+> y pruebas de extremo a extremo están hechos; falta el CI (el estado de cada spec está en `docs/04-specs/tasks.json`).
 
 ## Dónde mirar
 
@@ -71,7 +71,12 @@ python backend/scripts/export_openapi.py --check
 npm --prefix frontend run lint ; npm --prefix frontend run typecheck ; npm --prefix frontend run test:unit
 npm --prefix frontend run gen:api -- --check
 npm --prefix frontend run build ; npm --prefix frontend run check:bundle
+npm --prefix frontend run e2e:install              # una vez: Chromium, Firefox y WebKit de Playwright
+npm --prefix frontend run test:e2e                 # contra `next start` (lo construye); pila de Supabase en marcha y puertos 3000 y 8000 libres
 ```
+
+Las pruebas E2E arrancan solas la API y la web (producción); no reutilizan un servidor ya levantado, para no probar sin querer el de
+desarrollo (`E2E_REUSE_SERVER=1` lo permite). Dejan cuentas `e2e-…@example.test` en la base local: `npm run db:reset` la limpia.
 
 ## Reglas que no se negocian
 

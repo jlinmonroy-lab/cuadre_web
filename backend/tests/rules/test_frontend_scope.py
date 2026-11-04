@@ -36,6 +36,11 @@ def frontend_sources() -> Iterator[Path]:
         yield path
 
 
+def app_sources() -> Iterator[Path]:
+    """El código que se publica (`frontend/src`). Las pruebas E2E y su configuración leen variables propias (`CI`, `E2E_*`)."""
+    yield from (p for p in frontend_sources() if (FRONTEND / "src") in p.parents)
+
+
 def forbidden_names(text: str) -> list[str]:
     return sorted({m.group(0) for m in FORBIDDEN.finditer(text)})
 
@@ -67,7 +72,8 @@ def test_the_detectors() -> None:
 
 
 def test_the_frontend_has_sources_to_check() -> None:
-    assert len(list(frontend_sources())) >= 20, "la guarda no está viendo el código del frontend"
+    assert len(list(app_sources())) >= 20, "la guarda no está viendo el código de la aplicación"
+    assert len(list(frontend_sources())) > len(list(app_sources())), "la guarda no está viendo las pruebas E2E"
 
 
 def test_no_frontend_file_names_the_service_key_or_a_database_url() -> None:
@@ -80,7 +86,7 @@ def test_no_frontend_file_names_the_service_key_or_a_database_url() -> None:
 
 def test_the_frontend_only_reads_public_environment_variables() -> None:
     offenders = {}
-    for path in frontend_sources():
+    for path in app_sources():
         if bad := env_violations(path.read_text(encoding="utf-8")):
             offenders[rel(path)] = bad
     assert offenders == {}

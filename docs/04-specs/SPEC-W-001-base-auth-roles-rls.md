@@ -680,7 +680,7 @@ secuencia anterior para dar la spec por hecha.
 | AC-12 | `backend/tests/rls/test_activity_log.py` |
 | AC-13 | `backend/tests/rls/test_rls_guard.py` |
 | AC-14 | `frontend/e2e/responsive.spec.ts` (proyectos 390 y 1.440 px) |
-| AC-15 | `backend/tests/rules/test_openapi_drift.py`; `npm --prefix frontend run gen:api -- --check`; `npm --prefix frontend run check:bundle` (con `frontend/scripts/bundle-scan.test.mjs`) |
+| AC-15 | `backend/tests/rules/test_openapi_drift.py`; `npm --prefix frontend run gen:api -- --check`; `npm --prefix frontend run check:bundle` (con `frontend/scripts/bundle-scan.test.mjs`); `frontend/e2e/bundle.spec.ts` (lo que `next start` sirve de verdad) |
 | T-02 a T-11, T-15 | `backend/tests/rules/` (`test_no_float`, `test_service_key_scope`, `test_db_access_scope`, `test_data_api_off`, `test_no_llm_sdk`, `test_operation_ids`, `test_no_secrets_tracked`, `test_frontend_scope`) |
 
 **`rls_matrix.yaml`** vive en `backend/tests/rls/` y registra, por tabla, su tipo (`identity`, `financial` o `log`), la columna
@@ -759,4 +759,22 @@ Resueltas en el hito 3 (frontend, 2026-11-04; Next.js 16.4.5, React 19.3, Tailwi
   compilar (el CSS que se importa y la CLI): se pasaron a `devDependencies`. Quedan avisos moderados en herramientas de desarrollo
   (`minimatch < 11.0.1` y `deepmerge` vía `eslint-config-next`, `openapi-typescript` y la CLI de shadcn); no llegan al build.
 
-Pendientes: la forma exacta del *helper* de Playwright para Mailpit (hito 4) y las versiones definitivas de T-01 (hito 5).
+Resueltas en el hito 4 (pruebas de extremo a extremo; Playwright 1.64.1 con Chromium 156, Firefox 157 y WebKit 27.2):
+
+- **Matriz:** tres motores × dos anchos (390 y 1.440 px) = seis proyectos, más un proyecto de preparación por motor. 221 pruebas: 9 de preparación,
+  35 por proyecto (`roles` 9, `responsive` 9, `auth` 17) y 2 de `bundle`, que corren solo en `chromium-1440`. Solo `viewport` (sin `isMobile`, que Firefox no admite).
+- **Contra producción:** el `webServer` construye y arranca `next start` y arranca la API con el Python del `.venv`. No reutiliza un servidor ya levantado
+  (podría ser el de desarrollo); `E2E_REUSE_SERVER=1` lo permite. `E2E_DEBUG_SERVERS=1` muestra los registros de los servidores.
+- **Mailpit:** `e2e/helpers/mailpit.ts` sondea cada 250 ms hasta 15 s y elige el correo por el `type` del enlace (`email` o `recovery`); `countMessagesTo`
+  comprueba que a una cuenta inexistente no se envía nada. Sin dependencias.
+- **Sesiones:** una por rol y motor, iniciada por la interfaz y guardada en `e2e/.auth/` (gitignorada); las pruebas que cierran sesión o prueban el acceso hacen la suya.
+  Cuentas nuevas con correo único `e2e-…@example.test`; las pruebas no tocan la base de datos (lo del trigger lo cubre `backend/tests/rls`).
+- **Guarda de consola:** una *fixture* falla la prueba si el navegador registra `console.error` o una excepción de página.
+- **WebKit** (como Safari) no detiene el Tab en los enlaces por defecto: el enlace «Saltar al contenido» se comprueba en Chromium y Firefox; en WebKit, los campos y el botón.
+- **Mutaciones sobre la aplicación (12, con su `next build` cada una):** todas detectadas. Dos casos instructivos: quitar `safeNext` de la acción de entrar **no** fallaba
+  ninguna prueba (la página ya saneaba `next` antes de pintar el formulario), así que se añadió una prueba que manipula el campo oculto al enviar y comprueba la segunda
+  capa; y quitar `htmlFor` de las etiquetas lo detecta ya la preparación (usa `getByLabel`), de modo que la prueba específica se verificó con una variante (`aria-label` sin etiqueta asociada).
+- **Fuera de las pruebas E2E:** cuenta suspendida y API caída (necesitan escribir en la base o parar la API; se comprobaron a mano en el hito 3), accesibilidad automática y Lighthouse.
+- **Guarda del backend:** la regla «solo `NEXT_PUBLIC_*`» de `test_frontend_scope` aplica al código de la aplicación (`frontend/src`); las pruebas E2E y su configuración leen variables propias (`CI`, `E2E_*`).
+
+Pendientes: las versiones definitivas de T-01 (hito 5).

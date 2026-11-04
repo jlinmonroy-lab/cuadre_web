@@ -11,6 +11,9 @@ npm run dev                          # http://localhost:3000  (abre SIEMPRE loca
 npm run lint ; npm run typecheck ; npm run test:unit
 npm run gen:api [-- --check]         # src/api/schema.d.ts desde ../backend/openapi.json (no se edita a mano)
 npm run build ; npm run check:bundle # el build no puede contener la clave de servicio
+npm run e2e:install                  # una vez: Chromium, Firefox y WebKit
+npm run test:e2e                     # Playwright (3 motores × 390 y 1.440 px) contra `next start`; ver playwright.config.ts
+npx playwright test roles --project=chromium-1440   # un archivo y un proyecto
 ```
 
 - Los datos van por la API con el cliente generado (`src/api`); `@supabase/ssr` solo gestiona la sesión (`src/lib/supabase`).

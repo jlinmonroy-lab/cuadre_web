@@ -15,6 +15,11 @@ const eslintConfig = defineConfig([
     // Generado por `npm run gen:api`: no se edita ni se revisa a mano.
     "src/api/schema.d.ts",
   ]),
+  {
+    // Las fixtures de Playwright reciben una función llamada `use`, que la regla de hooks de React confunde con `React.use`.
+    files: ["e2e/**/*.ts"],
+    rules: { "react-hooks/rules-of-hooks": "off" },
+  },
 ]);
 
 export default eslintConfig;

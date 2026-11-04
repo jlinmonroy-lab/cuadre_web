@@ -92,7 +92,7 @@ El valor entregable es la **confianza demostrada** en el aislamiento. La interfa
 
 ### 3.4 Frontend (Next.js)
 - Páginas de autenticación: `/login`, `/registro`, `/recuperar`, `/restablecer`.
-- Middleware y *layouts* con protección por rol, redirección a la portada de cada rol y página 403.
+- Proxy (`src/proxy.ts`: en Next.js 16 el «middleware» se llama «proxy») y *layouts* con protección por rol, redirección a la portada de cada rol y página 403.
 - Layout autenticado con la navegación del prototipo (barra lateral en escritorio, barra superior desplazable en móvil),
   tokens de diseño del prototipo en el tema de Tailwind y fuentes con `next/font`.
 - Portadas mínimas `/inicio`, `/cartera` y `/admin` con el nombre de la persona, su rol y las secciones futuras
@@ -355,18 +355,34 @@ usuarios (mismos roles, correos únicos) mediante `TEST_DATABASE_ADMIN_URL`, de 
 | `/login` | Anónimo | Correo y contraseña. Con sesión, redirige a la portada del rol. Admite `?next=` relativo |
 | `/registro` | Anónimo | Nombre, correo y contraseña (≥ 10 caracteres). Pide confirmar el correo |
 | `/recuperar` | Anónimo | Pide el correo y envía el enlace de recuperación. La respuesta es la misma exista o no la cuenta |
-| `/restablecer` | Con el enlace | Fija la nueva contraseña |
+| `/restablecer` | Con el enlace | Fija la nueva contraseña. Al terminar cierra todas las sesiones y lleva a `/login?aviso=restablecida`; sin la sesión que crea el enlace, lleva a `/recuperar?aviso=enlace` |
 | `/inicio` | `usuario` | Portada del autónomo |
 | `/cartera` | `gestor` | Portada del gestor |
 | `/admin` | `admin` | Portada del administrador |
 | `/403` | Con sesión | «No tienes acceso a esta sección», con enlace a su portada |
-| `/auth/confirm` | Con el enlace del correo | *Route handler* (sin interfaz): lee `token_hash`, `type` y `next` y llama a `verifyOtp`; con éxito redirige a `next` (por defecto, la portada del rol) y con error, a `/login` con un mensaje |
+| `/auth/confirm` | Con el enlace del correo | *Route handler* (sin interfaz): lee `token_hash`, `type` (solo `email` o `recovery`) y `next` (solo ruta relativa de la propia aplicación: `safeNext`) y llama a `verifyOtp`; con éxito redirige a `next` (por defecto, la portada del rol) y con error, a `/login` con un mensaje |
+| `/auth/cerrar` | Interna | *Route handler*: cierra la sesión local y redirige a `/login?aviso=…`. Solo lo usa `getMe()` cuando la API rechaza la sesión (no se pueden borrar cookies al renderizar); rechaza las peticiones `Sec-Fetch-Site: cross-site`. El cierre voluntario es la acción `logout` |
 
 Los correos de confirmación y de recuperación los envía Supabase Auth con plantillas en español (`supabase/templates/confirmation.html`
 y `recovery.html`) cuyos enlaces apuntan a `/auth/confirm` (flujo PKCE de `@supabase/ssr`).
 
-El middleware solo mejora la experiencia (evita parpadeos y redirige); la autorización real está en la API y en la RLS. Un
-usuario que abre la portada de otro rol ve `/403`.
+El *proxy* (`src/proxy.ts`) refresca la sesión con `getClaims()` (verifica la firma del JWT por JWKS; `getSession()` no se usa para
+autorizar) y aplica `routeGuard`, una función pura con tests: sin sesión, una portada lleva a `/login?next=<ruta>`; con sesión,
+`/login`, `/registro` y `/recuperar` devuelven a `/`, que lleva a la portada del rol. Solo mejora la experiencia: **las Server Functions no
+pasan por el *matcher* del proxy**, así que cada layout y cada acción comprueban lo suyo, y la autorización real está en la API y en la RLS.
+El rol no sale del JWT: el layout autenticado llama a `GET /api/me` y de ahí salen la portada, la navegación y la comprobación de rol.
+Quien abre la portada de otro rol ve `/403`. Con *Cache Components* (valor por defecto de Next.js 16) la sesión es un dato de la petición y se
+lee dentro de `<Suspense>`.
+
+**Casos límite** (definidos para evitar bucles de redirección y sesiones perdidas):
+
+- API caída (red, 5xx, 429, `auth_unavailable`…): `app/error.tsx` («Servicio no disponible» con «Reintentar»), con la sesión intacta. **Nunca**
+  se redirige a `/login` con sesión, porque el proxy la devolvería a `/` y se formaría un bucle.
+- `GET /api/me` → 401: `/auth/cerrar?aviso=sesion`; 403 `account_suspended`: aviso `suspendida`; 403 `profile_missing`: aviso `perfil`.
+  Las tres cierran la sesión local y terminan en `/login` con el aviso.
+- `?aviso=` elige un texto de una lista cerrada (`lib/notices.ts`): nunca se pinta lo que llegue en la URL. `?next=` solo admite rutas
+  relativas que empiecen por un único `/` (sin `//`, barra invertida, esquema, caracteres de control ni más de 512 caracteres; se comprueba
+  también decodificada).
 
 **Navegación** (barra lateral ≥ 901 px; barra superior desplazable ≤ 900 px, como el prototipo):
 
@@ -378,8 +394,9 @@ usuario que abre la portada de otro rol ve `/403`.
 Pie de la barra: nombre y rol de la persona, y «Cerrar sesión».
 
 **Textos** en español neutro, errores junto al campo y un resumen de errores con `role="alert"`. Los mensajes no revelan si un
-correo existe: el fallo de inicio de sesión es siempre «Correo o contraseña incorrectos.» y la recuperación responde igual
-exista o no la cuenta.
+correo existe: el fallo de inicio de sesión es siempre «Correo o contraseña incorrectos.» (también con el correo sin confirmar) y la
+recuperación y el registro responden igual exista o no la cuenta. Los formularios son Server Actions; las contraseñas no se devuelven
+nunca al navegador y su máximo es de 72 bytes (límite de bcrypt, comprobado contra Auth local).
 
 ### 5.4 Variables de entorno
 
@@ -399,8 +416,8 @@ clave secreta nueva (`sb_secret_…`, solo cabecera `apikey`) como el JWT de ser
 | `DATABASE_SERVICE_URL` | `cuadre.jobs`, `cuadre.cli` | solo para ellos | Rol `cuadre_jobs` |
 | `FRONTEND_ORIGIN` | backend | sí | Único origen CORS permitido |
 | `LOG_LEVEL` | backend | no | Por defecto `INFO` |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | frontend | sí | Públicas por naturaleza |
-| `NEXT_PUBLIC_API_BASE_URL` | frontend | sí | URL de la API |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | frontend | sí | Públicas por naturaleza (la segunda es la clave publicable `sb_publishable_…`). Viven en `frontend/.env.local` (plantilla `frontend/.env.example`): Next.js solo lee el `.env` de su carpeta y el `.env` de la raíz no debe llegar nunca al frontend |
+| `NEXT_PUBLIC_API_BASE_URL` | frontend | sí | URL de la API (`http://127.0.0.1:8000` en local) |
 
 `.env.example` las documenta con marcadores de posición.
 
@@ -414,7 +431,9 @@ Con el entorno virtual activado y desde la raíz del repositorio (valen igual en
 | Recrear la base con migraciones y seed | `npx supabase db reset` |
 | Parar Supabase | `npx supabase stop` |
 | Arrancar la API | `uvicorn cuadre.main:app --reload --port 8000 --app-dir backend/src` |
-| Arrancar el frontend | `npm --prefix frontend run dev` |
+| Arrancar el frontend | `npm --prefix frontend run dev` (abrir siempre `http://localhost:3000`: las cookies de sesión van por host) |
+| Pruebas unitarias del frontend | `npm --prefix frontend run test:unit` (`node --test`, sin dependencias) |
+| Comprobar el resultado del build | `npm --prefix frontend run build` y `npm --prefix frontend run check:bundle` |
 | Crear el primer administrador | `python -m cuadre.cli create-admin --email <correo>` (lee la contraseña de `ADMIN_PASSWORD`) |
 | Regenerar OpenAPI y cliente | `python backend/scripts/export_openapi.py` y `npm --prefix frontend run gen:api` |
 
@@ -459,7 +478,7 @@ Cada una tiene un test o una comprobación asociada (§8).
 | T-12 | **El rol sale de la base de datos**, nunca de claims del JWT. Los tokens con `aud` distinto, `alg: none` o sin firma se rechazan |
 | T-13 | **Logs sin tokens, contraseñas ni correos**: solo `request_id`, `user_id`, la plantilla de la ruta (nunca la query), código y duración. El registro de accesos propio de `uvicorn` imprime la query y se desactiva al configurar la aplicación (`uvicorn.access`), arranque como arranque. Test `test_requests_are_logged_without_tokens_or_emails` |
 | T-14 | **Interfaz** en español, con los tokens de diseño del prototipo, fuentes con `next/font` (nada se pide a Google desde el navegador), sin scroll horizontal a 390 y 1.440 px, foco visible y etiquetas asociadas a cada campo |
-| T-15 | **El frontend nunca importa la clave de servicio ni la URL de la base de datos**; solo `NEXT_PUBLIC_*` |
+| T-15 | **El frontend nunca importa la clave de servicio ni la URL de la base de datos**; solo `NEXT_PUBLIC_*`, y no usa los datos de Supabase (solo la sesión). Tests `test_frontend_scope` (código fuente) y `check:bundle` (resultado del build) |
 | T-16 | **Contraseñas** de al menos 10 caracteres (`minimum_password_length` en `config.toml`); confirmación de correo activa también en local, para que el entorno se parezca a producción |
 | T-17 | **Sin llamadas a la AEAT ni a modelos** desde este repositorio |
 | T-18 | **No se modifican** `docs/00-charter.md` ni `docs/03-prd.md` |
@@ -620,6 +639,7 @@ ruff check backend contracts/tools contracts/python
 ruff format --check backend contracts/tools contracts/python
 npm --prefix frontend run lint
 npm --prefix frontend run typecheck
+npm --prefix frontend run test:unit
 
 # 3 · Contratos y deriva
 python contracts/tools/export_schemas.py --check
@@ -635,6 +655,7 @@ pytest backend/tests -m "not rls" -q                    # api/ y rules/
 
 # 6 · Frontend
 npm --prefix frontend run build
+npm --prefix frontend run check:bundle
 npm --prefix frontend run test:e2e                      # Playwright: chromium, firefox y webkit
 ```
 
@@ -648,7 +669,7 @@ secuencia anterior para dar la spec por hecha.
 | AC-01 | `frontend/e2e/auth.spec.ts` · «registro»; `backend/tests/rls/test_signup_trigger.py` |
 | AC-02 | `frontend/e2e/roles.spec.ts` · «portada por rol» |
 | AC-03 | `frontend/e2e/auth.spec.ts` · «recuperación» (lee el buzón de pruebas de Supabase local) |
-| AC-04 | `frontend/e2e/auth.spec.ts` · «sin sesión»; `backend/tests/api/test_auth.py::test_no_authorization_header_is_401`, `::test_wrong_scheme_or_empty_credentials_is_401`, `::test_a_malformed_token_is_401` |
+| AC-04 | `frontend/e2e/auth.spec.ts` · «sin sesión»; `backend/tests/api/test_auth.py::test_no_authorization_header_is_401`, `::test_wrong_scheme_or_empty_credentials_is_401`, `::test_a_malformed_token_is_401`; `frontend/src/lib/route-guard.test.ts` |
 | AC-05 | `backend/tests/api/test_auth.py` (caducado, no vigente, audiencia/emisor/`exp`/`sub` inválidos, firma ajena o alterada, `kid` desconocido, `alg: none`, confusión HS256, JWKS caído, `::test_a_suspended_account_is_403`, `::test_a_valid_token_without_a_profile_is_403`); `test_me_live.py` (token real de GoTrue) |
 | AC-06 | `backend/tests/rls/test_rls_roles.py::test_no_privilege_escalation` |
 | AC-07 | `backend/tests/rls/test_rls_roles.py` (parametrizada con `rls_matrix.yaml`) |
@@ -659,8 +680,8 @@ secuencia anterior para dar la spec por hecha.
 | AC-12 | `backend/tests/rls/test_activity_log.py` |
 | AC-13 | `backend/tests/rls/test_rls_guard.py` |
 | AC-14 | `frontend/e2e/responsive.spec.ts` (proyectos 390 y 1.440 px) |
-| AC-15 | `backend/tests/rules/test_openapi_drift.py`; `frontend/e2e/bundle.spec.ts` o `npm run check:bundle` |
-| T-02 a T-11 | `backend/tests/rules/` (`test_no_float`, `test_service_key_scope`, `test_db_access_scope`, `test_data_api_off`, `test_no_llm_sdk`, `test_operation_ids`, `test_no_secrets_tracked`) |
+| AC-15 | `backend/tests/rules/test_openapi_drift.py`; `npm --prefix frontend run gen:api -- --check`; `npm --prefix frontend run check:bundle` (con `frontend/scripts/bundle-scan.test.mjs`) |
+| T-02 a T-11, T-15 | `backend/tests/rules/` (`test_no_float`, `test_service_key_scope`, `test_db_access_scope`, `test_data_api_off`, `test_no_llm_sdk`, `test_operation_ids`, `test_no_secrets_tracked`, `test_frontend_scope`) |
 
 **`rls_matrix.yaml`** vive en `backend/tests/rls/` y registra, por tabla, su tipo (`identity`, `financial` o `log`), la columna
 de dueño y la expectativa de cada rol según §5.2.4. `test_rls_roles` la recorre con un reparto de cinco usuarios creado por la *factory* de cada test y
@@ -713,5 +734,29 @@ Resueltas en el hito 0 (spike del 2026-11-03, CLI 3.0.0, PostgreSQL 17.11, GoTru
   `TRUNCATE` concedido, `FORCE RLS` retirada, `log_activity` ejecutable, trigger de solo-inserción eliminado, política extra para el
   administrador, escalada de `role`, `anon` con `SELECT`, política de escritura del gestor, `search_path` sin fijar). Las 12 hacen
   fallar la suite; tras revertirlas, vuelve a verde.
+
+Resueltas en el hito 3 (frontend, 2026-11-04; Next.js 16.4.5, React 19.3, Tailwind 4.3, shadcn 4.23 con base Radix):
+
+- **«Middleware» es «proxy»:** `src/proxy.ts` con la función `proxy` (entorno Node). El ADR-0002 dice «middleware»; un ADR aceptado no se
+  edita, vale esta spec. Detalle de diseño en §5.3.
+- **Cache Components activado** (valor por defecto de `create-next-app` 16): la sesión se lee dentro de `<Suspense>` (layout de `(app)` y
+  `/`), `getMe()` declara con `connection()` que depende de la petición, y los apartados autenticados llevan `export const instant = false`
+  (no hay nada que cachear entre personas). Sin esto, la validación de desarrollo de Next los señala como fallos.
+- **Sesión en servidor:** `getClaims()` (firma verificada por JWKS) para saber si hay sesión; `getSession()` solo para reenviar el
+  `access_token` a la API, que lo vuelve a verificar. No existe cliente de Supabase en el navegador: ningún componente lo necesita (los
+  formularios son Server Actions).
+- **Pruebas unitarias sin dependencias:** `node --test` con la eliminación de tipos de Node 24; módulos puros en `src/lib` sin alias de
+  importación. 55 tests; **38 mutaciones** (redirecciones abiertas, prefijos sin límite de segmento, mensajes que distinguen cuentas, un 503
+  que cierra la sesión…) y 6 de `test_frontend_scope`, todas detectadas.
+- **`check:bundle`:** `supabase-js` incluye en su código la comprobación de prefijo `startsWith("sb_secret_")`; por eso la búsqueda es de una
+  clave entera (`sb_secret_` + 20 caracteres) y del valor real de cada secreto del `.env`, no del prefijo suelto.
+- **Contraseñas:** mínimo 10 caracteres (T-16) y máximo 72 bytes; Auth local rechaza 73 (`validation_failed`).
+- **Registro real comprobado:** GoTrue → trigger → perfil (`usuario`, `active`, nombre desde `user_metadata.display_name`), ficha de negocio
+  con `vat_regime = 'general'` por defecto, `account.created` en `activity_log` y confirmación por enlace (`/auth/confirm`, `type=email`).
+- **Avisos de desarrollo ajenos:** una extensión del navegador (LanguageTool) añade atributos a `<html>`; `suppressHydrationWarning` en
+  `<html>` y `<body>` evita el falso error de hidratación.
+- **Auditoría npm:** `npm audit --omit=dev` da 0. `shadcn init` deja `shadcn` y `tw-animate-css` en `dependencies`, pero solo se usan al
+  compilar (el CSS que se importa y la CLI): se pasaron a `devDependencies`. Quedan avisos moderados en herramientas de desarrollo
+  (`minimatch < 11.0.1` y `deepmerge` vía `eslint-config-next`, `openapi-typescript` y la CLI de shadcn); no llegan al build.
 
 Pendientes: la forma exacta del *helper* de Playwright para Mailpit (hito 4) y las versiones definitivas de T-01 (hito 5).

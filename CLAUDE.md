@@ -42,6 +42,7 @@ mensual, reporte, recordatorios e interfaz del chatbot. Todo lo que usa modelos 
 
 - **Frontend** `frontend/`: Next.js 16 (App Router), TypeScript, Tailwind v4, shadcn/ui, `@supabase/ssr` solo para la
   sesión. Los datos van por la API con el cliente generado (`openapi-typescript` + `openapi-fetch`).
+  En Next.js 16 el «middleware» se llama `src/proxy.ts`; solo mejora la experiencia (las Server Functions no pasan por él).
 - **Backend** `backend/src/cuadre/`: Python 3.12, FastAPI, Pydantic v2, psycopg 3 con SQL explícito (sin ORM).
 - **Datos** `supabase/`: PostgreSQL, Auth, RLS y Storage privado, región UE. Las migraciones SQL son la única fuente del
   esquema. La Data API (PostgREST) está desactivada.
@@ -72,7 +73,7 @@ python contracts/tools/validate_examples.py            # ejemplos, aritmética a
 ruff check backend ; ruff format --check backend       # (a partir de W-001)
 pytest backend/tests/rls -m rls -q                     # NFR-06, puerta de despliegue
 pytest backend/tests -m "not rls" -q
-npm --prefix frontend run lint | typecheck | build | test:e2e | gen:api
+npm --prefix frontend run lint | typecheck | test:unit | gen:api | build | check:bundle | test:e2e
 uvicorn cuadre.main:app --reload --port 8000 --app-dir backend/src
 ```
 

@@ -16,6 +16,9 @@ SERVICE_API = {"service_transaction"}
 ALLOWED_EVERYTHING = ("config.py", "cli.py", "jobs/")
 ALLOWED_SERVICE_API = ("db/",)
 
+# Los scripts que comprueban el build buscan precisamente estas cadenas: es su trabajo nombrarlas.
+SCANNER_FILES = {"scripts/bundle-scan.mjs", "scripts/bundle-scan.test.mjs", "scripts/check-bundle.mjs"}
+
 
 def violations(source: str, path_in_package: str) -> list[str]:
     if path_in_package.startswith(ALLOWED_EVERYTHING):
@@ -100,7 +103,7 @@ def test_the_frontend_never_mentions_the_service_credentials() -> None:
             ".local",
         } and not path.name.startswith(".env"):
             continue
-        if path.name == "package-lock.json":
+        if path.name == "package-lock.json" or path.relative_to(frontend).as_posix() in SCANNER_FILES:
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
         offenders += [f"{rel(path)}: {n}" for n in needles if n in text]

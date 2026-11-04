@@ -5,8 +5,9 @@ Este repositorio contiene la web (interfaz, API, base de datos, roles, lógica f
 interfaz del chatbot). El agente de lectura de facturas y el del chatbot viven en **cuadre-agents** y se consumen a través
 de los contratos de [`contracts/`](contracts/README.md).
 
-> Proyecto en fase de especificación: todavía no hay código de aplicación. El trabajo sigue desarrollo guiado por specs
-> (spec-anchored). El punto de partida es [`SPEC-W-001`](docs/04-specs/SPEC-W-001-base-auth-roles-rls.md).
+> Desarrollo guiado por specs (spec-anchored). Se está implementando
+> [`SPEC-W-001`](docs/04-specs/SPEC-W-001-base-auth-roles-rls.md) por hitos: cimientos, base de datos con RLS, API y frontend
+> están hechos; faltan las pruebas de extremo a extremo y el CI (el estado de cada spec está en `docs/04-specs/tasks.json`).
 
 ## Dónde mirar
 
@@ -35,15 +36,42 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1                       # Git Bash: source .venv/Scripts/activate · Linux: source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r contracts/requirements.txt
+pip install -e "backend[dev]"
 
-# Comprobar los contratos
-python contracts/tools/export_schemas.py --check
-python contracts/tools/validate_examples.py
+# Supabase local (Docker Desktop en marcha)
+npm ci
+npm run gen:signing-key                            # una vez: clave ES256 de desarrollo (gitignorada)
+npx supabase start                                 # y `npx supabase db reset` para recrear migraciones + seed
+
+# Variables de entorno (nunca se suben valores reales)
+copy .env.example .env                             # backend y tests; rellena con `npx supabase status`
+copy frontend\.env.example frontend\.env.local     # solo NEXT_PUBLIC_*
+
+# Arranque
+uvicorn cuadre.main:app --reload --port 8000 --app-dir backend/src
+npm --prefix frontend ci
+npm --prefix frontend run dev                      # http://localhost:3000
 ```
 
-Cuando se implemente SPEC-W-001 se añadirán `pip install -e "backend[dev]"`, `npm ci`, `npx supabase start` y los comandos de
-arranque de la API y el frontend (consulta la spec, apartado 5.5). Copia `.env.example` a `.env` y a
-`frontend/.env.local`; **nunca** subas valores reales.
+Abre **siempre `http://localhost:3000`** (no `127.0.0.1`): las cookies de sesión van por host y la CORS de la API solo admite ese
+origen. `npm --prefix frontend run build` descarga las fuentes: necesita red.
+
+Cuentas de desarrollo (datos sintéticos del seed, solo en local): `alicia@example.test` (autónomo), `gina@example.test` (gestor) y
+`adan@example.test` (administrador); la contraseña está en `supabase/seed.sql`. El correo que envía Supabase Auth (confirmación y
+recuperación) se lee en Mailpit: <http://127.0.0.1:54324>.
+
+## Comprobaciones
+
+```powershell
+ruff check backend contracts/tools contracts/python ; ruff format --check backend contracts/tools contracts/python
+pytest backend/tests/rls -m rls -q                 # aislamiento por rol (NFR-06, puerta de despliegue)
+pytest backend/tests -m "not rls" -q               # API y guardas de reglas
+python contracts/tools/export_schemas.py --check ; python contracts/tools/validate_examples.py
+python backend/scripts/export_openapi.py --check
+npm --prefix frontend run lint ; npm --prefix frontend run typecheck ; npm --prefix frontend run test:unit
+npm --prefix frontend run gen:api -- --check
+npm --prefix frontend run build ; npm --prefix frontend run check:bundle
+```
 
 ## Reglas que no se negocian
 

@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from cuadre.config import Settings
 from cuadre.main import create_app
 from tests.api.conftest import bearer
+from tests.support import password_grant as grant
 
 pytestmark = pytest.mark.live
 
@@ -21,12 +22,7 @@ SEED_PASSWORD = "cuadre-demo-2026"
 
 
 def password_grant(email: str, password: str = SEED_PASSWORD) -> httpx.Response:
-    return httpx.post(
-        f"{os.environ['SUPABASE_URL']}/auth/v1/token?grant_type=password",
-        headers={"apikey": os.environ["TEST_SUPABASE_ANON_KEY"]},
-        json={"email": email, "password": password},
-        timeout=15,
-    )
+    return grant(email, password)
 
 
 @pytest.fixture(scope="module")

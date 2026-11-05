@@ -22,7 +22,12 @@ def expected_for(table: str, scenario: str, key: str) -> list[str] | str:
 
 @pytest.mark.parametrize("scenario", SCENARIOS)
 @pytest.mark.parametrize("table", TABLES)
-def test_each_person_sees_exactly_what_the_matrix_says(app_pool: Pool, cast: Cast, table: str, scenario: str) -> None:
+def test_each_person_sees_exactly_what_the_matrix_says(
+    app_pool: Pool, admin: Connection[DictRow], cast: Cast, table: str, scenario: str
+) -> None:
+    if seed := MATRIX["tables"][table].get("seed"):
+        for owner in (cast.alicia, cast.beto):
+            admin.execute(seed, {"owner": owner.id})
     apply_scenario(app_pool, cast, scenario)
     owner_column = MATRIX["tables"][table]["owner_column"]
     for key in KEYS:

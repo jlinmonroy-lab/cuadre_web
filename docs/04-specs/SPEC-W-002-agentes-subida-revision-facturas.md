@@ -176,6 +176,11 @@ documents                                                   -- tabla financiera
 
 La ruta de Storage **nunca** contiene el nombre de archivo de la persona: solo `owner_id`, `id` y la extensión del tipo. Los 15 MiB aparecen en la CHECK, en el bucket y en la API; un test comprueba que coinciden.
 
+**CHECK añadidas en el hito 1** (la base no se fía de que la API haya validado; CLAUDE.md: las reglas críticas van en la base):
+- `storage_path = owner_id/id.ext`, con `ext` ∈ `pdf`, `jpg`, `png`, `heic`, `webp` según `mime_type`: no hay forma de reservar otra ruta ni de meter el nombre del archivo (T2-07).
+- `error_code` ∈ `unreadable`, `unsupported_media_type`, `payload_too_large`, `timeout`, `upstream_error`, `agents_unavailable`, `invalid_response`, `internal` (§5.1).
+- **Importes enteros** en `extraction` y `review` (RES-02, T2-02): ambos son objetos JSON y `total_cents`, `tax_breakdown[*].base_cents`, `tax_breakdown[*].vat_cents` y `withholding.amount_cents` son enteros JSON o nulos (no `12.5`, ni `12.0`, ni `"120.00"`, ni más de 15 cifras). AC-03 queda garantizado también si la API fallara.
+
 **Privilegios.** `authenticated`: `SELECT` y nada más. Ninguna escritura directa: todo por funciones.
 
 **Políticas de `documents`:**
@@ -189,16 +194,23 @@ La ruta de Storage **nunca** contiene el nombre de archivo de la persona: solo `
 
 | Función | Efecto |
 |---|---|
-| `app.create_document(p_filename, p_mime, p_size, p_source)` | Crea la fila en `uploading` con su `storage_path`. Falla con `too_many_processing` si ya hay 5 en `processing` |
-| `app.mark_document_uploaded(p_id)` | `uploading` → `processing`; `uploaded_at = now()`. Registra `document.uploaded` |
-| `app.record_extraction(p_id, p_extraction, p_injection, p_trace, p_cost)` | `processing` → `review`; guarda la extracción normalizada. Registra `document.extracted` |
+| `app.create_document(p_filename, p_mime, p_size, p_source)` | Crea la fila en `uploading` con su `storage_path` y devuelve `(document_id, object_path)`. Falla con `too_many_processing` si ya hay 5 lecturas en curso (aviso rápido, AC-12). No registra actividad: aún no hay nada subido |
+| `app.mark_document_uploaded(p_id)` | `uploading` → `processing`; `uploaded_at = now()`. Registra `document.uploaded`. **Aquí se impone el límite de 5 lecturas simultáneas** (empieza la lectura), con un cerrojo asesor por persona para que dos peticiones a la vez no lo superen; si no cabe, falla con `too_many_processing` y el documento sigue en `uploading` |
+| `app.record_extraction(p_id, p_extraction, p_injection, p_trace, p_cost)` | `processing` → `review`; guarda la extracción normalizada, la marca de inyección, la traza y el coste. Registra `document.extracted` |
 | `app.fail_extraction(p_id, p_code)` | `processing` → `extraction_failed`. Registra `document.extraction_failed` |
-| `app.retry_document(p_id)` | `extraction_failed` (o `processing` con más de 120 s) → `processing` |
-| `app.save_document_review(p_id, p_review)` | Guarda `review` en `review` o `extraction_failed` |
+| `app.retry_document(p_id)` | `extraction_failed` (o `processing` con más de 120 s) → `processing`, limpia `error_code`; cuenta para el límite como `mark_document_uploaded` |
+| `app.save_document_review(p_id, p_review)` | Guarda `review` en `review` o `extraction_failed`; el estado no cambia. `p_review` nulo: `invalid_review` |
 | `app.discard_document(p_id)` | → `discarded`. Registra `document.discarded` con `{from_status}` |
 
-Códigos: `document_not_found` (también para un documento ajeno), `document_wrong_state`, `too_many_processing`. **Trigger** `BEFORE UPDATE`: solo permite las transiciones de §5.1, impide cambiar `owner_id`, `storage_path`,
-`mime_type` y `size_bytes`, y mantiene `updated_at`.
+**Lecturas en curso.** Para el límite no cuentan los `processing` con más de 120 s sin cambios (§5.1 ya los presenta como fallidos): una lectura interrumpida no ocupa un sitio para siempre. El 5 y los 120 s viven en SQL (`private.document_max_processing()` y `private.document_processing_timeout()`); en el hito 3 se decide si `MAX_PROCESSING_PER_USER` sigue siendo una variable de la API o se retira.
+
+Códigos: `document_not_found` (también para un documento ajeno), `document_wrong_state`, `too_many_processing`, `invalid_review`. **Trigger** `BEFORE UPDATE` (`documents_guard`):
+- solo permite las transiciones de §5.1 (`uploading` → `processing` | `discarded`; `processing` → `review` | `extraction_failed` | `discarded`; `review` → `discarded`; `extraction_failed` → `processing` | `discarded`), más las actualizaciones sin cambio de estado en `processing` (reintento), `review` y `extraction_failed` (correcciones); `discarded` y `registered` son terminales;
+- impide cambiar `id`, `owner_id`, `source`, `original_filename`, `mime_type`, `size_bytes`, `storage_path` y `created_at`;
+- **congela la lectura original**: `extraction`, `injection_suspected`, `agent_trace_id` y `agent_cost_eur` solo cambian al pasar de `processing` a `review` (AC-14);
+- mantiene `updated_at` (salvo que la sentencia lo fije a propósito, lo que permite a los tests envejecer filas).
+
+Errores del trigger (red de seguridad; las funciones fallan antes con `document_wrong_state`): `document_invalid_transition`, `document_immutable_column`, `document_extraction_frozen`.
 
 **`activity_log`** (categoría `data`, `owner_id` = la persona): `document.uploaded` `{document_id, mime_type, size_bytes, source}`, `document.extracted` `{document_id, injection_suspected, doubtful_count}`,
 `document.extraction_failed` `{document_id, error_code}`, `document.discarded` `{document_id, from_status}`. **Nunca** nombres de archivo, NIF ni importes.
@@ -210,11 +222,13 @@ Códigos: `document_not_found` (también para un documento ajeno), `document_wro
 | INSERT | `usuario` dueño de la carpeta **y** existe una fila `documents` suya en `uploading` con esa ruta (no se sube nada a rutas que la API no ha reservado). Sin `upsert`. Storage la evalúa **al firmar** la URL, no al subir (Anexo B) |
 | SELECT | el dueño, y el `gestor` con vínculo activo sobre el dueño. Administrador: nada |
 | UPDATE | denegado (los archivos no se sobrescriben) |
-| DELETE | el dueño, mientras su fila no esté `registered` |
+| DELETE | el dueño de la carpeta, mientras ninguna fila `registered` use esa ruta. Sin fila (archivo huérfano) también puede borrarlo |
 
-Las políticas de `storage.objects` no entran en `rls_matrix.yaml` (que cubre `public`); las prueba `test_storage_policies.py`, con la misma tabla de cinco personas y los estados del vínculo.
+Las rutas válidas tienen exactamente la forma `{uuid}/{archivo}`. Las funciones `private.document_*` **nunca lanzan**: una ruta rara (sin carpeta, con una carpeta de más, carpeta que no es un uuid, mayúsculas) se deniega, no es un error 500.
 
-**Comportamiento de Storage comprobado en el spike** (detalle y fuentes en el Anexo B): la URL de subida caduca a las 2 h, admite una sola subida (un segundo `PUT` recibe 409) y no se puede acortar; Storage **no inspecciona el contenido** ni cruza la extensión de la ruta con el tipo; los errores llegan con HTTP 400 y el código real en el cuerpo (`statusCode`), y un objeto ajeno responde igual que uno inexistente. El bucket lo crea `20261105100000_documents_bucket.sql` (hito 0); las políticas llegan con la tabla en el hito 1.
+Las políticas de `storage.objects` no entran en `rls_matrix.yaml` (que cubre `public`); las prueban `test_storage_policies.py` (por SQL, con la misma tabla de cinco personas y los cinco estados del vínculo, `declined` incluido) y `test_storage_live.py` (contra la API real de Storage, con tokens ES256 de GoTrue).
+
+**Comportamiento de Storage comprobado en el spike** (detalle y fuentes en el Anexo B): la URL de subida caduca a las 2 h, admite una sola subida (un segundo `PUT` recibe 409) y no se puede acortar; Storage **no inspecciona el contenido** ni cruza la extensión de la ruta con el tipo; los errores llegan con HTTP 400 y el código real en el cuerpo (`statusCode`), y un objeto ajeno responde igual que uno inexistente. El bucket lo crea `20261105100000_documents_bucket.sql` (hito 0); la tabla, las funciones y las políticas, `20261105100100`, `…200` y `…300` (hito 1).
 
 ### 5.3 Datos de la lectura
 
@@ -401,11 +415,11 @@ de SPEC-W-001 §8.2, que debe seguir en verde.
 | AC-04 | `backend/tests/documents/test_file_validation.py` |
 | AC-05 | `backend/tests/agents/test_http_client.py` (servidor simulado: 422, 502 único, tiempo agotado, 401, 413, 415) |
 | AC-06 | `backend/tests/agents/test_normalize.py`; `frontend/e2e/gastos-subida.spec.ts` · «instrucciones ocultas» |
-| AC-07 | `backend/tests/rls/test_documents.py` y `test_storage_policies.py` (reparto de cinco y estados del vínculo); `rls_matrix.yaml` |
+| AC-07 | `backend/tests/rls/test_documents.py`, `test_storage_policies.py` (reparto de cinco y estados del vínculo) y `test_storage_live.py` (API real de Storage); `rls_matrix.yaml` |
 | AC-08 | `backend/tests/agents/test_selection.py`, `test_http_client.py`, `test_contract_examples.py` |
 | AC-09 | `backend/tests/documents/test_no_sensitive_logs.py` |
 | AC-10 | `frontend/e2e/gastos-subida.spec.ts` · «cámara y sin scroll» (seis proyectos) |
-| AC-11 a AC-14 | `backend/tests/documents/test_states.py`, `test_limits.py`, `test_discard.py`, `test_review.py`; `frontend/src/lib/money.test.ts` |
+| AC-11 a AC-14 | `backend/tests/documents/test_states.py`, `test_limits.py`, `test_discard.py`, `test_review.py`; `frontend/src/lib/money.test.ts`. En la base de datos (hito 1): `backend/tests/rls/test_documents_states.py` (estados, trigger, límites, caducidad, descarte, correcciones y las CHECK de importes de AC-03) |
 | AC-15 | `backend/tests/rls/test_rls_guard.py` y las guardas de `backend/tests/rules/` |
 | T2-10 | `backend/tests/documents/test_upload_flow.py::test_the_web_adds_no_noticeable_latency` |
 | T2-13, T2-14 | `backend/tests/rules/test_vercel_compat.py` |
@@ -425,6 +439,7 @@ de SPEC-W-001 §8.2, que debe seguir en verde.
    `private.document_*`; borrar con el token del usuario; bucket y límites declarados en una migración. Resultado al Anexo B.
    **Hecho el 2026-11-05.** El bucket está en `supabase/migrations/20261105100000_documents_bucket.sql` (con `test_storage_bucket.py`); las políticas sobre `storage.objects` y las funciones `private.document_*` pasan al hito 1 porque dependen de la tabla `documents`.
 1. **Base de datos**: enums, `documents`, funciones `app.*`, trigger, bucket y políticas, matriz y `test_documents` / `test_storage_policies`, con mutaciones.
+   **Hecho el 2026-11-05** (migraciones `20261105100100` a `…300`; decisiones y mutaciones en el Anexo B.3).
 2. **`cuadre.agents`**: Protocol, Fake, Http, normalización, errores y selección por entorno; pruebas de contrato con los seis ejemplos; dependencia `cuadre-contracts` (README, CI y SPEC-W-001 §8.2 en el mismo commit).
 3. **API de documentos**: rutas, módulo de Storage, lectura dentro de la petición `complete` / `retry`, límites y registro sin datos sensibles; `openapi.json` y `schema.d.ts` regenerados.
 4. **Frontend**: `money.ts`, `/gastos` y `/gastos/[id]`, subida y cámara, refresco, estados; navegación activa para `usuario`.
@@ -460,6 +475,24 @@ Entorno: Supabase CLI 3.0.0, `storage-api v1.88.0`, Kong 2.8.1, tokens ES256 rea
 - Una URL de subida es un secreto portador de 2 h y de un solo uso: nunca en registros ni trazas (T2-04, ya cubierto).
 - Quedan huérfanos posibles (archivos subidos tras descartar, o `uploading` abandonados): ya está excluido en §4 como tarea de mantenimiento.
 - Hito 1: las funciones `private.document_*` no pueden lanzar excepción con una carpeta que no sea un uuid (convertir de forma segura y devolver `false`), porque una excepción dentro de una política es un 500 y no una denegación. Falta probar en `test_storage_policies.py` el estado de vínculo `declined`, que el spike no cubrió.
+
+### B.3 Hito 1 · base de datos de documentos · 2026-11-05
+
+Tres migraciones: `20261105100100_documents_table.sql` (enums, `documents`, CHECK, políticas, trigger), `…200_documents_functions.sql` (las siete funciones `app.*` y sus ayudantes) y `…300_documents_storage_policies.sql` (las tres políticas de `storage.objects`). Se aplican igual con `supabase start` sobre una base nueva (el orden del CI) y con `db reset`.
+
+**Decisiones tomadas al implementar** (ya reflejadas en §5.2):
+- El límite de 5 lecturas se impone **también donde empieza la lectura** (`mark_document_uploaded` y `retry_document`), con un cerrojo asesor por persona; `create_document` solo avisa antes. Sin esto, 10 subidas reservadas y completadas a la vez habrían pasado el límite. Las lecturas con más de 120 s sin cambios no cuentan.
+- Las CHECK de ruta, de motivos de fallo y de **importes enteros** viven en la tabla: la API (hito 2 y 3) las repetirá, pero la base no depende de ella.
+- El trigger congela la lectura original y las columnas de identidad, y deja `updated_at` fijable a propósito para que los tests envejezcan filas sin desactivar nada.
+- La política de borrado de Storage permite al dueño borrar un archivo huérfano (sin fila `documents`) y le prohíbe borrar uno cuya fila esté `registered`. La forma de la ruta es estricta (`{uuid}/{archivo}`): una carpeta de más o de menos se deniega.
+- La matriz de RLS tiene una clave nueva, `seed`, para tablas que no se rellenan solas: sin filas de ejemplo, «nadie ve nada» es una afirmación vacía.
+- `MAX_PROCESSING_PER_USER` sigue en §5.4, pero el 5 vive en SQL; el hito 3 decide si se retira la variable.
+
+**Pruebas** (173 nuevas en `backend/tests/rls/`, 289 en total): `test_documents.py` (quién llama a qué), `test_documents_states.py` (transiciones, trigger, CHECK, límites con una prueba de concurrencia determinista, caducidad, descarte y correcciones), `test_storage_policies.py` (SQL, cinco personas × cinco estados del vínculo) y `test_storage_live.py` (API real de Storage, siete casos).
+
+**Mutaciones** (28; método de SPEC-W-001 hito 1: se rompe a propósito la base local, se comprueba que la suite falla y se revierte; un ejecutor desechable compara una huella del esquema antes y después): lectura abierta, gestor sin mirar el vínculo, política extra para el admin, `INSERT/UPDATE/DELETE` concedidos, `FORCE RLS` retirada, trigger eliminado, transiciones ilegales permitidas, lectura descongelada, identidad modificable, CHECK de importes eliminada, CHECK de ruta eliminada, función sin comprobar el rol, sin comprobar el dueño, límite eliminado al empezar la lectura, `mark_document_uploaded` sin comprobar el estado, reintento sin exigir caducidad, marca de inyección perdida, nombre de archivo en el registro de actividad, `search_path` sin fijar, INSERT de Storage sin la fila reservada, SELECT de Storage abierto, DELETE de Storage sin mirar `registered`, política para `anon`, UPDATE permitido, cualquier gestor lee los archivos, subida aunque el documento ya no esté en `uploading`, carpetas que no son uuid que lanzan excepción y cerrojo asesor eliminado. **Las 28 hacen fallar la suite**; tras revertirlas, vuelve a verde y la huella del esquema es idéntica. Lecciones: una mutación que quita una CHECK deja filas que impiden volver a ponerla (el revertir debe borrarlas), y las funciones releídas con `pg_get_functiondef` cambian en espacios en blanco (la huella los normaliza).
+
+**Para el hito 3** (API): traducir los errores de la base a `problem+json`: `document_not_found` → 404, `document_wrong_state` → 409, `too_many_processing` → 429 con `Retry-After`, `42501` → 403; `invalid_review` y las CHECK (`23514`) solo pueden aparecer si la validación de forma falló antes, y son un error interno.
 
 ### B.2 Sin comprobar todavía
 

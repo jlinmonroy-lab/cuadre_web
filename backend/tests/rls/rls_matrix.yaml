@@ -6,6 +6,9 @@
 # Estados del vínculo Alicia -> Gina (`scenarios`):
 #   baseline (sin vínculo) · pending · active · revoked · declined
 #
+# `seed` (opcional): sentencia SQL que se ejecuta con privilegios de administrador una vez por cada `usuario` del reparto
+# (alicia y beto; parámetro `%(owner)s`) antes de comparar lo que ve cada persona. Las tablas que no se rellenan solas lo necesitan.
+#
 # `select`: para cada persona, los DUEÑOS (por clave del reparto) de las filas que ve. `default` vale para todos los estados
 # y cada estado solo lista lo que cambia. `all` = todas las cuentas del reparto (y quizá más: el administrador ve metadatos de
 # cuentas de otros tests).
@@ -71,3 +74,20 @@ tables:
       active: { gina: [gina, alicia] }
       revoked: { gina: [gina, alicia] }
       declined: { gina: [gina, alicia] }
+
+  documents:
+    kind: financial
+    owner_column: owner_id
+    grants:
+      table: [SELECT]       # toda escritura pasa por app.* (SPEC-W-002 §5.2)
+    # Una fila por usuario del reparto (alicia, beto) antes de comparar: con la tabla vacía la prueba no demostraría nada.
+    seed: >-
+      insert into public.documents (id, owner_id, source, original_filename, mime_type, size_bytes, storage_path)
+      select d.id, %(owner)s, 'file', 'matriz.pdf', 'application/pdf', 10, %(owner)s::text || '/' || d.id::text || '.pdf'
+      from (select gen_random_uuid() as id) d
+    probe_insert: "insert into public.documents (owner_id, source, original_filename, mime_type, size_bytes, storage_path) values (%(owner)s, 'file', 'x.pdf', 'application/pdf', 10, 'x')"
+    probe_update: { column: error_code, value: hacked }
+    select:
+      # El dueño ve la suya; el gestor, solo la de quien le dio acceso activo; el administrador, ninguna (D3).
+      default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
+      active: { gina: [alicia] }

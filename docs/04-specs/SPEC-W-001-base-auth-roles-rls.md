@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-001
 titulo: Base del monorepo, autenticación con tres roles y RLS probada
-estado: en-progreso
+estado: en-revision
 prioridad: must
 riesgo: alto
 historias: [US-004]

@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-002
 titulo: Cliente de agentes, subida de factura de compra y pantalla de revisión
-estado: especificada
+estado: en-progreso
 prioridad: must
 riesgo: alto
 historias: [US-001, US-011]
@@ -51,6 +51,8 @@ usuario); ADR-0006 (importes en céntimos; el contrato manda cadenas `"120.00"` 
 | D-07 | **Se guarda la extracción normalizada** (céntimos y textos acotados), no la respuesta cruda del agente, y las correcciones de la persona en un campo aparte (`review`) | Guardar la cruda: más fiel, pero conserva texto sin acotar de una fuente no confiable |
 
 *Revisión del 2026-11-04 (ADR-0016): al decidir que el backend se despliega en Vercel Functions, D-01 y D-02 se reescribieron. Siguen siendo propuestas a tu visto bueno, igual que D-03 a D-07.*
+
+*Visto bueno del 2026-11-05: la persona revisó ADR-0016 y D-01 a D-07 y pidió seguir con la fase siguiente; se tratan como aprobadas y la spec pasa a `en-progreso`. El spike del hito 0 comprobó el supuesto de D-01 (subida directa del navegador a Storage, sin plan B): funciona en local, ver Anexo B.*
 
 ## 2. Objetivo
 
@@ -122,8 +124,8 @@ Todas exigen `Authorization: Bearer` y rol `usuario` (`forbidden` 403 para gesto
 
 | `operation_id` | Método y ruta | Cuerpo / respuesta |
 |---|---|---|
-| `upload_document` | `POST /api/documents` | Cuerpo `{ "filename": string, "mime_type": enum, "size_bytes": int, "source": "file"\|"camera" }`. **201** `{ "id": uuid, "status": "uploading", "upload": { "url": string, "method": "PUT", "headers": { "Content-Type": string } }, "max_bytes": int }` |
-| `complete_document_upload` | `POST /api/documents/{id}/complete` | Sin cuerpo. Comprueba que el archivo existe, que su tamaño es el declarado y que su **firma** coincide con el tipo; pasa a `processing` y **lee el documento dentro de esta misma petición** (hasta 45 s, D-02). **200** `{ "id", "status" }` con el estado final: `review` o `extraction_failed`. Idempotente: en `processing` (otra petición lo está leyendo), `review` o `extraction_failed` responde con el estado actual sin lanzar otra lectura |
+| `upload_document` | `POST /api/documents` | Cuerpo `{ "filename": string, "mime_type": enum, "size_bytes": int, "source": "file"\|"camera" }`. **201** `{ "id": uuid, "status": "uploading", "upload": { "url": string, "method": "PUT", "headers": { "Content-Type": string } }, "max_bytes": int }`. `upload.url` es la URL completa de Storage (`{SUPABASE_URL}/storage/v1/object/upload/sign/documents/{ruta}?token=…`; Storage la devuelve relativa y la API la compone); vale 2 h y admite **una sola** subida (Anexo B). `headers["Content-Type"]` es el tipo declarado |
+| `complete_document_upload` | `POST /api/documents/{id}/complete` | Sin cuerpo. Comprueba, con el JWT del usuario, que el archivo existe, que su tamaño y el tipo que Storage registró son los declarados y que su **firma** (primeros 32 bytes, con `Range`; nunca se descarga el archivo entero) coincide con el tipo; pasa a `processing` y **lee el documento dentro de esta misma petición** (hasta 45 s, D-02). **200** `{ "id", "status" }` con el estado final: `review` o `extraction_failed`. Idempotente: en `processing` (otra petición lo está leyendo), `review` o `extraction_failed` responde con el estado actual sin lanzar otra lectura |
 | `list_documents` | `GET /api/documents` | Los documentos de la persona que no están `uploading` ni `discarded`, del más reciente al más antiguo: `[{ id, status, original_filename, mime_type, created_at, doc_type, supplier_name, total_cents, doubtful_count, injection_suspected, error }]` |
 | `get_document` | `GET /api/documents/{id}` | El documento completo (§5.3). Un `processing` con más de 120 s sin cambios se presenta como `extraction_failed` con `error.code = "timeout"` (sin escribir nada en un GET); es lo que se ve si se interrumpió la petición que lo leía |
 | `get_document_preview` | `GET /api/documents/{id}/preview` | `{ "url": string, "expires_in": 60, "previewable": bool }`; `previewable` es `false` para HEIC |
@@ -205,12 +207,14 @@ Códigos: `document_not_found` (también para un documento ajeno), `document_wro
 
 | Operación | Quién |
 |---|---|
-| INSERT | `usuario` dueño de la carpeta **y** existe una fila `documents` suya en `uploading` con esa ruta (no se sube nada a rutas que la API no ha reservado). Sin `upsert` |
+| INSERT | `usuario` dueño de la carpeta **y** existe una fila `documents` suya en `uploading` con esa ruta (no se sube nada a rutas que la API no ha reservado). Sin `upsert`. Storage la evalúa **al firmar** la URL, no al subir (Anexo B) |
 | SELECT | el dueño, y el `gestor` con vínculo activo sobre el dueño. Administrador: nada |
 | UPDATE | denegado (los archivos no se sobrescriben) |
 | DELETE | el dueño, mientras su fila no esté `registered` |
 
 Las políticas de `storage.objects` no entran en `rls_matrix.yaml` (que cubre `public`); las prueba `test_storage_policies.py`, con la misma tabla de cinco personas y los estados del vínculo.
+
+**Comportamiento de Storage comprobado en el spike** (detalle y fuentes en el Anexo B): la URL de subida caduca a las 2 h, admite una sola subida (un segundo `PUT` recibe 409) y no se puede acortar; Storage **no inspecciona el contenido** ni cruza la extensión de la ruta con el tipo; los errores llegan con HTTP 400 y el código real en el cuerpo (`statusCode`), y un objeto ajeno responde igual que uno inexistente. El bucket lo crea `20261105100000_documents_bucket.sql` (hito 0); las políticas llegan con la tabla en el hito 1.
 
 ### 5.3 Datos de la lectura
 
@@ -246,6 +250,7 @@ class AgentsClient(Protocol):
 - `document_url` la **genera siempre la API** con el JWT del usuario y `expiresIn ≤ 120`; nunca viene de una entrada de la persona. `AGENTS_BASE_URL` debe ser `https` salvo `APP_ENV=local`.
 - Variables nuevas: `AGENTS_BASE_URL` (opcional), `AGENTS_API_KEY` (obligatoria si hay URL), `AGENTS_TIMEOUT_SECONDS` (45), `MAX_UPLOAD_BYTES` (15728640), `MAX_PROCESSING_PER_USER` (5). `.env.example` ya documenta las dos primeras.
   Dependencia nueva del backend: `cuadre-contracts==1.0.0` (se instala antes, `pip install -e contracts/python`).
+- **Storage** (`cuadre.documents`, `httpx2` contra `{SUPABASE_URL}/storage/v1`): basta `Authorization: Bearer <JWT del usuario>`; **no** hace falta `apikey` ni una variable nueva (la clave publicable sola actúa como `anon` y se deniega). Las respuestas de error traen HTTP 400 con `{"statusCode": "403"|"404"|"409"|"413"|"415", "error", "message", "code"}`: se interpreta el `statusCode` del cuerpo, no el de HTTP, y el texto de Storage no llega a la persona. Las rutas devueltas por Storage (`url`, `signedURL`) son relativas a `/storage/v1`.
 
 ### 5.5 Frontend
 
@@ -268,7 +273,7 @@ refresca con `router.refresh()` cada 2 s mientras haya algún documento en `proc
 | T2-05 | **Toda respuesta del agente es dato no confiable**: se valida con los modelos del contrato, se normaliza y se acota; `injection_suspected` no valida ni deja de validar nada |
 | T2-06 | **Solo `usuario` escribe documentos**; el gestor y el administrador reciben 403, y a nivel de base de datos no tienen política de escritura. El gestor solo lee con vínculo activo (revocar corta el acceso en la petición siguiente, también a Storage) |
 | T2-07 | **Ruta de Storage sin datos de la persona** y solo reservada por `app.create_document`; sin sobrescritura |
-| T2-08 | **La firma del archivo se comprueba en el servidor** (`%PDF-`, `FFD8FF`, `89504E47`, `ftyp` en el desplazamiento 4, `RIFF…WEBP`) antes de llamar al agente |
+| T2-08 | **La firma del archivo se comprueba en el servidor** (`%PDF-`, `FFD8FF`, `89504E47`, `ftyp` en el desplazamiento 4, `RIFF…WEBP`) antes de llamar al agente, junto con el tipo que Storage registró: Storage no mira el contenido ni la extensión (Anexo B) |
 | T2-09 | **Una sola vez por documento**: la lectura es idempotente por `document_id`; completar dos veces no lanza dos lecturas |
 | T2-10 | **Tiempo**: la web no añade latencia apreciable (NFR-01 es del agente, p95 ≤ 30 s): con el cliente simulado, de «completar» a «Para revisar» pasa menos de 3 s |
 | T2-11 | **Interfaz**: tokens del prototipo, etiquetas, foco visible, estado con texto además de color, anuncios con `aria-live`, sin scroll horizontal a 390 y 1.440 px en Chromium, Firefox y WebKit |
@@ -418,6 +423,7 @@ de SPEC-W-001 §8.2, que debe seguir en verde.
 
 0. **Spike de Storage** (CLI 3.0, ES256): URL firmada de subida y de lectura con el JWT del usuario; que Storage acepte esa subida desde `http://localhost:3000` (CORS; si no, se reabre D-01: no hay plan B por la API, ADR-0016); políticas sobre `storage.objects` con funciones
    `private.document_*`; borrar con el token del usuario; bucket y límites declarados en una migración. Resultado al Anexo B.
+   **Hecho el 2026-11-05.** El bucket está en `supabase/migrations/20261105100000_documents_bucket.sql` (con `test_storage_bucket.py`); las políticas sobre `storage.objects` y las funciones `private.document_*` pasan al hito 1 porque dependen de la tabla `documents`.
 1. **Base de datos**: enums, `documents`, funciones `app.*`, trigger, bucket y políticas, matriz y `test_documents` / `test_storage_policies`, con mutaciones.
 2. **`cuadre.agents`**: Protocol, Fake, Http, normalización, errores y selección por entorno; pruebas de contrato con los seis ejemplos; dependencia `cuadre-contracts` (README, CI y SPEC-W-001 §8.2 en el mismo commit).
 3. **API de documentos**: rutas, módulo de Storage, lectura dentro de la petición `complete` / `retry`, límites y registro sin datos sensibles; `openapi.json` y `schema.d.ts` regenerados.
@@ -426,4 +432,38 @@ de SPEC-W-001 §8.2, que debe seguir en verde.
 
 ## Anexo B · Decisiones que esta spec dejó a la implementación
 
-*(Se rellena al implementar. Quedan abiertas hasta el spike del hito 0: forma exacta de la respuesta de Storage para la subida firmada y su caducidad; si la política de INSERT puede consultar la fila de `documents` en la subida firmada; y CORS desde `localhost:3000`. Con el backend en Vercel (ADR-0016) quedan además para la spec de despliegue: qué pasa con `complete` si el navegador cierra la conexión antes de que acabe la lectura, y que `cuadre-contracts`, que está fuera de `backend/`, se instale en el despliegue.)*
+*(Se rellena al implementar.)*
+
+### B.1 Spike de Storage · hito 0 · 2026-11-05
+
+Entorno: Supabase CLI 3.0.0, `storage-api v1.88.0`, Kong 2.8.1, tokens ES256 reales de GoTrue para alicia, beto, gina (gestor) y adán (admin). Script desechable, no commiteado: usa una tabla provisional en un esquema `spike` y políticas provisionales sobre `storage.objects`, y lo retira todo al terminar (comprobado: ni esquema, ni políticas, ni objetos, ni vínculos). Todo lo de abajo es lo observado, no lo leído en documentación.
+
+| Pregunta | Resultado |
+|---|---|
+| **¿Una migración puede crear el bucket?** | Sí. Con `npx supabase start -x studio` sobre una base nueva (el orden del CI) y con `npx supabase db reset`, la migración se aplica y el bucket queda creado. Las tablas de Storage existen cuando corren las migraciones. Crear las políticas sobre `storage.objects` con el rol `postgres` (el de las migraciones) también funciona |
+| **¿Autenticación contra Storage?** | Storage acepta el JWT ES256 del usuario. **Basta `Authorization: Bearer`**; no hace falta `apikey`. Con la clave publicable sola actúa como `anon` y se deniega; sin cabeceras, `Invalid Compact JWS`. No hace falta ninguna variable nueva en el backend |
+| **Firma de la subida** (`POST /storage/v1/object/upload/sign/documents/{ruta}`) | Responde `{ "url", "token" }`. La `url` es **relativa** (`/object/upload/sign/documents/{ruta}?token=…`, sin el prefijo `/storage/v1`: la API lo compone). El token caduca a las **2 h** (7.200 s) y lleva `url`, `owner`, `scope`, `upsert`. La política de INSERT se evalúa **al firmar**, con la identidad del usuario: se deniega a beto, a gina, a adán, a alicia sobre una ruta sin fila `documents` y a alicia sobre la ruta de beto. La política puede consultar la fila de `documents` |
+| **CORS y subida desde `http://localhost:3000`** | El preflight responde 200 con `Access-Control-Allow-Origin: *`, métodos con `PUT` y las cabeceras pedidas (`content-type`). Un `PUT` con **solo `Content-Type`** (sin `Authorization` ni `apikey`, como hará el navegador) guarda el archivo y devuelve `Access-Control-Allow-Origin: *`. Un segundo `PUT` a la misma ruta con el mismo token responde 409 `Duplicate` y el archivo no cambia |
+| **Límites del bucket** | 15 MiB exactos se aceptan; 15 MiB + 1 byte, 413 `EntityTooLarge` y no se guarda; `text/plain`, 415 `InvalidMimeType`. Un `Content-Type` con parámetros (`application/pdf; charset=binary`) se acepta |
+| **¿Storage mira el contenido?** | **No.** Un texto de 27 bytes subido como `application/pdf` se acepta; unos bytes con forma de WebP subidos a una ruta `.pdf` con `image/webp`, también. Storage registra el tipo de la cabecera del `PUT` y no lo cruza con la extensión. La firma del archivo y la coherencia con lo declarado las comprueba la API (T2-08) |
+| **Firma de la lectura** (`POST /storage/v1/object/sign/documents/{ruta}`, `{"expiresIn": n}`) | Responde `{ "signedURL" }`, también relativa a `/storage/v1`. Caduca exactamente a `expiresIn` (120 s y 2 s comprobados); pasado el tiempo, `InvalidJWT` («exp claim timestamp check failed»). **Un `GET` de esa URL sin ninguna cabecera** devuelve el archivo con su `Content-Type` y CORS `*`: es lo único que necesita el agente |
+| **Quién puede firmar la lectura** | Alicia sí. Beto, adán, gina sin vínculo, gina con vínculo **pendiente**, gina con vínculo **revocado** y gus (sin vínculo): no. Gina con vínculo **activo**: sí. Un objeto ajeno responde exactamente igual que uno inexistente (404 `NoSuchKey`): no hay forma de saber si existe |
+| **Comprobar tamaño y firma sin descargar** | `GET /storage/v1/object/authenticated/documents/{ruta}` con `Authorization` y `Range: bytes=0-7` devuelve 206 con `Content-Range: bytes 0-7/246` (el total sale de ahí) y solo esos bytes; la API pedirá `0-31`. `GET /storage/v1/object/info/authenticated/documents/{ruta}` devuelve JSON con `size` y `content_type`. `HEAD` con `Authorization` devuelve `Content-Length` y `Content-Type`, y el `Range` también funciona sobre la URL firmada |
+| **Borrado con el JWT del usuario** (`DELETE /storage/v1/object/documents/{ruta}`) | Alicia borra cuando su fila no está `registered`; con la fila `registered` se deniega, de modo que la política sí puede mirar la tabla. Beto, gina (con vínculo activo) y adán: denegado y el archivo sigue ahí (comprobado en la base) |
+| **URL de subida ya emitida y documento descartado antes de subir** | Sigue valiendo: el `PUT` se acepta y deja un archivo sin fila viva. La autorización ocurre solo al firmar |
+| **Forma de los errores** | HTTP **400** con `{ "statusCode": "403"\|"404"\|"409"\|"413"\|"415", "error", "message", "code" }` para casi todo. El código real está en el cuerpo, no en el estado HTTP |
+
+**Consecuencias para los hitos siguientes** (ya reflejadas en §5.1, §5.2, §5.4 y T2-08):
+- D-01 se mantiene y **no hace falta plan B**: el navegador sube directamente. El límite de 15 MiB lo hace cumplir Storage (413) además de la CHECK y la API.
+- El cliente de Storage de `cuadre.documents` se apoya solo en el JWT del usuario, compone las URL con `{SUPABASE_URL}/storage/v1` y decide por el `statusCode` del cuerpo.
+- `complete` compara tamaño y tipo registrados (`object/info`) con lo declarado y lee los primeros 32 bytes con `Range`; nunca descarga el archivo entero (T2-08, 4,5 MB de Vercel).
+- Una URL de subida es un secreto portador de 2 h y de un solo uso: nunca en registros ni trazas (T2-04, ya cubierto).
+- Quedan huérfanos posibles (archivos subidos tras descartar, o `uploading` abandonados): ya está excluido en §4 como tarea de mantenimiento.
+- Hito 1: las funciones `private.document_*` no pueden lanzar excepción con una carpeta que no sea un uuid (convertir de forma segura y devolver `false`), porque una excepción dentro de una política es un 500 y no una denegación. Falta probar en `test_storage_policies.py` el estado de vínculo `declined`, que el spike no cubrió.
+
+### B.2 Sin comprobar todavía
+
+- **Navegador real.** El CORS se comprobó a nivel de cabeceras (preflight y `PUT` con `Origin: http://localhost:3000`); el E2E del hito 5 lo confirma en Chromium, Firefox y WebKit. Si fallara ahí, se reabre D-01.
+- Si una URL de lectura ya emitida sigue valiendo tras revocar el vínculo: por construcción vale hasta que caduca (≤ 120 s); no se probó.
+- El Storage de Supabase alojado (versión, CORS, caducidad de 2 h): queda para la spec de despliegue.
+- Con el backend en Vercel (ADR-0016), también para la spec de despliegue: qué pasa con `complete` si el navegador cierra la conexión antes de que acabe la lectura, y que `cuadre-contracts`, que está fuera de `backend/`, se instale en el despliegue.

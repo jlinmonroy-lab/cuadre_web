@@ -6,7 +6,7 @@
     "name": "cuadre-agents",
     "spec_prefix": "SPEC-A"
   },
-  "updated": "2026-11-04",
+  "updated": "2026-11-05",
   "status_values": [
     "propuesta",
     "especificada",
@@ -69,7 +69,7 @@
       "id": "SPEC-W-002",
       "title": "Cliente de agentes, subida de factura de compra y pantalla de revisión (simulado/HTTP; cámara móvil)",
       "file": "docs/04-specs/SPEC-W-002-agentes-subida-revision-facturas.md",
-      "status": "especificada",
+      "status": "en-progreso",
       "priority": "must",
       "risk": "alto",
       "stories": [
@@ -118,7 +118,7 @@
         "npm --prefix frontend exec -- playwright test e2e/gastos-subida.spec.ts",
         "secuencia completa: SPEC-W-002 §8.2 y SPEC-W-001 §8.2"
       ],
-      "notes": "AgentsClient con FakeAgentsClient (fixtures de contracts/examples) y HttpAgentsClient. Storage privado, subida con URL firmada y lectura del agente con URL firmada de ≈120 s. Añade documents a rls_matrix.yaml y las políticas de storage.objects. No valida ni registra gastos (W-003). Siete decisiones de diseño (D-01 a D-07) pendientes de visto bueno en §1. D-01 y D-02 reescritas el 2026-11-04 por ADR-0016 (backend en Vercel): la lectura ocurre dentro de la petición y no hay plan B de subida por la API (límite de 4,5 MB)."
+      "notes": "AgentsClient con FakeAgentsClient (fixtures de contracts/examples) y HttpAgentsClient. Storage privado, subida con URL firmada y lectura del agente con URL firmada de ≈120 s. Añade documents a rls_matrix.yaml y las políticas de storage.objects. No valida ni registra gastos (W-003). Siete decisiones de diseño (D-01 a D-07) pendientes de visto bueno en §1. D-01 y D-02 reescritas el 2026-11-04 por ADR-0016 (backend en Vercel): la lectura ocurre dentro de la petición y no hay plan B de subida por la API (límite de 4,5 MB). D-01 a D-07 aprobadas el 2026-11-05. Hito 0 hecho (spike de Storage en local: la subida directa del navegador funciona; bucket privado `documents` en la migración 20261105100000; resultados en el Anexo B). Siguiente: hito 1 (base de datos)."
     },
     {
       "id": "SPEC-W-003",

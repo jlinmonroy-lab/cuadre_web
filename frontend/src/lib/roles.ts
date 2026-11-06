@@ -9,6 +9,8 @@ export function isRole(value: unknown): value is Role {
 }
 
 const HOME: Record<Role, string> = { usuario: "/inicio", gestor: "/cartera", admin: "/admin" };
+// Apartados con pantalla propia, además de la portada: pertenecen a un solo rol y exigen sesión (SPEC-W-002: Gastos).
+const SECTIONS: Record<Role, readonly string[]> = { usuario: ["/gastos"], gestor: [], admin: [] };
 const LABEL: Record<Role, string> = { usuario: "Autónomo", gestor: "Gestor", admin: "Administrador" };
 
 export function homeFor(role: Role): string {
@@ -31,7 +33,7 @@ export function navFor(role: Role): NavItem[] {
         { label: "Inicio", href: HOME.usuario },
         FUTURE("Clientes"),
         FUTURE("Facturas"),
-        FUTURE("Gastos"),
+        { label: "Gastos", href: "/gastos" },
         FUTURE("Contabilidad mensual"),
         FUTURE("Trimestres"),
       ];
@@ -42,11 +44,18 @@ export function navFor(role: Role): NavItem[] {
   }
 }
 
+const within = (pathname: string, base: string) => pathname === base || pathname.startsWith(`${base}/`);
+
 /** Rol al que pertenece una ruta de portada (y sus subrutas), respetando el límite de segmento: «/administracion» no es «/admin». */
 export function portadaOwner(pathname: string): Role | null {
-  for (const role of ROLES) {
-    const home = HOME[role];
-    if (pathname === home || pathname.startsWith(`${home}/`)) return role;
-  }
+  for (const role of ROLES) if (within(pathname, HOME[role])) return role;
+  return null;
+}
+
+/** Rol al que pertenece una portada o un apartado (`/gastos`…), con el mismo límite de segmento. Lo usa el proxy para exigir sesión. */
+export function sectionOwner(pathname: string): Role | null {
+  const home = portadaOwner(pathname);
+  if (home !== null) return home;
+  for (const role of ROLES) if (SECTIONS[role].some((section) => within(pathname, section))) return role;
   return null;
 }

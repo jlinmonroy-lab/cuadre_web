@@ -10,6 +10,7 @@ test("avisos conocidos", () => {
   assert.deepEqual(noticeFor("perfil"), { tone: "error", text: "No hemos encontrado tu perfil. Inténtalo de nuevo más tarde." });
   assert.deepEqual(noticeFor("enlace"), { tone: "error", text: "El enlace no es válido o ha caducado. Pide uno nuevo." });
   assert.deepEqual(noticeFor("sesion"), { tone: "info", text: "Tu sesión ha caducado. Inicia sesión de nuevo." });
+  assert.deepEqual(noticeFor("descartado"), { tone: "success", text: "Documento descartado." });
 });
 
 test("lo desconocido no produce aviso, ni siquiera con nombres de Object.prototype", () => {

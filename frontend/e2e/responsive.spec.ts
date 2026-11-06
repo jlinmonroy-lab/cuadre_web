@@ -7,6 +7,7 @@ const NAV_BREAKPOINT = 901; // la barra lateral aparece desde 901 px; por debajo
 const ANONYMOUS_PAGES = ["/login", "/registro", "/recuperar"];
 const SIGNED_IN_PAGES: [RoleKey, string][] = [
   ["alicia", "/inicio"],
+  ["alicia", "/gastos"],
   ["alicia", "/403"],
   ["gina", "/cartera"],
   ["adan", "/admin"],

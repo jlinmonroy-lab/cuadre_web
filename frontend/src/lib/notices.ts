@@ -10,6 +10,7 @@ const NOTICES = new Map<string, Notice>([
   ["perfil", Object.freeze({ tone: "error", text: "No hemos encontrado tu perfil. Inténtalo de nuevo más tarde." })],
   ["enlace", Object.freeze({ tone: "error", text: "El enlace no es válido o ha caducado. Pide uno nuevo." })],
   ["sesion", Object.freeze({ tone: "info", text: "Tu sesión ha caducado. Inicia sesión de nuevo." })],
+  ["descartado", Object.freeze({ tone: "success", text: "Documento descartado." })],
 ]);
 
 export function noticeFor(code: unknown): Notice | null {

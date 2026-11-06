@@ -33,7 +33,7 @@ export const PEOPLE: Record<RoleKey, Person> = {
     home: "/inicio",
     roleLabel: "Autónomo",
     nav: ["Inicio", "Clientes", "Facturas", "Gastos", "Contabilidad mensual", "Trimestres"],
-    enabledNav: ["Inicio"],
+    enabledNav: ["Inicio", "Gastos"],
   },
   gina: {
     email: "gina@example.test",

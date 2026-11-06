@@ -17,7 +17,6 @@ export default async function InicioPage() {
       upcoming={[
         { label: "Clientes", description: "tu cartera de clientes con sus datos fiscales." },
         { label: "Facturas", description: "emisión con numeración correlativa y QR de VeriFactu simulado." },
-        { label: "Gastos", description: "sube tickets y facturas recibidas y revisa lo que se lea de ellos." },
         { label: "Contabilidad mensual", description: "cierre de cada mes y libros de registro." },
         { label: "Trimestres", description: "borradores orientativos de los modelos 303 y 130." },
       ]}

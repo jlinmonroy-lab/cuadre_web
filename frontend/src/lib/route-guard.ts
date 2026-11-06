@@ -1,7 +1,7 @@
 // Reglas del proxy (src/proxy.ts). Solo mejoran la experiencia: la autorización real está en la API y en la RLS, y las Server
 // Functions no pasan por el matcher del proxy, así que cada layout y cada acción comprueba lo suyo.
 // Sin alias: lo ejecutan directamente los tests.
-import { portadaOwner } from "./roles.ts";
+import { sectionOwner } from "./roles.ts";
 
 export type GuardInput = { pathname: string; search: string; authenticated: boolean };
 export type GuardResult = { redirect: string } | null;
@@ -12,7 +12,7 @@ const NEEDS_RECOVERY_SESSION = ["/restablecer"];
 
 const matches = (pathname: string, base: string) => pathname === base || pathname.startsWith(`${base}/`);
 
-const isProtected = (pathname: string) => portadaOwner(pathname) !== null || matches(pathname, FORBIDDEN_PAGE);
+const isProtected = (pathname: string) => sectionOwner(pathname) !== null || matches(pathname, FORBIDDEN_PAGE);
 
 // Las barras se dejan sin codificar para que AC-04 sea literal: /login?next=/inicio.
 const encodeNext = (value: string) => encodeURIComponent(value).replaceAll("%2F", "/");

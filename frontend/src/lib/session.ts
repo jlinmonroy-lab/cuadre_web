@@ -5,12 +5,10 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { cache } from "react";
 
-import { createApiClient } from "@/api/client";
 import type { components } from "@/api/schema";
-import { apiBaseUrl } from "@/lib/env";
+import { apiFor, sessionToken } from "@/lib/api-server";
 import { classifyMeFailure } from "@/lib/me-failure";
 import { isRole, type Role } from "@/lib/roles";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type Me = Omit<components["schemas"]["MeResponse"], "role"> & { role: Role };
 
@@ -27,12 +25,7 @@ async function accessToken(): Promise<string | null> {
   // La sesión es un dato de la petición (el cliente de Supabase compara la caducidad del token con la hora actual): se declara
   // así de forma explícita para que Next no intente prerenderizar nada que dependa de ella.
   await connection();
-  const supabase = await createSupabaseServerClient();
-  const { data: claims } = await supabase.auth.getClaims();
-  if (!claims?.claims?.sub) return null;
-  // Aquí `getSession` solo se usa para reenviar el token a la API (que lo vuelve a verificar), nunca para autorizar.
-  const { data } = await supabase.auth.getSession();
-  return data.session?.access_token ?? null;
+  return sessionToken();
 }
 
 const problemCode = (body: unknown): string | undefined =>
@@ -45,7 +38,7 @@ export const getMe = cache(async (): Promise<Me> => {
   const token = await accessToken();
   if (!token) redirect("/login");
 
-  const api = createApiClient(apiBaseUrl(), () => token);
+  const api = apiFor(token);
   let result;
   try {
     result = await api.GET("/api/me");

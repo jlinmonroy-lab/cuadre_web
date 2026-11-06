@@ -15,13 +15,21 @@ test("AC-04 · sin sesión, una portada lleva a /login?next=<ruta>", () => {
   assert.deepEqual(anon("/403"), { redirect: "/login?next=/403" });
 });
 
+test("Gastos exige sesión, también sus subrutas y los Route Handlers de lectura", () => {
+  assert.deepEqual(anon("/gastos"), { redirect: "/login?next=/gastos" });
+  assert.deepEqual(anon("/gastos/3f2a-1"), { redirect: "/login?next=/gastos/3f2a-1" });
+  assert.deepEqual(anon("/gastos/3f2a-1/leer"), { redirect: "/login?next=/gastos/3f2a-1/leer" });
+  assert.deepEqual(anon("/gastos", "?aviso=descartado"), { redirect: "/login?next=/gastos%3Faviso%3Ddescartado" });
+  for (const page of ["/gastos", "/gastos/3f2a-1", "/gastos/3f2a-1/releer"]) assert.equal(authed(page), null, page);
+});
+
 test("la ruta anidada y la query se conservan, codificadas", () => {
   assert.deepEqual(anon("/inicio/mes"), { redirect: "/login?next=/inicio/mes" });
   assert.deepEqual(anon("/inicio", "?mes=2026-10&x=1"), { redirect: "/login?next=/inicio%3Fmes%3D2026-10%26x%3D1" });
 });
 
 test("las rutas con nombre parecido a una portada no se confunden", () => {
-  for (const open of ["/administracion", "/iniciox", "/carteras", "/auth/confirm", "/", "/login", "/registro", "/recuperar"]) {
+  for (const open of ["/administracion", "/iniciox", "/carteras", "/gastosx", "/mis-gastos", "/auth/confirm", "/", "/login", "/registro", "/recuperar"]) {
     assert.equal(anon(open), null, open);
   }
 });

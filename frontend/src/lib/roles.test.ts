@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { homeFor, isRole, navFor, portadaOwner, roleLabel } from "./roles.ts";
+import { homeFor, isRole, navFor, portadaOwner, roleLabel, sectionOwner } from "./roles.ts";
 
 test("isRole reconoce solo los tres roles", () => {
   for (const role of ["usuario", "gestor", "admin"]) assert.equal(isRole(role), true);
@@ -23,14 +23,18 @@ test("las etiquetas están en español", () => {
   assert.equal(roleLabel("admin"), "Administrador");
 });
 
-test("navegación del autónomo: solo Inicio está activo", () => {
+test("navegación del autónomo: Inicio y Gastos están activos; el resto, próximamente", () => {
   const nav = navFor("usuario");
   assert.deepEqual(
     nav.map((item) => item.label),
     ["Inicio", "Clientes", "Facturas", "Gastos", "Contabilidad mensual", "Trimestres"],
   );
-  assert.deepEqual(nav[0], { label: "Inicio", href: "/inicio" });
-  for (const future of nav.slice(1)) assert.deepEqual(future, { label: future.label, href: null });
+  const active = nav.filter((item) => item.href !== null);
+  assert.deepEqual(active, [
+    { label: "Inicio", href: "/inicio" },
+    { label: "Gastos", href: "/gastos" },
+  ]);
+  for (const future of nav.filter((item) => item.href === null)) assert.deepEqual(future, { label: future.label, href: null });
 });
 
 test("navegación del gestor: Cartera activa", () => {
@@ -51,4 +55,22 @@ test("cada portada pertenece a un solo rol, respetando el límite de segmento", 
   for (const none of ["/", "/403", "/login", "/administracion", "/iniciox", "/carteras", "/inicio-x", "/x/inicio"]) {
     assert.equal(portadaOwner(none), null, none);
   }
+});
+
+test("los apartados con pantalla propia pertenecen a un solo rol, respetando el límite de segmento", () => {
+  assert.equal(sectionOwner("/gastos"), "usuario");
+  assert.equal(sectionOwner("/gastos/3f2a"), "usuario");
+  assert.equal(sectionOwner("/gastos/3f2a/leer"), "usuario");
+  // Las portadas siguen siendo suyas.
+  assert.equal(sectionOwner("/inicio"), "usuario");
+  assert.equal(sectionOwner("/cartera/ana"), "gestor");
+  assert.equal(sectionOwner("/admin"), "admin");
+  for (const none of ["/", "/403", "/login", "/gastosx", "/gastos-x", "/x/gastos", "/mis-gastos", "/Gastos"]) {
+    assert.equal(sectionOwner(none), null, none);
+  }
+});
+
+test("una portada no es un apartado y un apartado no es una portada", () => {
+  assert.equal(portadaOwner("/gastos"), null);
+  assert.equal(portadaOwner("/gastos/3f2a"), null);
 });

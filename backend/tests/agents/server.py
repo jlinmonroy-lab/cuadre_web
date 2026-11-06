@@ -22,6 +22,8 @@ class Reply:
     body: bytes | str | dict[str, Any] | list[Any] = b""
     headers: dict[str, str] = field(default_factory=dict)
     delay_ms: int = 0  # espera antes de contestar (para provocar tiempos agotados)
+    chunk_size: int = 0  # si > 0, el cuerpo se envía en trozos de este tamaño con `chunk_delay_ms` entre ellos
+    chunk_delay_ms: int = 0
 
 
 @dataclass
@@ -37,6 +39,9 @@ class ScriptedServer:
         self.script: list[Reply] = []
         self.seen: list[Seen] = []
         self.exhausted = 0  # peticiones recibidas con el guion agotado: en un test es casi siempre un fallo
+        self.written = (
+            0  # bytes de cuerpo que se llegaron a escribir en el socket (cuenta lo que el cliente dejó de leer)
+        )
         self.on_request: Callable[[], None] | None = None
         self._httpd: ThreadingHTTPServer | None = None
 
@@ -56,7 +61,7 @@ class ScriptedServer:
         class Handler(BaseHTTPRequestHandler):
             protocol_version = "HTTP/1.1"
 
-            def do_POST(self) -> None:
+            def handle_any(self) -> None:
                 length = int(self.headers.get("Content-Length", "0"))
                 body = self.rfile.read(length)
                 owner.seen.append(Seen(self.command, self.path, {k.lower(): v for k, v in self.headers.items()}, body))
@@ -82,9 +87,19 @@ class ScriptedServer:
                     for name, value in reply.headers.items():
                         self.send_header(name, value)
                     self.end_headers()
-                    self.wfile.write(payload)
+                    if reply.chunk_size:
+                        for start in range(0, len(payload), reply.chunk_size):
+                            piece = payload[start : start + reply.chunk_size]
+                            self.wfile.write(piece)
+                            self.wfile.flush()
+                            owner.written += len(piece)
+                            time.sleep(reply.chunk_delay_ms / 1000)
+                    else:
+                        self.wfile.write(payload)
                 except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
                     pass  # el cliente ya se fue (p. ej. cortó por tiempo): es lo que se estaba probando
+
+            do_POST = do_GET = do_PUT = do_DELETE = handle_any
 
             def log_message(self, format: str, *args: object) -> None:  # noqa: A002 - firma de la clase base
                 pass

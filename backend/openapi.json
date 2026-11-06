@@ -1,6 +1,512 @@
 {
   "components": {
     "schemas": {
+      "Document": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extracted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extracted At"
+          },
+          "extraction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Extraction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "injection_suspected": {
+            "title": "Injection Suspected",
+            "type": "boolean"
+          },
+          "mime_type": {
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "original_filename": {
+            "title": "Original Filename",
+            "type": "string"
+          },
+          "review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Review"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "file",
+              "camera"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "uploading",
+              "processing",
+              "review",
+              "extraction_failed",
+              "discarded",
+              "registered"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "uploaded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded At"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "source",
+          "original_filename",
+          "mime_type",
+          "size_bytes",
+          "created_at",
+          "uploaded_at",
+          "extracted_at",
+          "updated_at",
+          "extraction",
+          "review",
+          "injection_suspected",
+          "error"
+        ],
+        "title": "Document",
+        "type": "object"
+      },
+      "DocumentError": {
+        "properties": {
+          "code": {
+            "enum": [
+              "unreadable",
+              "unsupported_media_type",
+              "payload_too_large",
+              "timeout",
+              "upstream_error",
+              "agents_unavailable",
+              "invalid_response",
+              "internal"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "DocumentError",
+        "type": "object"
+      },
+      "DocumentState": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "uploading",
+              "processing",
+              "review",
+              "extraction_failed",
+              "discarded",
+              "registered"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ],
+        "title": "DocumentState",
+        "type": "object"
+      },
+      "DocumentSummary": {
+        "description": "Una fila de la lista de Gastos.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "doc_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "full_invoice",
+                  "simplified_invoice",
+                  "ticket",
+                  "receipt",
+                  "other",
+                  "not_an_invoice"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Type"
+          },
+          "doubtful_count": {
+            "title": "Doubtful Count",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "injection_suspected": {
+            "title": "Injection Suspected",
+            "type": "boolean"
+          },
+          "mime_type": {
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "original_filename": {
+            "title": "Original Filename",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "uploading",
+              "processing",
+              "review",
+              "extraction_failed",
+              "discarded",
+              "registered"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "supplier_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Name"
+          },
+          "total_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Cents"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "original_filename",
+          "mime_type",
+          "created_at",
+          "doc_type",
+          "supplier_name",
+          "total_cents",
+          "doubtful_count",
+          "injection_suspected",
+          "error"
+        ],
+        "title": "DocumentSummary",
+        "type": "object"
+      },
+      "DoubtfulField": {
+        "properties": {
+          "field": {
+            "enum": [
+              "doc_type",
+              "supplier_name",
+              "supplier_tax_id",
+              "recipient_tax_id",
+              "invoice_number",
+              "issue_date",
+              "currency",
+              "tax_breakdown",
+              "withholding",
+              "total"
+            ],
+            "title": "Field",
+            "type": "string"
+          },
+          "line_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Index"
+          },
+          "raw_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Text"
+          },
+          "reason": {
+            "enum": [
+              "illegible",
+              "ambiguous",
+              "missing",
+              "inconsistent"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "line_index",
+          "reason",
+          "raw_text"
+        ],
+        "title": "DoubtfulField",
+        "type": "object"
+      },
+      "Extraction": {
+        "description": "La lectura del agente ya normalizada. Es de solo lectura: la persona corrige en `Review`.",
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "doc_type": {
+            "enum": [
+              "full_invoice",
+              "simplified_invoice",
+              "ticket",
+              "receipt",
+              "other",
+              "not_an_invoice"
+            ],
+            "title": "Doc Type",
+            "type": "string"
+          },
+          "doubtful_fields": {
+            "items": {
+              "$ref": "#/components/schemas/DoubtfulField"
+            },
+            "title": "Doubtful Fields",
+            "type": "array"
+          },
+          "invoice_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Number"
+          },
+          "issue_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue Date"
+          },
+          "recipient_tax_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipient Tax Id"
+          },
+          "supplier_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Name"
+          },
+          "supplier_tax_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Tax Id"
+          },
+          "tax_breakdown": {
+            "items": {
+              "$ref": "#/components/schemas/TaxLine"
+            },
+            "title": "Tax Breakdown",
+            "type": "array"
+          },
+          "total_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Cents"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "withholding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Withholding"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "doc_type",
+          "supplier_name",
+          "supplier_tax_id",
+          "recipient_tax_id",
+          "invoice_number",
+          "issue_date",
+          "currency",
+          "tax_breakdown",
+          "withholding",
+          "total_cents",
+          "doubtful_fields",
+          "warnings"
+        ],
+        "title": "Extraction",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
       "HealthResponse": {
         "properties": {
           "status": {
@@ -60,6 +566,29 @@
         "title": "MeResponse",
         "type": "object"
       },
+      "PreviewResponse": {
+        "properties": {
+          "expires_in": {
+            "title": "Expires In",
+            "type": "integer"
+          },
+          "previewable": {
+            "title": "Previewable",
+            "type": "boolean"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "expires_in",
+          "previewable"
+        ],
+        "title": "PreviewResponse",
+        "type": "object"
+      },
       "ProblemDetails": {
         "description": "Forma de todo error de la API. Se declara para que aparezca en OpenAPI.",
         "properties": {
@@ -104,6 +633,423 @@
         ],
         "title": "ProblemDetails",
         "type": "object"
+      },
+      "Review": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "doc_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "full_invoice",
+                  "simplified_invoice",
+                  "ticket",
+                  "receipt",
+                  "other",
+                  "not_an_invoice"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Type"
+          },
+          "invoice_number": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Number"
+          },
+          "issue_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue Date"
+          },
+          "recipient_tax_id": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipient Tax Id"
+          },
+          "supplier_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Name"
+          },
+          "supplier_tax_id": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Tax Id"
+          },
+          "tax_breakdown": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewTaxLine"
+            },
+            "maxItems": 10,
+            "title": "Tax Breakdown",
+            "type": "array"
+          },
+          "total_cents": {
+            "anyOf": [
+              {
+                "maximum": 99999999999999.0,
+                "minimum": -99999999999999.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Cents"
+          },
+          "withholding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewWithholding"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "Review",
+        "type": "object"
+      },
+      "ReviewTaxLine": {
+        "additionalProperties": false,
+        "properties": {
+          "base_cents": {
+            "anyOf": [
+              {
+                "maximum": 99999999999999.0,
+                "minimum": -99999999999999.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Cents"
+          },
+          "vat_cents": {
+            "anyOf": [
+              {
+                "maximum": 99999999999999.0,
+                "minimum": -99999999999999.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat Cents"
+          },
+          "vat_rate": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9]{1,3}(\\.[0-9]{1,2})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat Rate"
+          }
+        },
+        "title": "ReviewTaxLine",
+        "type": "object"
+      },
+      "ReviewWithholding": {
+        "additionalProperties": false,
+        "properties": {
+          "amount_cents": {
+            "anyOf": [
+              {
+                "maximum": 99999999999999.0,
+                "minimum": -99999999999999.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Cents"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9]{1,3}(\\.[0-9]{1,2})?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          }
+        },
+        "title": "ReviewWithholding",
+        "type": "object"
+      },
+      "TaxLine": {
+        "properties": {
+          "base_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Cents"
+          },
+          "vat_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat Cents"
+          },
+          "vat_rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat Rate"
+          }
+        },
+        "required": [
+          "vat_rate",
+          "base_cents",
+          "vat_cents"
+        ],
+        "title": "TaxLine",
+        "type": "object"
+      },
+      "UploadInstructions": {
+        "properties": {
+          "headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Headers",
+            "type": "object"
+          },
+          "method": {
+            "const": "PUT",
+            "title": "Method",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "method",
+          "headers"
+        ],
+        "title": "UploadInstructions",
+        "type": "object"
+      },
+      "UploadRequest": {
+        "additionalProperties": false,
+        "description": "`mime_type` es una cadena, no una enumeración: un tipo no permitido es un 415 propio, no un 422 genérico.",
+        "properties": {
+          "filename": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Filename",
+            "type": "string"
+          },
+          "mime_type": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Mime Type",
+            "type": "string"
+          },
+          "size_bytes": {
+            "minimum": 1.0,
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "source": {
+            "enum": [
+              "file",
+              "camera"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename",
+          "mime_type",
+          "size_bytes",
+          "source"
+        ],
+        "title": "UploadRequest",
+        "type": "object"
+      },
+      "UploadResponse": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "max_bytes": {
+            "title": "Max Bytes",
+            "type": "integer"
+          },
+          "status": {
+            "const": "uploading",
+            "title": "Status",
+            "type": "string"
+          },
+          "upload": {
+            "$ref": "#/components/schemas/UploadInstructions"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "upload",
+          "max_bytes"
+        ],
+        "title": "UploadResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "Withholding": {
+        "properties": {
+          "amount_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Cents"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          }
+        },
+        "required": [
+          "rate",
+          "amount_cents"
+        ],
+        "title": "Withholding",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -121,6 +1067,729 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/documents": {
+      "get": {
+        "operationId": "list_documents",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentSummary"
+                  },
+                  "title": "Response List Documents",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar documentos (solo `usuario`) o la cuenta está suspendida"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Listar los documentos de la persona",
+        "tags": [
+          "documentos"
+        ]
+      },
+      "post": {
+        "operationId": "upload_document",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar documentos (solo `usuario`) o la cuenta está suspendida"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El archivo supera el máximo de 15 MB"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Tipo de archivo no admitido"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Datos no válidos o archivo que no es del tipo indicado"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Demasiadas lecturas en curso (con `Retry-After`)"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Almacenamiento no disponible"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Reservar un documento y obtener la URL firmada para subir el archivo",
+        "tags": [
+          "documentos"
+        ]
+      }
+    },
+    "/api/documents/{document_id}": {
+      "delete": {
+        "operationId": "discard_document",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar documentos (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El documento no existe (también si es de otra persona)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El documento no está en un estado que admita esa acción"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Descartar un documento y borrar su archivo",
+        "tags": [
+          "documentos"
+        ]
+      },
+      "get": {
+        "operationId": "get_document",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar documentos (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El documento no existe (también si es de otra persona)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Obtener un documento con su lectura y sus correcciones",
+        "tags": [
+          "documentos"
+        ]
+      }
+    },
+    "/api/documents/{document_id}/complete": {
+      "post": {
+        "operationId": "complete_document_upload",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar documentos (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El documento no existe (también si es de otra persona)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El documento no está en un estado que admita esa acción"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Datos no válidos o archivo que no es del tipo indicado"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Demasiadas lecturas en curso (con `Retry-After`)"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Almacenamiento no disponible"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Comprobar el archivo subido y leerlo (espera al agente)",
+        "tags": [
+          "documentos"
+        ]
+      }
+    },
+    "/api/documents/{document_id}/preview": {
+      "get": {
+        "operationId": "get_document_preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar documentos (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El documento no existe (también si es de otra persona)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El documento no está en un estado que admita esa acción"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Almacenamiento no disponible"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "URL firmada de 60 s para ver el original",
+        "tags": [
+          "documentos"
+        ]
+      }
+    },
+    "/api/documents/{document_id}/retry": {
+      "post": {
+        "operationId": "retry_document_extraction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar documentos (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El documento no existe (también si es de otra persona)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El documento no está en un estado que admita esa acción"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Demasiadas lecturas en curso (con `Retry-After`)"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Almacenamiento no disponible"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Volver a leer un documento que falló (espera al agente)",
+        "tags": [
+          "documentos"
+        ]
+      }
+    },
+    "/api/documents/{document_id}/review": {
+      "put": {
+        "operationId": "save_document_review",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Review"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Document"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar documentos (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El documento no existe (también si es de otra persona)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El documento no está en un estado que admita esa acción"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Datos no válidos o archivo que no es del tipo indicado"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Guardar las correcciones de la persona (la lectura original no cambia)",
+        "tags": [
+          "documentos"
+        ]
+      }
+    },
     "/api/me": {
       "get": {
         "operationId": "get_me",

@@ -9,13 +9,14 @@ from starlette.middleware.cors import CORSMiddleware
 
 from cuadre import __version__
 from cuadre.agents import get_agents_client
-from cuadre.api import routes_health, routes_me
+from cuadre.api import routes_documents, routes_health, routes_me
 from cuadre.config import Settings, get_settings
 from cuadre.core.auth import JwksTokenVerifier
 from cuadre.core.errors import register_error_handlers
 from cuadre.core.observability import RequestContextMiddleware, configure_logging
 from cuadre.core.routing import require_operation_id
 from cuadre.db import open_pool
+from cuadre.documents.storage import HttpStorage
 
 POOL_MAX_SIZE = 10
 
@@ -47,6 +48,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.token_verifier = JwksTokenVerifier(settings.supabase_url)
     # En producción sin AGENTS_BASE_URL (o con la configuración incompleta) esto lanza y la API no arranca (D-06).
     app.state.agents_client = get_agents_client(settings)
+    app.state.storage = HttpStorage(settings.supabase_url)  # siempre con el JWT de la persona (SPEC-W-002 T2-03)
 
     register_error_handlers(app)
     # Orden: lo último que se añade es lo más externo. CORS envuelve a RequestContext para que hasta los 500 lleven sus cabeceras.
@@ -63,6 +65,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(routes_health.router)
     app.include_router(routes_me.router)
+    app.include_router(routes_documents.router)
     return app
 
 

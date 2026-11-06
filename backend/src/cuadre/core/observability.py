@@ -57,6 +57,10 @@ def configure_logging(level: str, *, include_traceback: bool = False) -> None:
     # aplicación (RequestContextMiddleware) registra la ruta sin query. uvicorn configura su logging antes de importar la
     # aplicación, así que esto se aplica después y prevalece, se arranque como se arranque.
     logging.getLogger("uvicorn.access").disabled = True
+    # `httpx2` registra en INFO cada petición con su URL completa. Las URL de Storage llevan identificadores de documento y, en otros
+    # flujos, podrían llevar un token: ni ellas ni las de `httpcore2` deben salir nunca, se configure como se configure el entorno.
+    for noisy in ("httpx2", "httpcore2"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
 class RequestContextMiddleware:

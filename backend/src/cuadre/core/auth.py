@@ -117,7 +117,8 @@ def get_tx(request: Request, claims: Annotated[dict[str, Any], Depends(get_claim
 Tx = Annotated[Connection[DictRow], Depends(get_tx, scope="function")]
 
 
-def get_current_user(request: Request, conn: Tx, claims: Annotated[dict[str, Any], Depends(get_claims)]) -> CurrentUser:
+def load_current_user(request: Request, conn: Connection[DictRow], claims: dict[str, Any]) -> CurrentUser:
+    """Lee el perfil con la conexión dada (ya con la identidad del usuario) y comprueba que la cuenta está activa."""
     row = conn.execute(
         "SELECT id, email, display_name, role::text AS role, status::text AS status "
         "FROM public.profiles WHERE id = (SELECT auth.uid())"
@@ -130,10 +131,47 @@ def get_current_user(request: Request, conn: Tx, claims: Annotated[dict[str, Any
     return CurrentUser(row["id"], row["email"], row["display_name"], row["role"], row["status"], claims)
 
 
+def get_current_user(request: Request, conn: Tx, claims: Annotated[dict[str, Any], Depends(get_claims)]) -> CurrentUser:
+    return load_current_user(request, conn, claims)
+
+
 def require_role(*roles: Role):  # noqa: ANN201 - devuelve una dependencia de FastAPI
     """Dependencia que exige uno de los roles indicados: `Depends(require_role("admin"))`."""
 
     def dependency(user: Annotated[CurrentUser, Depends(get_current_user)]) -> CurrentUser:
+        if user.role not in roles:
+            raise forbidden()
+        return user
+
+    return dependency
+
+
+# --- Rutas largas: sin conexión retenida -------------------------------------------------------------------------------------
+#
+# `Tx` mantiene UNA conexión del pool durante toda la ruta. Una ruta que espera a otro servicio (la lectura de una factura tarda
+# hasta 45 s) agotaría el pool de 10 con unas pocas personas a la vez. Estas dependencias leen el perfil en su propia transacción
+# corta y la sueltan; la ruta abre después las transacciones cortas que necesite (`user_transaction`). El rol se vuelve a
+# comprobar dentro de cada función SQL, así que leerlo antes no abre ningún hueco.
+
+
+def get_verified_token(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    claims: Annotated[dict[str, Any], Depends(get_claims)],
+) -> str:
+    """El JWT en bruto, solo después de verificarlo. Sirve para llamar a Storage en nombre de la persona; nunca se registra."""
+    assert credentials is not None  # `get_claims` ya lo exigió
+    return credentials.credentials
+
+
+def get_current_user_detached(request: Request, claims: Annotated[dict[str, Any], Depends(get_claims)]) -> CurrentUser:
+    with user_transaction(request.app.state.db_pool, claims["sub"], claims) as conn:
+        return load_current_user(request, conn, claims)
+
+
+def require_role_detached(*roles: Role):  # noqa: ANN201 - devuelve una dependencia de FastAPI
+    """Como `require_role`, pero sin retener una conexión durante la ruta."""
+
+    def dependency(user: Annotated[CurrentUser, Depends(get_current_user_detached)]) -> CurrentUser:
         if user.role not in roles:
             raise forbidden()
         return user
@@ -149,7 +187,11 @@ __all__ = [
     "Tx",
     "get_claims",
     "get_current_user",
+    "get_current_user_detached",
     "get_tx",
+    "get_verified_token",
     "get_verifier",
+    "load_current_user",
     "require_role",
+    "require_role_detached",
 ]

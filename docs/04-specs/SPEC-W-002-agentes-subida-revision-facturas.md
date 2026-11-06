@@ -139,6 +139,15 @@ Todas exigen `Authorization: Bearer` y rol `usuario` (`forbidden` 403 para gesto
 `discarded` y no se llama al agente) · `upload_missing` 409 (se completó sin haber subido) · `upload_size_mismatch` 422 · `document_not_found` 404 (también si es de otra persona: no se distingue) ·
 `document_wrong_state` 409 · `too_many_processing` 429 (5 lecturas simultáneas, con `Retry-After`) · `storage_unavailable` 503.
 
+**Detalle fijado en el hito 3** (Anexo B.5):
+- `upload_size_mismatch` **también descarta el documento y borra el archivo**, igual que `file_type_mismatch`: una URL de subida admite una sola subida, así que el archivo no se puede reemplazar. `upload_missing` deja el documento en `uploading` y se puede volver a completar.
+  El tipo que Storage registró (cabecera `Content-Type` del `PUT`, sin parámetros y sin distinguir mayúsculas) también debe ser el declarado; si no, `file_type_mismatch`.
+- Para la persona un documento `discarded` ya no existe: `get_document` y `get_document_preview` responden `404 document_not_found`. La vista previa de un `uploading` es `409 document_wrong_state`.
+- `Retry-After`: 10 s en `429 too_many_processing`, 5 s en `503 storage_unavailable`. `list_documents` devuelve como mucho 200 documentos (la paginación llegará con SPEC-W-003, cuando haya `registered`).
+- `error` es `{ "code", "message" }` con uno de los ocho motivos de abajo; `get_document` y `list_documents` no exponen la ruta de Storage, la traza del agente ni su coste.
+- Si la reserva se hizo pero Storage no puede firmar la subida, el documento se descarta y la respuesta es `503 storage_unavailable`. Un fallo de Storage al firmar la lectura deja el documento en `extraction_failed` con motivo `internal` (200), no en `processing`.
+- Si el documento se descarta mientras se está leyendo, `complete` responde `200` con `status: "discarded"` y no guarda la lectura.
+
 **Estados.** `uploading` → `processing` → `review` | `extraction_failed`; `extraction_failed` → `processing` (reintento); `uploading`, `processing`, `review`, `extraction_failed` → `discarded`.
 `registered` existe en el enum pero **ninguna ruta de esta spec lleva a él** (lo introduce SPEC-W-003 ampliando el trigger).
 
@@ -270,7 +279,7 @@ class AgentsClient(Protocol):
   (`FakeScriptExhausted`: así se prueba que completar dos veces no lee dos veces). Los fixtures se cargan al primer uso y se validan con los mismos modelos.
 - `document_url` la **genera siempre la API** con el JWT del usuario y `expiresIn ≤ 120`; nunca viene de una entrada de la persona. `AGENTS_BASE_URL` debe ser `https` salvo `APP_ENV=local`, y sin usuario, contraseña, consulta ni fragmento.
 - Variables nuevas: `AGENTS_BASE_URL` (opcional; una cadena vacía cuenta como ausente), `AGENTS_API_KEY` (obligatoria si hay URL), `AGENTS_TIMEOUT_SECONDS` (45; de 1 a 120). Con `APP_ENV=production` y sin `AGENTS_BASE_URL`, `create_app` lanza y **la API no arranca** (D-06); en `staging` sin URL se usa el simulado y se avisa en el registro.
-  `MAX_UPLOAD_BYTES` (15728640) llega con el hito 3, que es donde se usa por primera vez; `MAX_PROCESSING_PER_USER` se **retira** de esta lista: el 5 vive en SQL desde el hito 1 (Anexo B.3) y duplicarlo en una variable abriría dos fuentes de verdad.
+  `MAX_UPLOAD_BYTES` (15728640) y `MAX_PROCESSING_PER_USER` **no son variables de entorno**: el 5 vive en SQL desde el hito 1 (Anexo B.3) y los 15 MiB son una constante de `cuadre.documents.limits`, igual que en la CHECK y en el bucket (subirlos exige migración; una variable solo podría bajarlos y dejaría dos fuentes de verdad). `test_limits.py` compara los tres sitios.
   Dependencia nueva del backend: `cuadre-contracts==1.0.0` (no está en PyPI: se instala antes, `pip install -e contracts/python`; un test comprueba que el pin, `contracts/python/pyproject.toml` y `contracts/VERSION` coinciden y que README, CI y SPEC-W-001 §8.2 respetan el orden).
 - **Storage** (`cuadre.documents`, `httpx2` contra `{SUPABASE_URL}/storage/v1`): basta `Authorization: Bearer <JWT del usuario>`; **no** hace falta `apikey` ni una variable nueva (la clave publicable sola actúa como `anon` y se deniega). Las respuestas de error traen HTTP 400 con `{"statusCode": "403"|"404"|"409"|"413"|"415", "error", "message", "code"}`: se interpreta el `statusCode` del cuerpo, no el de HTTP, y el texto de Storage no llega a la persona. Las rutas devueltas por Storage (`url`, `signedURL`) son relativas a `/storage/v1`.
 
@@ -417,19 +426,19 @@ de SPEC-W-001 §8.2, que debe seguir en verde.
 
 | AC | Prueba |
 |---|---|
-| AC-01 | `backend/tests/documents/test_upload_flow.py`; `frontend/e2e/gastos-subida.spec.ts` · «subida y lectura» |
+| AC-01 | `backend/tests/documents/test_upload_flow.py` y `test_documents_live.py` (Storage y GoTrue reales); `frontend/e2e/gastos-subida.spec.ts` · «subida y lectura» |
 | AC-02 | `backend/tests/agents/test_fake_client.py`; `frontend/e2e/gastos-subida.spec.ts` · «dato dudoso» |
 | AC-03 | `backend/tests/agents/test_normalize.py` (parametrizada con importes inválidos; de punta a punta en `test_http_client.py`) |
-| AC-04 | `backend/tests/documents/test_file_validation.py` |
+| AC-04 | `backend/tests/documents/test_file_validation.py` (tabla de firmas de los cinco tipos) y `test_storage_client.py` (cliente de Storage contra un servidor guionado) |
 | AC-05 | `backend/tests/agents/test_http_client.py` (servidor simulado: 422, 502 único, tiempo agotado, 401, 413, 415) |
 | AC-06 | `backend/tests/agents/test_normalize.py`; `frontend/e2e/gastos-subida.spec.ts` · «instrucciones ocultas» |
-| AC-07 | `backend/tests/rls/test_documents.py`, `test_storage_policies.py` (reparto de cinco y estados del vínculo) y `test_storage_live.py` (API real de Storage); `rls_matrix.yaml` |
+| AC-07 | `backend/tests/rls/test_documents.py`, `test_storage_policies.py` (reparto de cinco y estados del vínculo) y `test_storage_live.py` (API real de Storage); `rls_matrix.yaml`. Lado API: `backend/tests/documents/test_roles.py` (403 a gestores y administradores en las ocho rutas, ajeno = inexistente) |
 | AC-08 | `backend/tests/agents/test_selection.py`, `test_http_client.py`, `test_contract_examples.py`; `backend/tests/rules/test_agents_boundary.py` (el paquete no puede importar la base de datos ni el JWT) y `test_contracts_dependency.py` |
 | AC-09 | `backend/tests/documents/test_no_sensitive_logs.py` |
 | AC-10 | `frontend/e2e/gastos-subida.spec.ts` · «cámara y sin scroll» (seis proyectos) |
-| AC-11 a AC-14 | `backend/tests/documents/test_states.py`, `test_limits.py`, `test_discard.py`, `test_review.py`; `frontend/src/lib/money.test.ts`. En la base de datos (hito 1): `backend/tests/rls/test_documents_states.py` (estados, trigger, límites, caducidad, descarte, correcciones y las CHECK de importes de AC-03) |
+| AC-11 a AC-14 | `backend/tests/documents/test_states.py` (incluye la concurrencia), `test_limits.py` (AC-12 y coherencia con SQL), `test_discard.py`, `test_review.py`, `test_errors_mapping.py`; `frontend/src/lib/money.test.ts`. En la base de datos (hito 1): `backend/tests/rls/test_documents_states.py` (estados, trigger, límites, caducidad, descarte, correcciones y las CHECK de importes de AC-03) |
 | AC-15 | `backend/tests/rls/test_rls_guard.py` y las guardas de `backend/tests/rules/` |
-| T2-10 | `backend/tests/documents/test_upload_flow.py::test_the_web_adds_no_noticeable_latency` |
+| T2-10 | `backend/tests/documents/test_upload_flow.py::test_t210_the_web_adds_no_noticeable_latency` |
 | T2-13, T2-14 | `backend/tests/rules/test_vercel_compat.py` |
 
 ### 8.4 Definición de hecho
@@ -451,6 +460,7 @@ de SPEC-W-001 §8.2, que debe seguir en verde.
 2. **`cuadre.agents`**: Protocol, Fake, Http, normalización, errores y selección por entorno; pruebas de contrato con los seis ejemplos; dependencia `cuadre-contracts` (README, CI y SPEC-W-001 §8.2 en el mismo commit).
    **Hecho el 2026-11-06** (paquete `backend/src/cuadre/agents/`; decisiones, pruebas y mutaciones en el Anexo B.4).
 3. **API de documentos**: rutas, módulo de Storage, lectura dentro de la petición `complete` / `retry`, límites y registro sin datos sensibles; `openapi.json` y `schema.d.ts` regenerados.
+   **Hecho el 2026-11-06** (paquete `backend/src/cuadre/documents/` y `api/routes_documents.py`; decisiones, pruebas y mutaciones en el Anexo B.5).
 4. **Frontend**: `money.ts`, `/gastos` y `/gastos/[id]`, subida y cámara, refresco, estados; navegación activa para `usuario`.
 5. **E2E y cierre**: `gastos-subida.spec.ts` (tres motores, dos anchos), `roles.spec.ts` actualizado, mutaciones, Anexo B, `tasks.json` y commit.
 
@@ -530,6 +540,34 @@ Paquete `backend/src/cuadre/agents/`: `errors.py` (`FailureCode`, `AgentsError`,
 **Para los hitos siguientes:**
 - **Hito 3:** el Storage de `cuadre.documents` es el único que fabrica `document_url` (≤ 120 s, con el JWT de la persona). Pasar `AgentsError.code.value` a `app.fail_extraction`; los textos en español de cada motivo (§5.1) viven allí. Añadir `MAX_UPLOAD_BYTES`, retirar `MAX_PROCESSING_PER_USER` y exponer `app.state.agents_client` con una dependencia. Pasar el `request_id` de la petición al cliente (`X-Request-Id`). `test_vercel_compat` no debe confundir `itertools.count` (el Fake) con un hilo.
 - **Hito 5:** el Fake recorre sus fixtures en orden cíclico, así que un E2E que necesite un fixture concreto depende del orden de llegada. El constructor ya acepta un guion; falta decidir cómo llega desde el entorno de la prueba (variable solo con `APP_ENV=local`, o un cliente inyectado).
+
+### B.5 Hito 3 · API de documentos · 2026-11-06
+
+Paquete `backend/src/cuadre/documents/` (`limits`, `signature`, `storage`, `repository`, `models`, `presentation`, `service`, `errors`) y `api/routes_documents.py` con las ocho rutas de §5.1. `create_app` guarda `app.state.storage` (`HttpStorage`) junto a `app.state.agents_client` (hito 2) y monta el router. `backend/openapi.json` y `frontend/src/api/schema.d.ts` están regenerados; `typecheck` y `lint` del frontend siguen limpios con el cliente nuevo.
+
+**Decisiones tomadas al implementar** (las de comportamiento ya están en §5.1 y §5.4):
+- **Una ruta larga no puede retener una conexión.** `Tx` mantiene una conexión del pool durante toda la ruta; `complete` y `retry` esperan al agente hasta 45 s y el pool es de 10. `core/auth.py` gana `get_verified_token`, `get_current_user_detached` y `require_role_detached`: leen el perfil en su propia transacción corta y la sueltan, y el servicio abre transacciones cortas por paso. Una prueba comprueba, con el agente retenido, que el pool no tiene ninguna conexión en uso durante la espera. El rol se vuelve a comprobar dentro de cada función SQL, así que leerlo antes no abre ningún hueco.
+- `upload_size_mismatch` también descarta y borra el archivo; `upload_missing` no. Un documento atascado en `uploading` no sale en la lista ni se puede descartar desde la interfaz, y una URL de subida admite una sola subida.
+- `MAX_UPLOAD_BYTES` y los 120 s son constantes, no variables de entorno (ver §5.4); `test_limits.py` las compara con la CHECK, el bucket y `private.document_processing_timeout()`.
+- El orden de `complete` es la seguridad: existencia, tamaño, tipo registrado y firma ANTES de pasar a `processing` y de llamar al agente. Si otra petición gana `mark_document_uploaded`, la perdedora no da 409: responde el estado actual (la lectura es idempotente por documento).
+- Las consultas filtran por `owner_id = auth.uid()` además de la RLS. Una prueba lo comprueba leyendo como un gestor con vínculo activo, para el que la RLS sí dejaría pasar.
+- `Review` es `extra="forbid"` con enteros estrictos en céntimos y los textos pasan por `clean_text` (un NUL rompería el `jsonb`); `issue_date` solo admite `AAAA-MM-DD`. Un tipo no permitido es un 415 propio, no el 422 genérico de una enumeración.
+- Storage se llama siempre con el JWT de la persona; nunca descarga el archivo entero (en *stream*, corta a los 32 bytes aunque Storage ignorase `Range`: una prueba mide cuánto llegó a escribir el servidor); rechaza URL devueltas que no sean de nuestro bucket; no sigue redirecciones ni usa proxies del entorno. `httpx2` y `httpcore2` pasan a `WARNING` en `configure_logging`.
+- `test_operation_ids` admite ahora los verbos `complete`, `retry`, `save` y `discard`, que fija §5.1.
+
+**Pruebas** (306 en `backend/tests/documents/`, 7 guardas nuevas en `backend/tests/rules/test_vercel_compat.py`; el conjunto «no rls» pasa de 409 a 722 y las 289 de RLS siguen igual): la aplicación real con base de datos real, un Storage en memoria que anota el JWT de cada llamada y el agente simulado; flujo completo y su registro de actividad; las 20 parejas tipo declarado × firma real; archivo ausente, tamaño y tipo registrado distintos; matriz de cinco estados × seis acciones; concurrencia con hilos (lectura en curso, dos `complete` a la vez con una barrera, descarte durante la lectura); `GatedAgents` y `BrokenAgents` para lo que ocurre *mientras* se lee; 403 a gestores y administradores en las ocho rutas, también con vínculo activo; ajeno = inexistente con el mismo cuerpo; cada error real de la base traducido a su `problem+json`; el cliente de Storage contra un servidor local guionado; el flujo completo de AC-09 con todos los registros capturados; y `test_documents_live.py` contra **Storage y GoTrue reales** (reservar, `PUT` solo con `Content-Type`, `complete`, vista previa abierta sin cabeceras, URL de lectura del agente, archivo falso, tipo y tamaño distintos, los cuatro tipos de imagen, descarte que borra el objeto). Sin objetos sueltos en Storage al terminar.
+
+**Mutaciones** (52, mismo método que en los hitos anteriores): comprobaciones de tamaño / tipo registrado / firma quitadas una a una; rechazo sin descartar o sin borrar; `complete` sin idempotencia o con la carrera dando 409; lectura sin marcar la subida; URL de lectura o de vista previa de una hora; fallo del agente o lectura buena sin guardar; excepción inesperada que deja `processing`; reserva sin descartar si falla la firma; descarte sin borrar el archivo o que falla si el borrado falla; un descartado que se puede ver; HEIC previsualizable; `Content-Type` de subida cambiado; nombre sin limpiar; tipo o tamaño no validados; Storage sin JWT, con el archivo entero, ignorando `statusCode`, aceptando URL ajenas, siguiendo redirecciones o con proxies; 403 mal traducido; gestores dentro; ruta que retiene la conexión; caducidad sin presentar; consultas sin filtro de propietario o sin tope; 15 MiB desalineado con SQL; 429 sin `Retry-After`; corrección con campos extra, céntimos no estrictos, textos sin limpiar, fecha sin forma o IVA sin patrón; nombre de archivo o JWT en un registro; `201` cambiado; `request_id` que no llega al agente; JWT en bruto distinto; `complete` que rechaza un fallido; descarte durante la lectura que da error; motivo de caducidad distinto de `timeout`. **Las 52 hacen fallar la suite.** Una sobrevivió en la primera pasada (la caducidad de 60 s de la vista previa no se comprobaba) y al preparar las mutaciones vi que mi prueba de redirecciones no distinguía seguirla de no seguirla (apuntaba a un puerto muerto): ahora apunta al mismo servidor y cuenta las peticiones.
+
+**Lo que no se ha comprobado:**
+- **Navegador real.** `test_documents_live.py` sube con `httpx` y las cabeceras que enviaría un navegador, no desde uno: el CORS real queda para el E2E del hito 5 (B.2).
+- **Hilos.** Las rutas son síncronas: una lectura ocupa un hilo del *threadpool* de FastAPI (40 por defecto) hasta 45 s. Con 5 lecturas simultáneas por persona, el límite lo marca el número de personas leyendo a la vez; sobra para la v1, pero no se ha medido bajo carga.
+- **Vercel.** Qué pasa con `complete` si el navegador cierra la conexión antes de que acabe la lectura (el documento queda en `processing` y a los 120 s se presenta como fallido, AC-11, pero no se ha visto en una función real), y el Storage de Supabase alojado, siguen para la spec de despliegue.
+- **Servicio real de agentes.** Las rutas solo se han ejecutado con `FakeAgentsClient`; `HttpAgentsClient` no ha leído nunca una factura de verdad (depende de la SPEC-A de lectura en cuadre-agents).
+
+**Para los hitos siguientes:**
+- **Hito 4:** el cliente generado ya trae `Document`, `DocumentSummary`, `DocumentState`, `Review`, `UploadResponse` y `PreviewResponse`. Orden del flujo de subida: acción de servidor `upload_document` → `PUT` a `upload.url` con `upload.headers` (el navegador nunca tiene el JWT) → acción de servidor `complete_document_upload`, que tarda hasta 45 s. Los documentos en `uploading` no salen en la lista: los errores de subida se muestran en la fila del archivo. Comprobar tipo y tamaño en el cliente antes de reservar (`415`/`413` existen, pero evitan un viaje). `429` trae `Retry-After`. Un `complete` puede responder `status: "discarded"` si se descartó mientras se leía. `doubtful_fields[].field` usa `total`, no `total_cents`. El refresco cada 2 s debe llamar a `list_documents`/`get_document` (la caducidad de 120 s se presenta ahí, sin escribir).
+- **Hito 5:** decidir cómo fija el E2E qué fixture lee el simulado (sigue siendo cíclico) y confirmar el CORS en los tres navegadores.
 
 ### B.2 Sin comprobar todavía
 

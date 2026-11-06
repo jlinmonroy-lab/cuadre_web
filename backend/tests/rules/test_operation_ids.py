@@ -29,6 +29,11 @@ VERBS = {
     "decline",
     "revoke",
     "send",
+    # SPEC-W-002 §5.1 fija estos operation_id (el prototipo y la spec los nombran así).
+    "complete",
+    "retry",
+    "save",
+    "discard",
 }
 
 

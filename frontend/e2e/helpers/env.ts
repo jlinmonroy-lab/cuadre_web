@@ -1,6 +1,13 @@
 import path from "node:path";
 
-export const WEB_URL = "http://localhost:3000";
+/** Puerto de la web de E2E: 3000, o `E2E_WEB_PORT` para poder probar con un `next dev` propio ocupando el 3000. */
+function webPort(): number {
+  const wanted = process.env.E2E_WEB_PORT ?? "3000";
+  if (!/^\d{2,5}$/.test(wanted) || Number(wanted) > 65_535) throw new Error(`E2E_WEB_PORT no es un puerto válido: ${wanted}`);
+  return Number(wanted);
+}
+export const WEB_PORT = webPort();
+export const WEB_URL = `http://localhost:${WEB_PORT}`; // siempre localhost: las cookies de sesión van por host
 export const API_URL = process.env.E2E_API_URL ?? "http://127.0.0.1:8000";
 export const MAILPIT_URL = process.env.E2E_MAILPIT_URL ?? "http://127.0.0.1:54324";
 

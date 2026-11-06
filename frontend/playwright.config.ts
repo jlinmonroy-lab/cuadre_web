@@ -1,14 +1,23 @@
 // Pruebas de extremo a extremo (SPEC-W-001 §8): Chromium, Firefox y WebKit, a 390 y 1.440 px, contra `next start` (producción).
-// Con la pila de Supabase en marcha (`npx supabase start`) y los puertos 3000 y 8000 libres: `npm run test:e2e`.
-// Variables opcionales: E2E_PYTHON, E2E_API_URL, E2E_MAILPIT_URL, E2E_SEED_PASSWORD, E2E_REUSE_SERVER=1, E2E_DEBUG_SERVERS=1.
+// Con la pila de Supabase en marcha (`npx supabase start`) y los puertos 3000, 8000 y 8765 libres: `npm run test:e2e`.
+// Variables opcionales: E2E_PYTHON, E2E_API_URL, E2E_MAILPIT_URL, E2E_SEED_PASSWORD, E2E_WEB_PORT (si el 3000 está ocupado),
+// E2E_REUSE_SERVER=1, E2E_DEBUG_SERVERS=1.
+//
+// Tres servidores: la API, la web (producción) y un servidor de agentes de E2E (`backend/tests/agents/e2e_server.py`). La API lo usa como
+// `AGENTS_BASE_URL`, así que lee con `HttpAgentsClient` y no con el simulado cíclico, cuyo orden global no sirve con proyectos en paralelo:
+// cada prueba elige qué lee el agente con un marcador dentro del archivo que sube (SPEC-W-002 B.7).
 import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { defineConfig, devices } from "@playwright/test";
 
+import { API_URL as API, WEB_PORT, WEB_URL as WEB } from "./e2e/helpers/env";
+
 const repoRoot = path.resolve(__dirname, "..");
-const WEB = "http://localhost:3000"; // siempre localhost: las cookies de sesión van por host
-const API = process.env.E2E_API_URL ?? "http://127.0.0.1:8000";
+const AGENTS_PORT = 8765;
+const AGENTS_URL = `http://127.0.0.1:${AGENTS_PORT}`;
+/** Clave inventada que comparten la API y el servidor de agentes de E2E: no protege nada, es un dato de prueba. */
+const AGENTS_KEY = "e2e-agents-key-solo-para-pruebas";
 
 /** Intérprete de Python: `E2E_PYTHON`, si no el del `.venv` del repositorio y, si no, el `python` del PATH (CI con el entorno activado). */
 function pythonCommand(): string {
@@ -63,17 +72,30 @@ export default defineConfig({
   ]),
   webServer: [
     {
+      // Su único estado es cuántas veces ha leído cada documento (para `a>b`): se puede reutilizar.
+      command: `${pythonCommand()} -m tests.agents.e2e_server --port ${AGENTS_PORT}`,
+      cwd: path.join(repoRoot, "backend"),
+      url: `${AGENTS_URL}/healthz`,
+      reuseExistingServer: true,
+      timeout: 30_000,
+      env: { AGENTS_API_KEY: AGENTS_KEY },
+      stderr: process.env.E2E_DEBUG_SERVERS ? "pipe" : "ignore",
+    },
+    {
       command: `${pythonCommand()} -m uvicorn cuadre.main:app --port 8000 --app-dir backend/src --host 127.0.0.1`,
       cwd: repoRoot,
       url: `${API}/healthz`,
-      reuseExistingServer: true, // la API no tiene estado propio
+      // Ya no se reutiliza (salvo con E2E_REUSE_SERVER=1): una API levantada a mano leería con el simulado cíclico y las pruebas de Gastos
+      // fallarían sin explicación. Quien la reutilice debe arrancarla con AGENTS_BASE_URL y AGENTS_API_KEY de este archivo.
+      reuseExistingServer: REUSE,
       timeout: 60_000,
+      env: { AGENTS_BASE_URL: AGENTS_URL, AGENTS_API_KEY: AGENTS_KEY },
       // El registro de peticiones de la API inunda la salida; E2E_DEBUG_SERVERS=1 lo muestra.
       stderr: process.env.E2E_DEBUG_SERVERS ? "pipe" : "ignore",
     },
     {
       // Producción, no `next dev`. No se reutiliza un servidor ya levantado (podría ser el de desarrollo) salvo con E2E_REUSE_SERVER=1.
-      command: "npm run build && npm run start",
+      command: `npm run build && npm run start -- -p ${WEB_PORT}`,
       cwd: __dirname,
       url: `${WEB}/login`,
       reuseExistingServer: REUSE,

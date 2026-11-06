@@ -441,19 +441,20 @@ de SPEC-W-001 §8.2, que debe seguir en verde.
 | AC-08 | `backend/tests/agents/test_selection.py`, `test_http_client.py`, `test_contract_examples.py`; `backend/tests/rules/test_agents_boundary.py` (el paquete no puede importar la base de datos ni el JWT) y `test_contracts_dependency.py` |
 | AC-09 | `backend/tests/documents/test_no_sensitive_logs.py` |
 | AC-10 | `frontend/e2e/gastos-subida.spec.ts` · «cámara y sin scroll» (seis proyectos) |
-| AC-11 a AC-14 | `backend/tests/documents/test_states.py` (incluye la concurrencia), `test_limits.py` (AC-12 y coherencia con SQL), `test_discard.py`, `test_review.py`, `test_errors_mapping.py`; `frontend/src/lib/money.test.ts`, `review.test.ts` (AC-14 junto al campo), `documents.test.ts` y `upload-flow.test.ts` (AC-12, reintentos y descarte de la reserva). En la base de datos (hito 1): `backend/tests/rls/test_documents_states.py` (estados, trigger, límites, caducidad, descarte, correcciones y las CHECK de importes de AC-03) |
+| AC-11 a AC-14 | `backend/tests/documents/test_states.py` (incluye la concurrencia), `test_limits.py` (AC-12 y coherencia con SQL), `test_discard.py`, `test_review.py`, `test_errors_mapping.py`; `frontend/src/lib/money.test.ts`, `review.test.ts` (AC-14 junto al campo), `documents.test.ts` y `upload-flow.test.ts` (AC-12, reintentos y descarte de la reserva); `frontend/e2e/gastos-subida.spec.ts` · «otra pestaña» (AC-11, el refresco), «descartar» (AC-13), «dato dudoso» y «lectura fallida» (AC-14, «Volver a leer» y rellenar a mano). En la base de datos (hito 1): `backend/tests/rls/test_documents_states.py` (estados, trigger, límites, caducidad, descarte, correcciones y las CHECK de importes de AC-03) |
 | AC-15 | `backend/tests/rls/test_rls_guard.py` y las guardas de `backend/tests/rules/` |
+| E2E | `backend/tests/agents/test_e2e_server.py`: el servidor de agentes del E2E (`backend/tests/agents/e2e_server.py`) devuelve a `HttpAgentsClient` lo mismo que el simulado para cada ejemplo y se porta como el real (clave, versión de contrato, URL firmada) |
 | T2-10 | `backend/tests/documents/test_upload_flow.py::test_t210_the_web_adds_no_noticeable_latency` |
 | T2-13, T2-14 | `backend/tests/rules/test_vercel_compat.py` |
 
 ### 8.4 Definición de hecho
 
-- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y la de SPEC-W-001 §8.2 sigue en verde.
-- [ ] `pytest backend/tests/rls -m rls` incluye `documents` y `storage.objects`.
-- [ ] §8.2 de SPEC-W-001, `README.md` y la acción `python-env` del CI instalan `contracts/python` antes que el backend (en el mismo cambio).
-- [ ] `frontend/e2e/roles.spec.ts` y la navegación reflejan que Gastos ya no es «Próximamente» para `usuario`.
-- [ ] `docs/04-specs/tasks.json` actualizado; los ADR 0003, 0004, 0006, 0012, 0015 y 0016 enlazados.
-- [ ] Sin secretos ni documentos reales en el cambio; `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
+- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y la de SPEC-W-001 §8.2 sigue en verde. *(En local, hecho el 2026-11-06 con la batería completa de E2E dos veces seguidas, B.7; el CI sigue sin ejecutarse porque no hay repositorio remoto.)*
+- [x] `pytest backend/tests/rls -m rls` incluye `documents` y `storage.objects`.
+- [x] §8.2 de SPEC-W-001, `README.md` y la acción `python-env` del CI instalan `contracts/python` antes que el backend (en el mismo cambio).
+- [x] `frontend/e2e/roles.spec.ts` y la navegación reflejan que Gastos ya no es «Próximamente» para `usuario`.
+- [x] `docs/04-specs/tasks.json` actualizado; los ADR 0003, 0004, 0006, 0012, 0015 y 0016 enlazados.
+- [x] Sin secretos ni documentos reales en el cambio; `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
 
 ## Anexo A · Orden de implementación sugerido (un plan y un commit por hito)
 
@@ -469,6 +470,7 @@ de SPEC-W-001 §8.2, que debe seguir en verde.
 4. **Frontend**: `money.ts`, `/gastos` y `/gastos/[id]`, subida y cámara, refresco, estados; navegación activa para `usuario`.
    **Hecho el 2026-11-06** (`frontend/src/lib/{money,documents,review,upload-flow,same-origin,problems}.ts`, `components/documents/` y `app/(app)/gastos/`; decisiones, pruebas y mutaciones en el Anexo B.6).
 5. **E2E y cierre**: `gastos-subida.spec.ts` (tres motores, dos anchos), `roles.spec.ts` actualizado, mutaciones, Anexo B, `tasks.json` y commit.
+   **Hecho el 2026-11-06** (`frontend/e2e/gastos-subida.spec.ts`, el servidor de agentes de E2E y los ayudantes de `frontend/e2e/helpers/`; decisiones, pruebas, mutaciones y lo que sigue sin comprobar en el Anexo B.7; `roles.spec.ts` ya se actualizó en el hito 4).
 
 ## Anexo B · Decisiones que esta spec dejó a la implementación
 
@@ -605,9 +607,40 @@ Paquete `backend/src/cuadre/documents/` (`limits`, `signature`, `storage`, `repo
 - `playwright.config.ts` exige los puertos 3000 y 8000 libres y `e2e/helpers/env.ts` fija `WEB_URL = http://localhost:3000` (las cookies de sesión van por host): un `next dev` propio en 3000 lo rompe. Conviene un puerto de E2E configurable, o avisar en el README.
 - Casos de `gastos-subida.spec.ts` ya ensayados con el script: «subida y lectura», «dato dudoso», «instrucciones ocultas» (el fixture `injection`), «cámara y sin scroll», más descartar y «Volver a leer».
 
+### B.7 Hito 5 · E2E de Gastos y cierre de la spec · 2026-11-06
+
+Nuevos: `frontend/e2e/gastos-subida.spec.ts` (10 pruebas), `frontend/e2e/helpers/{files,layout}.ts` y un **servidor de agentes de E2E** (`backend/tests/agents/e2e_server.py`, con 40 pruebas en `test_e2e_server.py`). `playwright.config.ts` levanta ahora tres servidores: agentes (8765), API y web de producción. El código de producción solo cambia en una corrección (la `key` de `UploadPanel`, abajo); no hay migraciones, ni cambios en `contracts/` ni en `schema.d.ts`. `layout.ts` extrae de `responsive.spec.ts` las comprobaciones de «sin scroll horizontal» y «todo campo con etiqueta».
+
+**Decisiones tomadas al implementar:**
+- **Qué lee el agente en el E2E** (la pregunta abierta en B.4, B.5 y B.6): ni una variable solo con `APP_ENV=local` ni un cliente inyectado, sino **un servidor de agentes de verdad**. El simulado es cíclico y su orden es global: no sirve con seis proyectos en paralelo. El servidor de E2E habla el contrato C1 por HTTP y la API lo usa como `AGENTS_BASE_URL`, de modo que se ejecuta `HttpAgentsClient` y la descarga real de la URL firmada, y el código de producción no sabe que existe. Cada prueba elige qué se lee con un marcador dentro del archivo sintético que sube.
+- **El marcador** es `[[fixture:<nombre>[>siguiente][;delay=<ms>]]]`. Va **cerrado entre corchetes** porque en un PNG los bytes del CRC van pegados al texto y un primer byte alfabético alargaba el nombre: el ejemplo no existía y el documento salía «No se pudo leer». La primera versión de la prueba de cámara lo dejaba pasar porque aceptaba cualquiera de los dos resultados; ahora cada archivo exige su resultado exacto y hay pruebas con bytes de CRC. `a>b`: la primera lectura de un `document_id` devuelve `a` y las siguientes `b` (el «Volver a leer»); el retardo se limita a 10 s.
+- **Se porta como el servicio real** (40 pruebas): clave con `hmac.compare_digest`, `X-Cuadre-Contract-Version: 1`, `X-Request-Id`, cuerpo validado con `ExtractRequest` y descarga anónima de la URL firmada (sin redirecciones ni proxies, hasta 1 MiB; si no, 502). Sin marcador o con un nombre desconocido responde 400 (la API lo traduce a `internal`, no a «ilegible»). Para cada ejemplo de `contracts/examples/extract/` devuelve a `HttpAgentsClient` lo mismo que `FakeAgentsClient`. No escribe contenidos ni URL en ningún registro.
+- **Una cuenta nueva por worker** (`gastosUser`, por el formulario de registro): con el límite de 5 lecturas simultáneas por persona, seis proyectos compartiendo a Alicia se pisarían. Las cuentas `e2e-…@example.test` se quedan en la base local; `npm run db:reset` las limpia.
+- **`E2E_WEB_PORT`** (3000 por defecto) fija `WEB_URL` y el puerto de la web de producción, para poder probar con un `next dev` propio ocupando el 3000. Ni la API ni la web se reutilizan si ya están levantadas (salvo `E2E_REUSE_SERVER=1`): una API arrancada a mano leería con el simulado y las pruebas de Gastos fallarían sin explicación. El servidor de agentes sí se reutiliza, porque su único estado es el contador de `a>b`.
+- **Ruido del navegador: se trata, no se silencia.** Pasadas completas intermedias dieron 1 y 3 fallos: peticiones RSC abortadas al navegar y `NS_BINDING_ABORTED`, un React #419 de Firefox en una redirección con *streaming*, un error de protocolo de Firefox al cerrar un contexto y «access control checks» de WebKit en la recuperación de la sesión. Todos venían de navegar o cerrar con algo en vuelo. Las fixtures esperan a que la red se aquiete (`settle()`) antes de navegar y de revisar errores, toman la foto de los errores de consola antes de cerrar los contextos y cierran con `closeQuietly()`. El vigilante sigue fallando ante cualquier otro error.
+- **Localizadores ante pantallas ocultas.** `cacheComponents` conserva las pantallas anteriores ocultas con `<Activity>`: `getByText`, `getByLabel` y los selectores CSS ven duplicados (un nombre de archivo salía dos veces y «Para revisar» daba un falso positivo), y `getByRole` no. Las pruebas usan roles y, donde no los hay, el filtro `shown()`.
+- **Fallo real de la aplicación, encontrado y corregido:** tras descartar un documento, `/gastos` seguía enseñando la fila de subida del documento ya borrado, porque Next 16 conserva el estado de cliente de la pantalla anterior. `UploadPanel` lleva ahora una `key` ligada al aviso (`app/(app)/gastos/page.tsx`); la prueba «descartar» lo cubre.
+- **CORS confirmado en los tres motores:** el `PUT` directo a Storage con solo `Content-Type` y `credentials: "omit"` desde `http://localhost:3100` funciona en Chromium, Firefox y WebKit, a 390 y 1.440 px. D-01 se mantiene y no se reabre.
+- Una prueba que recargaba la página con una lectura en curso era inestable (un documento puede quedarse en `uploading`, el límite de B.5). Se sustituyó por «otra pestaña»: una segunda pestaña sondea la lista hasta que aparece la lectura terminada, que es lo que pide AC-11.
+
+**Pruebas:** las 10 de `gastos-subida.spec.ts` (subida y lectura, dato dudoso, instrucciones ocultas, cámara y sin scroll, varios archivos a la vez, lectura fallida con relleno a mano, lectura fallida con «Volver a leer», descartar, otra pestaña, y permisos y otro origen) en los seis proyectos, más las 40 del servidor de agentes de E2E. Se ejecutó **dos veces seguidas la batería completa** (auth, roles, responsive, bundle y la nueva) en local, con `--workers=1`, un motor por invocación y `E2E_WEB_PORT=3100`: Chromium 97, Firefox 95 y WebKit 95 pruebas (cuentan las de preparación de sesión y, solo en Chromium a 1.440 px, `bundle.spec.ts`), sin fallos ni pruebas inestables. La secuencia de §8.2 termina con código 0: `ruff`, esquemas y ejemplos de `contracts/`, `export_openapi --check`, `gen:api --check`, `lint`, `typecheck`, 144 unitarias, `build`, `check:bundle`, `test:scripts`, `db reset`, 623 pruebas de agentes y documentos, 289 de RLS y 762 no-RLS.
+
+**Mutaciones** (19, mismo método que en los hitos anteriores): en la aplicación, `PUT` con credenciales, `PUT` con una cabecera de más, la entrada de cámara sin `capture`, aviso de instrucciones ocultas perdido, nota del dato dudoso perdida, «Registrar gasto» pulsable, refresco automático de la lista apagado, el handler de lectura aceptando cualquier origen, la lista desbordando a 390 px, descartar sin aviso, guardar la revisión sin llamar a la API, la fila de subida de un descartado que se queda (la `key`) y el original servido por una ruta fija; en el servidor de agentes, marcador ignorado, clave sin comprobar, `a>b` que no avanza, marcador sin cierre, documento sin descargar y cuerpo sin validar. **Las 19 hacen fallar la prueba prevista** y los archivos quedan idénticos tras revertir. El ejecutor desechable cuenta cualquier fallo como «detectada», y un proceso cortado por el sistema por falta de memoria (`3221225794`) lo sería sin serlo, así que se lanzó mutación a mutación con una guarda de memoria y parada en ese código.
+
+**Lo que no se ha comprobado:**
+- **El CI.** Sigue sin ejecutarse en un runner de GitHub (no hay remoto, B.2 de SPEC-W-001). La batería de tres motores y dos anchos solo se ha ejecutado en local y con un worker. Con varios workers y poca memoria libre el sistema cortó la batería (`worker process exited unexpectedly (code=3221225794)`): fue un límite del equipo, no de las pruebas. `playwright.config.ts` usa 4 workers en local y 2 en el CI; en un equipo justo de memoria conviene pasar `--workers=1`.
+- **Un PDF real en el visor.** Los archivos sintéticos solo llevan la firma `%PDF`, así que el visor de Chrome muestra su propio error (con barra de desplazamiento dentro del `<iframe>` a 390 px, no de la página). Cómo se ve un PDF de verdad en cada navegador y con el Storage alojado sigue sin comprobarse (B.6); HEIC, igual.
+- **La cámara de un móvil real.** `capture` solo lo atienden los navegadores móviles; la prueba comprueba el atributo y que la foto entra por esa entrada.
+- **El servicio real de agentes y Vercel** (`maxDuration = 60`, cierre de la conexión durante la lectura): `HttpAgentsClient` solo ha hablado con servidores locales (B.4, B.5).
+- **Recargar con una lectura en curso** no tiene prueba E2E (el documento atascado en `uploading`, límite de B.5).
+- **Lighthouse y lector de pantalla**, que siguen propuestos.
+
+**Para lo que sigue:** SPEC-W-002 pasa a `en-revision` y pasará a `hecha` con la primera ejecución del CI, como SPEC-W-001. «Registrar gasto» sigue desactivado («Próximamente»): SPEC-W-003 añade los validadores y el registro. `injection_suspected` y los datos dudosos fuerzan la revisión manual, pero nunca validan nada (CLAUDE.md, «Frontera»).
+
 ### B.2 Sin comprobar todavía
 
-- **Navegador real.** El CORS se comprobó a nivel de cabeceras (preflight y `PUT` con `Origin: http://localhost:3000`); el E2E del hito 5 lo confirma en Chromium, Firefox y WebKit. Si fallara ahí, se reabre D-01.
+- ~~**Navegador real.**~~ **Comprobado en el hito 5 (B.7).** El CORS se había comprobado a nivel de cabeceras (preflight y `PUT` con `Origin: http://localhost:3000`); el E2E lo confirma en Chromium, Firefox y WebKit, a 390 y 1.440 px, con el `PUT` directo a Storage con solo `Content-Type`. D-01 se mantiene.
+- **El CI** de la batería de E2E (tres motores, dos anchos) y de toda la secuencia de §8.2: escritos y repetidos en local, sin ejecutar en un runner de GitHub (no hay remoto). Detalle y otros límites en B.7.
 - Si una URL de lectura ya emitida sigue valiendo tras revocar el vínculo: por construcción vale hasta que caduca (≤ 120 s); no se probó.
 - El Storage de Supabase alojado (versión, CORS, caducidad de 2 h): queda para la spec de despliegue.
 - Con el backend en Vercel (ADR-0016), también para la spec de despliegue: qué pasa con `complete` si el navegador cierra la conexión antes de que acabe la lectura, y que `cuadre-contracts`, que está fuera de `backend/`, se instale en el despliegue.

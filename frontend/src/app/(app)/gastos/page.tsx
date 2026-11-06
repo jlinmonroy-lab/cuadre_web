@@ -16,6 +16,7 @@ export const metadata: Metadata = { title: "Gastos" };
 export default async function GastosPage(props: PageProps<"/gastos">) {
   await requireRole("usuario"); // el gestor y el administrador van a /403; la API vuelve a decidirlo
   const [documents, params] = await Promise.all([listDocuments(), props.searchParams]);
+  const notice = noticeFor(params.aviso);
   return (
     <>
       <header className="mb-6">
@@ -25,8 +26,11 @@ export default async function GastosPage(props: PageProps<"/gastos">) {
         </p>
       </header>
       <div className="grid gap-6">
-        <NoticeBox notice={noticeFor(params.aviso)} />
-        <UploadPanel />
+        <NoticeBox notice={notice} />
+        {/* Next conserva el estado de cliente de esta pantalla al ir a la revisión y volver: tras descartar un documento, la fila «Listo… Revisar»
+            de su subida seguiría ahí apuntando a algo que ya no existe. Con un aviso (se llega aquí al descartar) el panel se monta de nuevo;
+            los documentos siguen en la lista de abajo, que sale del servidor. */}
+        <UploadPanel key={notice ? String(params.aviso) : "sin-aviso"} />
         <section aria-labelledby="documentos-titulo" className="grid gap-3">
           <h2 id="documentos-titulo">Tus documentos</h2>
           <DocumentList documents={documents} />

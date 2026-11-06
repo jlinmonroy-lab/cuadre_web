@@ -76,11 +76,16 @@ npm --prefix frontend run lint ; npm --prefix frontend run typecheck ; npm --pre
 npm --prefix frontend run gen:api -- --check
 npm --prefix frontend run build ; npm --prefix frontend run check:bundle
 npm --prefix frontend run e2e:install              # una vez: Chromium, Firefox y WebKit de Playwright
-npm --prefix frontend run test:e2e                 # contra `next start` (lo construye); pila de Supabase en marcha y puertos 3000 y 8000 libres
+npm --prefix frontend run test:e2e                 # contra `next start` (lo construye); pila de Supabase en marcha y puertos 3000, 8000 y 8765 libres
 ```
 
-Las pruebas E2E arrancan solas la API y la web (producción); no reutilizan un servidor ya levantado, para no probar sin querer el de
-desarrollo (`E2E_REUSE_SERVER=1` lo permite). Dejan cuentas `e2e-…@example.test` en la base local: `npm run db:reset` la limpia.
+Las pruebas E2E arrancan solas tres servidores: la API, la web (producción) y un **servidor de agentes de E2E**
+(`backend/tests/agents/e2e_server.py`, puerto 8765). La API lo usa como `AGENTS_BASE_URL`, así que lee las facturas con `HttpAgentsClient` y
+no con el simulado, cuyo orden es global y no sirve con seis proyectos en paralelo: cada prueba elige qué lee el agente con un marcador
+dentro del archivo sintético que sube. Ni la API ni la web se reutilizan si ya están levantadas, para no probar sin querer el servidor de
+desarrollo ni una API con el simulado (`E2E_REUSE_SERVER=1` lo permite; entonces la API debe arrancarse con la `AGENTS_BASE_URL` y la
+`AGENTS_API_KEY` de `frontend/playwright.config.ts`). Con un `next dev` propio en el 3000, `E2E_WEB_PORT=3100 npm --prefix frontend run test:e2e`
+levanta la web de E2E en otro puerto. Las pruebas dejan cuentas `e2e-…@example.test` en la base local: `npm run db:reset` la limpia.
 
 ## Integración continua
 

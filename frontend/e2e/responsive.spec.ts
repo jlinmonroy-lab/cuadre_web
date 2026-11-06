@@ -1,6 +1,7 @@
 // AC-14 · Interfaz adaptable y accesible, en los seis proyectos (Chromium, Firefox y WebKit; 390 y 1.440 px).
 import { PEOPLE, type RoleKey } from "./helpers/env";
 import { expect, test } from "./helpers/fixtures";
+import { expectEveryFieldLabelled, expectNoHorizontalScroll } from "./helpers/layout";
 
 const NAV_BREAKPOINT = 901; // la barra lateral aparece desde 901 px; por debajo, barra superior (docs/cuadre-interfaz.html)
 
@@ -12,21 +13,6 @@ const SIGNED_IN_PAGES: [RoleKey, string][] = [
   ["gina", "/cartera"],
   ["adan", "/admin"],
 ];
-
-async function expectNoHorizontalScroll(page: import("@playwright/test").Page) {
-  const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    innerWidth: window.innerWidth,
-  }));
-  expect(scrollWidth, "la anchura del documento no puede superar la de la ventana").toBeLessThanOrEqual(innerWidth);
-}
-
-async function expectEveryFieldLabelled(page: import("@playwright/test").Page) {
-  const unlabelled = await page
-    .locator("input:not([type=hidden]), select, textarea")
-    .evaluateAll((fields) => fields.filter((field) => !(field as HTMLInputElement).labels?.length).map((field) => field.id || field.getAttribute("name")));
-  expect(unlabelled, "campos sin etiqueta asociada").toEqual([]);
-}
 
 for (const path of ANONYMOUS_PAGES) {
   test(`responsive · ${path} sin sesión: sin scroll horizontal y con todos los campos etiquetados`, async ({ page }) => {

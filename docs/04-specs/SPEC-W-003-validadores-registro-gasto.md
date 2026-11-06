@@ -453,6 +453,7 @@ npm --prefix frontend exec -- playwright test e2e/gastos-registro.spec.ts      #
 0. **Spike de `python-stdnum` 2.2**: qué acepta y qué rechaza cada función con valores **sintéticos** (NIF, NIE, CIF y NIF-IVA de los países de la UE), el prefijo `ES`, `EL` de Grecia y `XI` de Irlanda del Norte (por defecto no se admite), mayúsculas, espacios y guiones, y confirmar que la validación no usa la red. Resultado al Anexo B.
    **Hecho el 2026-11-06** (resultado en el Anexo B.1; corrigió el tratamiento del NIF en §3.1, §5.1, §5.4, T3-03, AC-03 y AC-04).
 1. **Validadores puros** (`cuadre.validators`) con sus tablas de pruebas, `Clock`, dependencias fijadas y `test_validators_boundary`, con mutaciones.
+   **Hecho el 2026-11-06** (resultado en el Anexo B.2: 528 pruebas, 11 guardas y 81 mutaciones detectadas; la paridad con SQL pasa al hito 2).
 2. **Base de datos**: enums, `expenses`, funciones, trigger, `documents_guard` ampliado, matriz y `test_expenses` / `test_expenses_states`, con mutaciones.
 3. **API**: `cuadre.expenses`, `confirm_document` y las cinco rutas de gastos, `Document.validation` y `expense_id`, `openapi.json` y `schema.d.ts` regenerados, verbo `void`, con mutaciones.
 4. **Frontend**: lista de comprobaciones, categoría, registrar, gastos registrados, gasto sin factura, detalle y anulación; unitarias.
@@ -468,7 +469,7 @@ npm --prefix frontend exec -- playwright test e2e/gastos-registro.spec.ts      #
 - **SPEC-W-009 (130).** Cuenta como gasto la base más el IVA no deducible; las fórmulas son suyas. Los gastos de la UE y los sin factura cuentan.
 - **SPEC-W-005 (perfil).** Sin el NIF en `business_profiles.tax_id`, ninguna factura simplificada ni ticket es deducible y el aviso `recipient_mismatch` no puede darse. Conviene un aviso «completa tu perfil» junto a las simplificadas.
 - **SPEC-W-010 (gestor).** La política de lectura de `expenses` ya existe; faltan la pantalla y el registro de cada lectura. El gestor ve también los anulados: la pantalla decide si los muestra.
-- **SPEC-W-011 (MCP).** `gastos_por_categoria` devuelve `categoria` como la etiqueta en español: debe salir de la misma tabla que usa la interfaz (`cuadre.expenses.categories`), no de una copia. `iva_cents` y `retencion_cents` son los de los gastos no anulados.
+- **SPEC-W-011 (MCP).** `gastos_por_categoria` devuelve `categoria` como la etiqueta en español: debe salir de la misma tabla que usa la interfaz (`cuadre.validators.categories`), no de una copia. `iva_cents` y `retencion_cents` son los de los gastos no anulados.
 - **SPEC-W-012 (cierre mensual).** Registrar o anular un gasto con fecha de un mes ya cerrado exige reabrirlo; esta spec no mira los cierres.
 - **SPEC-W-002.** Su AC-02 («no existe ninguna ruta que registre un gasto») queda superado por esta spec: el botón está desactivado mientras haya comprobaciones fallidas.
 
@@ -515,3 +516,38 @@ Entorno: `python-stdnum` 2.2 (rueda `python_stdnum-2.2-py3-none-any.whl`, 1.193.
 - El normalizador quita espacios, puntos y guiones, y acepta K, L y M.
 - Límites conocidos: el CIF acepta dígito o letra de control en todos los tipos y la validación de Rumanía es débil. Las pruebas de «control mal» eligen una mutación que la librería rechaza.
 - E2E del hito 5: los ejemplos de `contracts/examples/` valen tal cual.
+
+### B.2 Hito 1 · validadores puros · 2026-11-06
+
+**Qué hay.** El paquete `backend/src/cuadre/validators/` (once módulos, sin base de datos, red, FastAPI ni reloj propio) y `backend/src/cuadre/core/clock.py` (`Clock`, `SystemClock`, `today_in_madrid`). `validate(data, context)` devuelve las once comprobaciones de §5.1 en su orden fijo, los tres avisos, la vista previa (ámbito, deducibilidad con su motivo, categoría sugerida) y, solo si se puede registrar, los valores ya normalizados que recibirá la función SQL del hito 2. `from_stored(mapping)` lee la forma guardada en `review` y `extraction` (SPEC-W-002 §5.3), de modo que el hito 3 solo pasa `review ?? extraction`. Dependencias fijadas en `backend/pyproject.toml`: `python-stdnum==2.2` (sin extras) y `tzdata==2026.6`. Ningún `float` en el paquete.
+
+**Decisiones tomadas al escribirlo** (la spec las dejaba abiertas o no las nombraba):
+
+| Tema | Decisión |
+|---|---|
+| Lectura tolerante (`from_stored`) | Un booleano no es un entero; un texto en blanco es «sin dato»; una fecha que no es `AAAA-MM-DD` real (30 de febrero, `2026/11/01`, dígitos de ancho completo, una marca de tiempo) es **malformada**, distinta de ausente, y tiene su propio motivo; un elemento del desglose que no es un objeto cuenta como línea sin datos; `withholding: {}` es una retención que no se entendió (falla `withholding`), no «sin retención» |
+| Comprobaciones condicionales | `doubts_reviewed` solo aparece si hay datos dudosos y `withholding` solo si la factura trae retención; `vat_rates`, `vat_amounts` y `total` dicen «No se puede comprobar…» cuando faltan los datos, en vez de dar un motivo falso |
+| Importes | Un total cero o negativo, o una línea con base o cuota negativa, no se registra: el motivo dice que los abonos no se registran todavía. Más de 10 líneas de IVA se rechazan (el mismo tope que la lectura guardada) |
+| Moneda | Sin moneda se da por euros; cualquier otra falla `currency` y el motivo remite al gasto sin factura |
+| Número de factura | Solo la factura completa lo exige; un ticket, un recibo y una simplificada pueden no llevarlo. La clave es el número sin nada que no sea `[0-9A-Za-z]`, en mayúsculas (vacío es nulo) |
+| Duplicados | Un duplicado duro no se anuncia además como posible. El blando exige NIF, día y total y no se da si ya es duro |
+| `recipient_mismatch` | Necesita los dos NIF; uno del destinatario que no se entiende cuenta como distinto del tuyo |
+| NIF | Además del flujo del B.1, una guarda contra el doble prefijo: la librería quita un `ES` inicial por su cuenta, así que `ES ES 12345678Z` pasaría por válido |
+| Categoría | Coincidencia por **inicio de palabra** y sin tildes: «app» no casa con «Happy»; con varias candidatas gana el orden `software`, `supplies`, `workspace`, `utilities`, `advisory`; `training` y `self_employed_fee` no tienen palabras clave y se eligen a mano |
+| Nombres | `ValidationWarning` en lugar de `Warning` (no tapa el del lenguaje); `money.format_euros` es un módulo aparte para los importes de los motivos; `FixedClock` vive en `backend/tests/clocks.py` y no en `tests/support.py` |
+| `injection_suspected` | Solo cambia `requires_acknowledgement`: las comprobaciones, los avisos y `can_register` son idénticos con y sin sospecha (NFR-07) |
+
+**Pruebas.** 528 en `backend/tests/validators` (tablas de valores sintéticos; el corpus de B.1 regenerado con la misma semilla: **2.369 entradas hostiles** que ni lanzan ni pasan; 5.000 casos de cuota y total contrastados con un cálculo racional independiente; fronteras de ±1 y ±2 céntimos, empates de medio-arriba, la frontera de Madrid a las 23:30 UTC; los seis ejemplos de `contracts/examples/extract/` pasados por `normalize_extraction` y `validate` de punta a punta) y 11 en `backend/tests/rules` (`test_validators_boundary.py`, cuyos detectores se prueban a sí mismos, y `test_stdnum_dependency.py`). Una prueba deja constancia de que la librería **sola** acepta 440 de las entradas fabricadas y lanza `ValueError` con 170: si alguien quita el prefiltro, tiene que fallar.
+
+**Mutaciones.** 81, con un ejecutor desechable fuera del repositorio: NIF (sin prefiltro, `match` por `fullmatch`, excepción que se propaga, resultado de la librería sin comprobar, doble prefijo, `XI`/`EU`/`GB`/`IM` admitidos, `GR` sin unificar, puntos sin quitar, K/L/M rechazados), IVA y total (tolerancia 1→0 y 1→2, `ROUND_HALF_EVEN`, `float`, 19 % como tipo español, tope de la UE, retención sobre la primera línea), fecha y reloj (`>` por `>=`, 1990, UTC en lugar de Madrid, reloj sin zona), duplicados, deducibilidad, categorías (subcadena en lugar de inicio de palabra, sin tildes, orden de prioridad), composición (`any` por `all`, valores aunque no se pueda registrar, `injection_suspected` que bloquea o que se pierde, nombre sin recortar, ámbito siempre nacional) y las guardas (importar `psycopg`, leer el reloj, otro módulo que importa `stdnum`, `check_vies`, `python-stdnum` sin fijar o con el extra `soap`, `tzdata` sin fijar). **Las 81 hacen fallar la suite**, ninguna sobrevive y los archivos quedan idénticos por huella sha256. Antes de ejecutarlas se añadieron tres ficheros de pruebas (`test_tax_id_defenses.py`, `test_registrable_values.py`, `test_money.py`) para los huecos que se preveían (la librería sustituida por una que devuelve basura, los valores a registrar y los importes de los motivos); no se comprobó qué habría pasado sin ellos.
+
+**Lo que no se ha comprobado:**
+- **Paridad con SQL.** Nada de esto ha tocado una base de datos: que `normalize_invoice_number` coincida con la columna generada y que `ExpenseCategory` coincida con el enum son pruebas del hito 2.
+- **Los metadatos del paquete editable de la `.venv`.** `pip install -e "backend[dev]"` necesita descargar `setuptools` y no se hizo sin red; `python-stdnum` se instaló desde la rueda verificada en B.1, `pip check` no da conflictos y un test comprueba que las versiones instaladas son las fijadas. El CI instala desde `pyproject.toml` y aún no se ha ejecutado (sin remoto).
+- **`injection_suspected` real.** Las pruebas lo pasan en el contexto; que `documents.injection_suspected` llegue ahí es del hito 3.
+- **Rendimiento y arranque en frío** en Vercel (ya dicho en B.1). Las 2.369 entradas hostiles y los 5.000 casos de cuota corren en menos de un segundo en esta máquina.
+
+**Para el hito 2:**
+- La columna generada de §5.2 es `nullif(upper(regexp_replace(invoice_number, '[^0-9A-Za-z]', '', 'g')), '')`, igual que `normalize_invoice_number`. La prueba de paridad debe incluir acentos, ligaduras, dígitos de ancho completo y saltos de línea, porque los rangos `[A-Za-z]` pueden depender del *collation* de la base.
+- `CHECK (supplier_tax_id ~ '^[A-Z0-9]{5,20}$')`: probarlo con un valor que acabe en salto de línea, que es justo la rendija del B.1 (el prefiltro de Python usa `fullmatch`; en SQL hay que comprobar que `$` se comporta igual).
+- Los campos de `RegistrableValues` (`expense_date`, `supplier_name`, `supplier_tax_id`, `supplier_scope`, `invoice_number`, `invoice_number_key`, `doc_type`, `base_cents`, `vat_cents`, `withholding_cents`, `total_cents`, `tax_lines`, `deductible_vat`) deben corresponder uno a uno con los parámetros de `app.register_expense_from_document` y las columnas de §5.2. Si alguno sobra o falta, se corrige en el hito 2, antes de la API.

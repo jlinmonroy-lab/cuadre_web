@@ -123,8 +123,8 @@
     {
       "id": "SPEC-W-003",
       "title": "Validadores deterministas y registro del gasto (gastos sin factura y categorías)",
-      "file": null,
-      "status": "propuesta",
+      "file": "docs/04-specs/SPEC-W-003-validadores-registro-gasto.md",
+      "status": "especificada",
       "priority": "must",
       "risk": "alto",
       "stories": [
@@ -135,14 +135,22 @@
         "RF-011"
       ],
       "nfr": [
-        "NFR-07"
+        "NFR-06",
+        "NFR-07",
+        "NFR-10",
+        "NFR-11"
       ],
       "constraints": [
         "RES-01",
         "RES-02"
       ],
       "adr": [
-        "0006"
+        "0003",
+        "0004",
+        "0006",
+        "0012",
+        "0015",
+        "0016"
       ],
       "depends_on": [
         "SPEC-W-002"
@@ -152,10 +160,14 @@
       "prd_legacy_ids": [
         "SPEC-005"
       ],
+      "acceptance_criteria": 19,
       "verification": [
-        "pytest backend/tests/validators backend/tests/expenses"
+        "pytest backend/tests/validators backend/tests/expenses",
+        "pytest backend/tests/rls -m rls -q",
+        "npm --prefix frontend exec -- playwright test e2e/gastos-registro.spec.ts",
+        "secuencia completa: SPEC-W-003 §8.2, SPEC-W-002 §8.2 y SPEC-W-001 §8.2"
       ],
-      "notes": "NIF (python-stdnum), fecha, cuota, suma, duplicados. injection_suspected fuerza revisión manual y nunca valida. Añade expenses a rls_matrix.yaml."
+      "notes": "Spec escrita el 2026-11-06 con once decisiones (D-01 a D-11) y seis hitos. Validadores puros en cuadre.validators (NIF, NIE y CIF y NIF-IVA de la UE con python-stdnum sin red, fecha con reloj inyectado, cuota, total, retención, duplicados) y tabla expenses con funciones app.*, índice anti-duplicados y documents_guard ampliado; validar y registrar en una transacción con el documento bloqueado. injection_suspected obliga a reconocerlo para registrar, también en la base, y nunca valida. Gasto sin factura, ocho categorías con sugerencia por palabras, cambio de categoría y anulación que devuelve el documento a revisión. Decididas por la persona el 2026-11-06: D-10 (categoría y anular) y D-05 en lo del NIF-IVA de la UE, con su coste: esos gastos no tienen casilla en el 303 de la v1 (nota para W-008). El resto, a su visto bueno: pendiente para pasar a en-progreso. Dependencia blanda de W-005 (el NIF del perfil decide la deducibilidad de las simplificadas). Añade expenses a rls_matrix.yaml y el verbo void a test_operation_ids."
     },
     {
       "id": "SPEC-W-004",

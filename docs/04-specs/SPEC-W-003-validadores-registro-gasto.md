@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-003
 titulo: Validadores deterministas y registro del gasto
-estado: especificada
+estado: en-progreso
 prioridad: must
 riesgo: alto
 historias: [US-005]
@@ -48,6 +48,8 @@ ADR-0016 (backend en Vercel: sin trabajo posterior a la respuesta); ADR-0003 y A
 | D-10 | **Decidida.** **Corregir gastos:** la categoría se puede cambiar; **anular** un gasto lo saca de las cuentas, deja rastro y **devuelve su documento a revisión** (a `review`, o a `extraction_failed` si nunca hubo lectura) para corregirlo y registrarlo de nuevo. Un gasto sin factura anulado no vuelve. No se edita ni se borra nada más | Solo cambiar categoría: más simple, pero un error al teclear un gasto sin factura no tendría remedio. Editar y borrar libremente: cambia cifras ya contabilizadas, también de meses cerrados, sin rastro |
 | D-11 | **Un documento en `extraction_failed` rellenado a mano también se puede registrar** (el trigger de SPEC-W-002 solo permitía llegar a `registered` desde `review`, y ahí no había nada que registrar). Se valida y se registra igual que los demás | Obligar a reintentar la lectura: deja fuera a quien no consigue que se lea y rompe «rellena los datos a mano» de SPEC-W-002 |
 
+*Visto bueno del 2026-11-06: la persona pidió el plan del hito 0 sin cambios a D-01 a D-11 (D-05 y D-10 ya estaban decididas); se tratan como aprobadas y la spec pasa a `en-progreso`. El spike del hito 0 comprobó la librería y corrigió el tratamiento del NIF (§3.1, §5.1, §5.4, T3-03, AC-03 y AC-04 y Anexo B.1).*
+
 ## 2. Objetivo
 
 Al terminar esta spec:
@@ -63,7 +65,7 @@ Al terminar esta spec:
 
 ### 3.1 Validadores (`cuadre.validators`)
 - Funciones puras de comprobación (§5.1) y su orquestación `validate(data, context) → Validation`; normalización del NIF y del número de factura; deducibilidad del IVA; sugerencia de categoría.
-- NIF español (NIF, NIE y CIF) y NIF-IVA de la UE con `python-stdnum` (dependencia nueva, versión fijada; ver §5.4). Fecha con **reloj inyectado** (`today`), tipos y cuotas con `Decimal`.
+- NIF español (NIF, NIE, CIF y los especiales K, L y M) y NIF-IVA de los 26 países de la UE con `python-stdnum` (dependencia nueva, versión fijada; ver §5.4), siempre tras un prefiltro ASCII (Anexo B.1). Fecha con **reloj inyectado** (`today`), tipos y cuotas con `Decimal`.
 - Constantes en un solo sitio (`limits`): tolerancias, tipos permitidos, máximos.
 
 ### 3.2 Base de datos (migraciones nuevas)
@@ -111,7 +113,7 @@ Si le faltan datos, la comprobación **falla** con «No se puede comprobar: falt
 | `doc_type` | Tipo de documento válido | `full_invoice`, `simplified_invoice`, `ticket` o `receipt`. `other`, `not_an_invoice` o vacío fallan: «Elige el tipo de documento» |
 | `required_data` | Datos obligatorios completos | Nombre del proveedor; número de factura (solo en `full_invoice`); al menos una línea de IVA con tipo, base y cuota; total presente y mayor que cero; ningún importe negativo (los abonos no se registran todavía) |
 | `doubts_reviewed` | Datos dudosos revisados | Solo si la lectura marcó dudosos: falla mientras no exista `review` (haber guardado el formulario es confirmarlos; US-001: «el gasto no se registra hasta que el usuario confirma el dato») |
-| `supplier_tax_id` | NIF del proveedor válido | Obligatorio. Se normaliza (mayúsculas, sin espacios, puntos ni guiones). **Sin prefijo de país**, o con `ES`: NIF, NIE o CIF con su dígito o letra de control (`python-stdnum`). **Con prefijo de otro país de la UE** (Grecia usa `EL`): NIF-IVA válido para ese país (formato y control, sin red). Cualquier otra cosa: «no se reconoce como NIF español ni NIF-IVA de la UE» |
+| `supplier_tax_id` | NIF del proveedor válido | Obligatorio. **Antes de llamar a la librería**: prefiltro ASCII (`[0-9A-Za-z .-]{1,32}` con `fullmatch`), se quitan espacios, puntos y guiones y se pasa a mayúsculas. Si empieza por dos letras: `ES` → NIF español; `EL` o `GR` → Grecia; otro prefijo de la **lista cerrada de 26 países** (AT, BE, BG, CY, CZ, DE, DK, EE, FI, FR, HR, HU, IE, IT, LT, LU, LV, MT, NL, PL, PT, RO, SE, SI y SK, más Grecia) → NIF-IVA de ese país (formato y control, sin red); cualquier otro prefijo (`XI`, `EU`, `IM`, `GB`, `CH`…) → «no se reconoce». Sin prefijo → NIF español: NIF, NIE, CIF y los especiales K, L y M, con su dígito o letra de control (`python-stdnum`). **Cualquier excepción de la librería es «no válido»** y lo que devuelve debe ser solo `A-Z` y `0-9` (Anexo B.1: la librería valida entradas con un salto de línea dentro y lanza `ValueError`). Cualquier otra cosa: «no se reconoce como NIF español ni NIF-IVA de la UE» |
 | `issue_date` | Fecha correcta y no futura | Fecha real, no anterior al 1 de enero de 2000 y **no posterior a hoy en Europe/Madrid** (con `today` inyectado: a las 23:30 UTC de un 31 de diciembre ya es 1 de enero en Madrid) |
 | `currency` | Importe en euros | Vacía o `EUR`. Otra moneda falla: «La factura no está en euros: anótala como gasto sin factura con el importe que te cargaron en euros» |
 | `vat_rates` | Tipos de IVA permitidos | Proveedor español: cada tipo es 0, 4, 10 o 21 (se compara el número: `21.00` es 21). Proveedor de la UE: de 0 a 30, porque cada país tiene los suyos |
@@ -122,7 +124,7 @@ Si le faltan datos, la comprobación **falla** con «No se puede comprobar: falt
 
 **Avisos** (nunca bloquean): `possible_duplicate` (mismo día, total y NIF con otro número o sin número), `recipient_mismatch` (la factura trae un NIF de destinatario distinto del del perfil; solo si ambos existen) y `eu_supplier` («El IVA de un proveedor de la UE no se deduce en el 303 de Cuadre; el gasto cuenta en el 130», D-05).
 
-**Normalización.** `supplier_tax_id`: forma compacta de `python-stdnum`; un NIF español se guarda **sin** el prefijo `ES`, uno de la UE **con** su prefijo, de modo que `ES B12345678` y `B12345678` se reconocen como el mismo proveedor. `invoice_number_key` = el número sin ningún carácter que no sea
+**Normalización.** `supplier_tax_id`: forma compacta de `python-stdnum` tras el prefiltro; un NIF español se guarda **sin** el prefijo `ES`, uno de la UE **con** su prefijo y Grecia siempre como `EL` (la librería conserva `GR` si se escribe así), de modo que `ES B12345678` y `B12345678`, o `GR…` y `EL…`, se reconocen como el mismo proveedor. `invoice_number_key` = el número sin ningún carácter que no sea
 `[0-9A-Za-z]`, en mayúsculas (vacío es nulo): `A-311`, `a 311` y `A311` son el mismo número. Esa normalización **vive en la base** (columna generada) y la réplica en Python se prueba contra ella con un corpus (T3-04).
 
 **Deducibilidad** (`deductible_vat`, orientativa, D-06): falso si el proveedor es de la UE o si la cuota total es 0. Verdadero para `full_invoice`. Para `simplified_invoice` y `ticket`, solo si el NIF del destinatario, normalizado, es el de `business_profiles.tax_id` y no está vacío. Falso para `receipt`. Se muestra siempre **con su motivo** («Factura simplificada: el IVA solo se deduce si lleva tu NIF»).
@@ -243,7 +245,7 @@ Validation {
 - **Paquetes.** `cuadre.validators` (puro: `tax_id`, `dates`, `vat`, `duplicates`, `deductibility`, `categories`, `checks`, `limits`) y `cuadre.expenses` (`service`, `repository`, `models`, `presentation`, `errors`). `api/routes_expenses.py`; las rutas de `confirm_document` van con las de documentos.
 - **Flujo de `confirm_document`.** Una transacción corta (sin esperas externas): `app.lock_document` → leer el perfil (NIF propio) y los gastos del mismo proveedor (por RLS, como la persona) → `validate(...)` → si falla, `validation_failed` → `register_expense_from_document` con los valores ya normalizados → confirmar. El error `23505` del índice se traduce a `duplicate_expense` según el nombre del índice.
 - **Reloj.** `cuadre.core.clock.Clock` (un `Protocol` con `now()`) y `SystemClock`; `today` se calcula en `Europe/Madrid` y se pasa a los validadores. Los tests inyectan uno fijo (SPEC-W-012 lo reutilizará). Se declara `tzdata` como dependencia del backend (en Windows `zoneinfo` lo necesita; hoy está instalado, pero no declarado).
-- **Dependencias nuevas:** `python-stdnum==2.2` (la última publicada el 2026-11-06; licencia LGPL-2.1+, se usa solo como biblioteca, sin copiar código) y `tzdata`. Un test comprueba que el pin está en `backend/pyproject.toml` y que no se importa `stdnum.eu.vies` ni `check_vies` (nada sale a la red, T3-03).
+- **Dependencias nuevas:** `python-stdnum==2.2` (la última publicada el 2026-11-06; licencia LGPL-2.1+, se usa solo como biblioteca, sin copiar código) y `tzdata`. Se instala **sin extras** (`zeep`, que usa la consulta a VIES, no entra). Un test comprueba que el pin está en `backend/pyproject.toml` y que `cuadre.validators` no usa `check_vies*` ni `get_soap_client` (nada sale a la red, T3-03; el spike midió 0 intentos de red, Anexo B.1).
 - **`test_operation_ids`** añade el verbo `void`; `confirm`, `create`, `list`, `get` y `set` ya existen.
 
 ### 5.5 Frontend
@@ -264,7 +266,7 @@ La interfaz no valida nada fiscal: **muestra** el resultado del servidor. Si hay
 |---|---|
 | T3-01 | **Sin modelos de lenguaje** (RES-01, ADR-0012): ni para el NIF, ni para la categoría, ni para la deducibilidad. Se mantienen `test_no_llm_sdk` y las guardas de W-001 y W-002 |
 | T3-02 | **Sin `float`** en código, migraciones ni jsonb: céntimos enteros y `Decimal` solo en el cálculo de cuota y retención. `test_no_float` sigue verde |
-| T3-03 | **Validadores puros**: `cuadre.validators` no importa base de datos, `httpx`, FastAPI ni usa `datetime.now()` / `time` (el reloj entra como parámetro) y **no sale a la red** (ni VIES). Lo vigila `backend/tests/rules/test_validators_boundary.py`, como `test_agents_boundary` |
+| T3-03 | **Validadores puros**: `cuadre.validators` no importa base de datos, `httpx`, FastAPI ni usa `datetime.now()` / `time` (el reloj entra como parámetro) y **no sale a la red** (ni VIES). Toda llamada a `python-stdnum` va **después** del prefiltro ASCII y dentro de un `try` que convierte cualquier excepción en «no válido» (Anexo B.1). Lo vigila `backend/tests/rules/test_validators_boundary.py`, como `test_agents_boundary` |
 | T3-04 | **Una fuente por regla.** Los dígitos de control los pone solo `python-stdnum`; la normalización del número de factura vive en la base (columna generada) y su réplica en Python se prueba contra ella con un corpus; las constantes (tolerancia, tipos permitidos, tope de líneas…) no se repiten, y si se repiten, un test las compara |
 | T3-05 | **Validar y registrar, atómico**: en una sola transacción con el documento bloqueado. Dos confirmaciones del mismo documento: una gana y la otra recibe `document_wrong_state`; dos documentos con la misma factura: uno se registra y el otro `duplicate_expense` |
 | T3-06 | **La lectura sigue siendo un dato no confiable** (T2-05): `injection_suspected` exige reconocimiento y **nunca valida ni exime** de ninguna comprobación; la sugerencia de categoría solo puede devolver uno de los ocho valores |
@@ -293,13 +295,16 @@ AC-02  Registro de una factura correcta
     And se registra "expense.registered" sin nombre, NIF, número ni importes
 
 AC-03  NIF español
-  Given NIF de persona, NIE y CIF válidos (con y sin prefijo "ES", con espacios, puntos o guiones), y otros con la letra o el dígito de control equivocado o vacíos
+  Given NIF de persona, NIE, CIF y K, L y M válidos (con y sin prefijo "ES", en minúsculas, con espacios, puntos o guiones), y otros con la letra o el dígito de control equivocado o vacíos
+    And entradas hostiles: un salto de línea o un carácter de control en medio con la letra de control que corresponde a los dígitos, espacios de no separación, cifras de ancho completo y ligaduras
   Then los válidos pasan y se guardan sin "ES" y compactos, y los demás fallan con su motivo ("revisa el dígito o la letra de control", "falta el NIF")
+    And las hostiles se rechazan sin excepción ni error 500 y nunca llegan a la clave de duplicados
 
 AC-04  NIF-IVA de la UE y no reconocidos (D-05)
-  Given un NIF-IVA válido de Alemania, uno de Grecia con prefijo "EL", uno de la UE con el dígito mal, y un identificador de fuera de la UE
-  Then el primero y el segundo pasan con supplier_scope = "eu", deductible_vat = false y el aviso "eu_supplier"
-    And el tercero falla por su control y el cuarto como "no reconocido"
+  Given un NIF-IVA válido de Alemania, uno de Grecia con prefijo "EL" y el mismo con "GR", uno de la UE con el dígito mal, y números con prefijo "XI", "EU" y "GB" y un identificador de fuera de la UE
+  Then los de Alemania y Grecia pasan con supplier_scope = "eu", deductible_vat = false y el aviso "eu_supplier"
+    And "GR…" y "EL…" dan la misma clave, "EL…"
+    And el del dígito mal falla por su control y los de "XI", "EU", "GB" y fuera de la UE como "no reconocido"
     And la validación no hace ninguna llamada de red
 
 AC-05  Fecha
@@ -446,6 +451,7 @@ npm --prefix frontend exec -- playwright test e2e/gastos-registro.spec.ts      #
 ## Anexo A · Orden de implementación sugerido (un plan y un commit por hito)
 
 0. **Spike de `python-stdnum` 2.2**: qué acepta y qué rechaza cada función con valores **sintéticos** (NIF, NIE, CIF y NIF-IVA de los países de la UE), el prefijo `ES`, `EL` de Grecia y `XI` de Irlanda del Norte (por defecto no se admite), mayúsculas, espacios y guiones, y confirmar que la validación no usa la red. Resultado al Anexo B.
+   **Hecho el 2026-11-06** (resultado en el Anexo B.1; corrigió el tratamiento del NIF en §3.1, §5.1, §5.4, T3-03, AC-03 y AC-04).
 1. **Validadores puros** (`cuadre.validators`) con sus tablas de pruebas, `Clock`, dependencias fijadas y `test_validators_boundary`, con mutaciones.
 2. **Base de datos**: enums, `expenses`, funciones, trigger, `documents_guard` ampliado, matriz y `test_expenses` / `test_expenses_states`, con mutaciones.
 3. **API**: `cuadre.expenses`, `confirm_document` y las cinco rutas de gastos, `Document.validation` y `expense_id`, `openapi.json` y `schema.d.ts` regenerados, verbo `void`, con mutaciones.
@@ -465,3 +471,47 @@ npm --prefix frontend exec -- playwright test e2e/gastos-registro.spec.ts      #
 - **SPEC-W-011 (MCP).** `gastos_por_categoria` devuelve `categoria` como la etiqueta en español: debe salir de la misma tabla que usa la interfaz (`cuadre.expenses.categories`), no de una copia. `iva_cents` y `retencion_cents` son los de los gastos no anulados.
 - **SPEC-W-012 (cierre mensual).** Registrar o anular un gasto con fecha de un mes ya cerrado exige reabrirlo; esta spec no mira los cierres.
 - **SPEC-W-002.** Su AC-02 («no existe ninguna ruta que registre un gasto») queda superado por esta spec: el botón está desactivado mientras haya comprobaciones fallidas.
+
+### B.1 Spike de `python-stdnum` · hito 0 · 2026-11-06
+
+Entorno: `python-stdnum` 2.2 (rueda `python_stdnum-2.2-py3-none-any.whl`, 1.193.213 bytes, **sha256 idéntico al que publica PyPI**), Python 3.12.10 en Windows, instalada **aparte** (`pip install --target`): ni el `.venv` ni `backend/pyproject.toml` han cambiado. Script desechable, no commiteado, con semilla fija: tres ejecuciones dan el mismo resultado. Toda la batería corre bajo una guarda que hace fallar y cuenta cualquier intento de abrir un socket o resolver un nombre: **0 intentos**. Todo lo de abajo es lo observado, no lo leído en la documentación.
+
+| Pregunta | Resultado |
+|---|---|
+| **Paquete** | LGPL-2.1+ (clasificador `LGPLv2+`); sin dependencias obligatorias (`zeep`, que usa la consulta a VIES, es el extra `soap`, que no se instala); Python ≥ 3.8. Importar `stdnum.es.nif` o `stdnum.eu.vat` en frío cuesta de 57 a 76 ms (tres repeticiones; incluye el paquete base) |
+| **¿Sale a la red?** | No. Más de 200.000 comprobaciones con la guarda de red activa, 0 intentos. `check_vies`, que es aparte, falla con `ImportError` (no hay `zeep`) antes de tocar la red. Tras importar quedan cargados `ssl` y `urllib.parse` (biblioteca estándar); `socket` lo carga la propia guarda |
+| **¿Qué valida `es.nif.validate`?** | DNI, NIE (X, Y, Z), CIF y los especiales K, L y M (estos solo con el algoritmo del DNI). Normaliza el `ES` inicial, las minúsculas, los espacios, los guiones y los blancos de los extremos. **No quita los puntos** (`12.345.678-Z` da `InvalidFormat`). Con 8 o 10 caracteres, `InvalidLength`; con el control equivocado, `InvalidChecksum`; vacío y `None`, `InvalidFormat`. Con `ES` delante, `eu.vat` devuelve el número **con** el prefijo |
+| **CIF** | Para los 17 tipos de entidad (A a W) acepta **tanto el dígito como la letra de control**. La regla habitual (dígito en A, B, E y H; letra en N, P, Q, R, S y W; no contrastada aquí con la norma) es más estricta: la librería es más permisiva en 10 de los 17 tipos. No se arregla sin duplicar reglas (T3-04): queda como límite conocido |
+| **K, L y M** | La librería los acepta; la rutina del prototipo, no. Son NIF reales de personas (menores, residentes en el extranjero, extranjeros sin NIE). Se aceptan, igual que la librería: una sola fuente |
+| **Contraste con el prototipo** | 200.000 cadenas con forma de NIF: coinciden 199.638 (73.645 válidas y 125.993 inválidas). Las 362 que difieren son **todas K, L o M** y solo las acepta la librería; ninguna que el prototipo dé por buena y la librería no |
+| **Ejemplos de `contracts/examples/`** | Los 8 identificadores fiscales (los CIF de proveedor `B00000042`, `B00000091`, `B00000075` y `B00000059`, y el DNI de destinatario `12345678Z` de cuatro ejemplos) **son válidos con la librería**, no solo con la rutina del prototipo: el E2E del hito 5 los usa tal cual |
+| **UE: cobertura** | Se obtuvo un número sintético válido para los **26 países** distintos de España, que va por `es.nif`; ninguno quedó «no probado» |
+| **UE: prefijo y separadores** | El prefijo de país es **obligatorio** (sin él o con una letra, `InvalidComponent`; con tres letras o solo el prefijo, `InvalidFormat`) y se acepta en minúsculas. Los separadores **no se quitan igual en todos los países**: con espacio, bien en los 26; con guion, falla en CZ y EE; con puntos, falla en 15 de los 26. El normalizador debe quitar espacios, puntos y guiones **antes** de llamar |
+| **UE: control** | Cambiar el último dígito se rechaza 9 de cada 9 veces en casi todos los países. No aplica donde ese carácter no es de control (CZ de 9 dígitos y NL, cuyo sufijo `B` y dos cifras es libre; CY e IE terminan en letra) y en BG una de las nueve mutaciones sigue siendo válida. **RO** acepta de 2 a 10 dígitos con un solo control (módulo 11): `RO9573` es «válido». La validación de Rumanía es débil, y las pruebas de «control mal» deben comprobar que la mutación elegida se rechaza |
+| **Grecia** | `EL` y `GR` se aceptan (misma validación) y **se devuelven tal como se escribieron**: sin tratarlo, `EL…` y `GR…` serían dos proveedores distintos. La clave se unifica en `EL`. Un número de 8 cifras se completa con un 0 delante |
+| **Prefijos que no son un Estado miembro** | La librería acepta `XI` (Irlanda del Norte, con el algoritmo de GB) y `EU` (esquema OSS), y **rechaza `GB`** con el mismo cuerpo, `CHE…` (Suiza), `NO…MVA` y `US…` (`InvalidComponent`). Con `IM` (isla de Man) y 9 dígitos no salió ningún número válido en 40.000 intentos: no se sabe si lo acepta. Hace falta una **lista blanca propia**: España y los 26 países, con `EL` (y `GR` convertido a `EL`) y sin `XI`, `EU`, `IM` ni `GB` |
+| **Caracteres raros insertados** | De 992 combinaciones: la librería recorta saltos de línea, tabuladores, tabulador vertical, avance de página, `NEL` y separador de línea al principio y al final, y quita el espacio de no separación en cualquier posición. Normaliza los dígitos de ancho completo (un `3` de ancho completo vale `3`) y la ligadura «ﬁ» (U+FB01) como `FI`. No acepta dígitos arábigos ni el superíndice. Siempre devuelve un resultado limpio (solo `A-Z` y `0-9`) y no lanzó excepciones fuera de `ValidationError` |
+| **La rendija del `$` en `isdigits`** | **Confirmada.** De 610 entradas **fabricadas** con un salto de línea en la penúltima posición y la letra de control que corresponde a los dígitos anteriores (el algoritmo usa `int()`, que ignora el salto), **la librería valida las 440 de DNI, NIE y K/L/M y devuelve un resultado con el salto de línea dentro** (siete dígitos, un salto de línea y una letra). Las 170 de CIF lanzan **`ValueError`**, que no es `ValidationError`. Sin defensa propia, un identificador así llegaría a la clave de duplicados o rompería la API con un 500 |
+| **Entradas largas** | 10.000 caracteres: rechazadas en menos de 3 ms |
+| **Normalización candidata** | Prefiltro `[0-9A-Za-z .-]{1,32}` con `fullmatch`; se quitan espacios, puntos y guiones; mayúsculas; si empieza por `ES`, NIF español sin prefijo; si no, otro prefijo de la lista blanca (`GR` pasa a `EL`) y NIF-IVA con prefijo; cualquier excepción es «no válido» y el resultado ha de ser `[A-Z0-9]{5,20}`. Es idempotente; `ES B…` y `B…` dan la misma clave, y `GR…` y `EL…` también; `XI`, `EU` y `GB` se rechazan. **Ninguna de las 2.369 entradas con caracteres raros o fabricadas** (992 insertados, 767 sustituidos y 610 fabricadas) **pasa el prefiltro**. Las claves miden de 6 (RO) a 14 caracteres: caben en el `CHECK` de 5 a 20 de `expenses.supplier_tax_id` |
+
+**Valores sintéticos** (calculados con la propia librería a partir de cuerpos aleatorios con semilla fija, sin copiar los de nadie, salvo `12345678Z`, el DNI de ejemplo que ya usan el prototipo y `contracts/`; pueden coincidir por azar con números reales y no identifican a nadie, RES-07):
+- España: DNI `12345678Z` y `01230956L`; NIE `X4001342D`, `Y2492503F`, `Z8019878J`; K, L y M `K3315686Y`, `L1261942R`, `M6637350X`; CIF con control numérico `A30789028` y con letra `P7766239C`.
+- UE (sin España): AT `ATU84543291`, BE `BE1981162939`, BG `BG1096398855`, CY `CY76957253G`, CZ `CZ532215599`, DE `DE534861408`, DK `DK11659721`, EE `EE050611436`, EL `EL333906790`, FI `FI14848328`, FR `FR89195505110`, HR `HR95593513929`, HU `HU46727594`, IE `IE9134973S`, IT `IT65531970062`, LT `LT709161183614`, LU `LU74142252`, LV `LV85251632718`, MT `MT55619217`, NL `NL131073515B49`, PL `PL8023132347`, PT `PT731220820`, RO `RO9573`, SE `SE768590534601`, SI `SI53348966`, SK `SK7592280674`.
+- Fuera de la lista blanca, solo para las pruebas de rechazo: `XI722847175` (con `GB` y el mismo cuerpo, la librería lo rechaza) y `EU440138732`.
+
+**Lo que no se ha comprobado:**
+- **Otras formas de cada país.** Se obtuvo una forma válida por país; no se recorrieron todos los formatos oficiales (BE y CZ en otras longitudes, IE con `+` o `*`, FR con letras…).
+- **`IM`**, por lo dicho arriba.
+- **Las reglas de control de K, L, M y del CIF contra la norma.** La librería es la fuente única (T3-04); no se contrastó con el BOE.
+- **Que el número exista**: la consulta a VIES queda fuera por diseño (D-05).
+- **El arranque en frío en Vercel**: los 57 a 76 ms son de Windows; no se midió allí.
+- **Otras versiones de la librería.** El pin es 2.2: subirlo exige repetir esta batería, y el hito 1 la deja como prueba.
+- **La rendija del `$` no se ha notificado** a los mantenedores de `python-stdnum`.
+
+**Consecuencias para los hitos siguientes** (ya reflejadas en §3.1, §5.1, §5.4, T3-03, AC-03 y AC-04):
+- **Prefiltro ASCII antes de la librería**, `try` ancho (cualquier excepción es «no válido») y comprobación de que lo devuelto es solo `[A-Z0-9]`. El hito 1 guarda como prueba de regresión las entradas fabricadas: si se quita el prefiltro, tiene que fallar.
+- **Lista blanca de 27 países** (España y los 26), con `EL` y `GR` convertido a `EL`; `XI`, `EU`, `IM` y `GB` quedan fuera.
+- El normalizador quita espacios, puntos y guiones, y acepta K, L y M.
+- Límites conocidos: el CIF acepta dígito o letra de control en todos los tipos y la validación de Rumanía es débil. Las pruebas de «control mal» eligen una mutación que la librería rechaza.
+- E2E del hito 5: los ejemplos de `contracts/examples/` valen tal cual.

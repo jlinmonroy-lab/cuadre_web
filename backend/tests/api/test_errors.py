@@ -135,7 +135,10 @@ def test_the_request_id_is_readable_from_the_browser(client: TestClient) -> None
 
 
 def test_the_interactive_docs_are_off_in_production() -> None:
-    production = create_app(Settings(app_env="production"))  # type: ignore[call-arg]
+    # En producción la API exige el servicio de agentes (SPEC-W-002 D-06): sin AGENTS_BASE_URL no arrancaría.
+    production = create_app(
+        Settings(app_env="production", agents_base_url="https://agents.example.test", agents_api_key="clave-de-prueba")  # type: ignore[call-arg]
+    )
     development = create_app(Settings(app_env="local"))  # type: ignore[call-arg]
     with TestClient(production) as prod, TestClient(development) as dev:
         assert prod.get("/docs").status_code == 404

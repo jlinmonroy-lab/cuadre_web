@@ -630,6 +630,8 @@ Docker Desktop **en marcha** (`docker info` responde); Python 3.12 con `.venv/` 
 ```powershell
 # 0 · Entorno (una vez)
 .\.venv\Scripts\Activate.ps1
+pip install -r contracts/requirements.txt
+pip install -e contracts/python                         # cuadre-contracts: antes que el backend, que depende de él (SPEC-W-002 hito 2)
 pip install -e "backend[dev]"
 npm ci
 npm --prefix frontend ci

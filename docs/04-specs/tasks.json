@@ -6,7 +6,7 @@
     "name": "cuadre-agents",
     "spec_prefix": "SPEC-A"
   },
-  "updated": "2026-11-05",
+  "updated": "2026-11-06",
   "status_values": [
     "propuesta",
     "especificada",
@@ -118,7 +118,7 @@
         "npm --prefix frontend exec -- playwright test e2e/gastos-subida.spec.ts",
         "secuencia completa: SPEC-W-002 §8.2 y SPEC-W-001 §8.2"
       ],
-      "notes": "AgentsClient con FakeAgentsClient (fixtures de contracts/examples) y HttpAgentsClient. Storage privado, subida con URL firmada y lectura del agente con URL firmada de ≈120 s. Añade documents a rls_matrix.yaml y las políticas de storage.objects. No valida ni registra gastos (W-003). Siete decisiones de diseño (D-01 a D-07) pendientes de visto bueno en §1. D-01 y D-02 reescritas el 2026-11-04 por ADR-0016 (backend en Vercel): la lectura ocurre dentro de la petición y no hay plan B de subida por la API (límite de 4,5 MB). D-01 a D-07 aprobadas el 2026-11-05. Hito 0 hecho (spike de Storage en local: la subida directa del navegador funciona; bucket privado `documents` en la migración 20261105100000; resultados en el Anexo B). Hito 1 hecho (tabla documents con CHECK de ruta, motivos e importes enteros, funciones app.*, trigger que congela la lectura, políticas de storage.objects; 173 pruebas nuevas de RLS y 28 mutaciones detectadas; Anexo B.3). Siguiente: hito 2 (cuadre.agents)."
+      "notes": "AgentsClient con FakeAgentsClient (fixtures de contracts/examples) y HttpAgentsClient. Storage privado, subida con URL firmada y lectura del agente con URL firmada de ≈120 s. Añade documents a rls_matrix.yaml y las políticas de storage.objects. No valida ni registra gastos (W-003). Siete decisiones de diseño (D-01 a D-07) pendientes de visto bueno en §1. D-01 y D-02 reescritas el 2026-11-04 por ADR-0016 (backend en Vercel): la lectura ocurre dentro de la petición y no hay plan B de subida por la API (límite de 4,5 MB). D-01 a D-07 aprobadas el 2026-11-05. Hito 0 hecho (spike de Storage en local: la subida directa del navegador funciona; bucket privado `documents` en la migración 20261105100000; resultados en el Anexo B). Hito 1 hecho (tabla documents con CHECK de ruta, motivos e importes enteros, funciones app.*, trigger que congela la lectura, políticas de storage.objects; 173 pruebas nuevas de RLS y 28 mutaciones detectadas; Anexo B.3). Hito 2 hecho (paquete cuadre.agents: AgentsClient, FakeAgentsClient cíclico, HttpAgentsClient con presupuesto de 45 s, un reintento acotado y validación estricta, normalización a céntimos con doble cerco, selección por entorno con la API sin arrancar en producción sin AGENTS_BASE_URL; dependencia cuadre-contracts en README, CI y SPEC-W-001 §8.2; 277 pruebas nuevas en backend/tests/agents, 9 guardas en backend/tests/rules y 48 mutaciones detectadas; Anexo B.4). Siguiente: hito 3 (API de documentos)."
     },
     {
       "id": "SPEC-W-003",

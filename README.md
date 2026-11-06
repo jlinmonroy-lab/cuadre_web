@@ -37,6 +37,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1                       # Git Bash: source .venv/Scripts/activate · Linux: source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r contracts/requirements.txt
+pip install -e contracts/python                    # cuadre-contracts (no está en PyPI): siempre ANTES que el backend, que depende de él
 pip install -e "backend[dev]"
 
 # Supabase local (Docker Desktop en marcha)

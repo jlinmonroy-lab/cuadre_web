@@ -232,7 +232,7 @@ Las políticas de `storage.objects` no entran en `rls_matrix.yaml` (que cubre `p
 
 ### 5.3 Datos de la lectura
 
-**Respuesta del agente → forma guardada.** `HttpAgentsClient` valida con `ExtractResponse` (`cuadre_contracts`); cualquier fallo de validación es `invalid_response`. Después se normaliza:
+**Respuesta del agente → forma guardada.** `HttpAgentsClient` valida con `ExtractResponse` (`cuadre_contracts`) **en modo estricto** (ni un número donde va una cadena, ni una fecha como entero, ni `"true"` como booleano); cualquier fallo de validación es `invalid_response`. Después, `normalize_extraction` (`cuadre.agents.normalize`) la normaliza —y vuelve a comprobar todo lo que protege a la base, por si un cliente se saltara la validación—:
 
 ```
 extraction (jsonb)
@@ -246,9 +246,10 @@ extraction (jsonb)
   warnings            [ string ≤ 300 ]             -- ≤ 5
 ```
 
-- **Importes (RES-02, ADR-0006).** Cada cadena debe cumplir `^-?\d{1,12}\.\d{2}$`; se convierte con `Decimal` a céntimos enteros. Cualquier otra cosa invalida la respuesta entera. Los tipos (`vat_rate`, `rate`) quedan como cadenas decimales.
-  No hay `float` en ningún punto del camino.
-- **Textos de una fuente no confiable.** Se eliminan caracteres de control, se colapsan espacios y se recorta a la longitud indicada. Se muestran siempre como texto (nunca HTML). No se interpretan, no se siguen enlaces ni se ejecuta nada.
+- **Importes (RES-02, ADR-0006).** Cada cadena debe cumplir `-?[0-9]{1,12}\.[0-9]{2}` **completa** (`fullmatch`, solo dígitos ASCII: `\d` casa dígitos de cualquier alfabeto —el modelo del contrato los deja pasar— y `$` admite un salto de línea final); se convierte con `Decimal` a céntimos enteros. Cualquier otra cosa invalida la respuesta entera. Los tipos (`vat_rate`, `rate`) quedan como cadenas decimales
+  (`[0-9]{1,3}(\.[0-9]{1,2})?`). No hay `float` en ningún punto del camino.
+- **Cotas.** Más de 10 líneas de IVA o más de 50 dudosos invalidan la respuesta entera (no se trunca dinero en silencio); `warnings` se recorta a los 5 primeros no vacíos; `line_index` fuera de `tax_breakdown` pasa a `null` (la duda se conserva en el campo); el coste del agente debe ser `< 1000` (`agent_cost_eur` es `numeric(9,6)`); `trace_id` se limpia y se recorta a 200.
+- **Textos de una fuente no confiable.** Se normalizan a NFC, se eliminan los caracteres de control (Cc), de formato (Cf: ancho cero y **controles bidireccionales**, que sirven para suplantar texto) y los sustitutos sueltos (Cs: PostgreSQL no los admite en `jsonb`), se colapsan espacios y saltos de línea, se recorta a la longitud indicada y lo que queda vacío pasa a `null`. Se muestran siempre como texto (nunca HTML). No se interpretan, no se siguen enlaces ni se ejecuta nada.
 - `injection_suspected` se guarda en su columna y se muestra como aviso; **no** cambia ninguna otra regla en esta spec.
 - `review` tiene la forma de `extraction` sin `doubtful_fields` ni `warnings`: lo que la persona corrige. La interfaz muestra `review` si existe y `extraction` si no.
 
@@ -261,9 +262,16 @@ class AgentsClient(Protocol):
 
 - `HttpAgentsClient`: presupuesto total de **45 s** (incluye el reintento); un reintento solo ante error de conexión, `429` (con `Retry-After` ≤ 5 s) o `502`; nunca ante un `4xx` ni un tiempo agotado. Mapeo: `422 unreadable` → `unreadable`, `413` → `payload_too_large`, `415` →
   `unsupported_media_type`, `401` → `agents_unavailable` (error de configuración: se registra, la persona ve el mensaje genérico), `502`/error de red → `upstream_error`/`agents_unavailable`, 45 s → `timeout`.
-- `document_url` la **genera siempre la API** con el JWT del usuario y `expiresIn ≤ 120`; nunca viene de una entrada de la persona. `AGENTS_BASE_URL` debe ser `https` salvo `APP_ENV=local`.
-- Variables nuevas: `AGENTS_BASE_URL` (opcional), `AGENTS_API_KEY` (obligatoria si hay URL), `AGENTS_TIMEOUT_SECONDS` (45), `MAX_UPLOAD_BYTES` (15728640), `MAX_PROCESSING_PER_USER` (5). `.env.example` ya documenta las dos primeras.
-  Dependencia nueva del backend: `cuadre-contracts==1.0.0` (se instala antes, `pip install -e contracts/python`).
+  Detalle fijado en el hito 2 (Anexo B.4): `5xx` y `429` sin reintento posible → `upstream_error`; error de conexión (tras su único reintento), `401`, `403`, `404` y redirecciones (no se siguen) → `agents_unavailable`;
+  `400` y `422` con otro `code` (la petición que hemos enviado es la errónea) → `internal`; JSON roto, cuerpo de más de 1 MiB o respuesta que no cumple `ExtractResponse` → `invalid_response`. El `message` del agente no se usa nunca.
+  El reintento solo se hace si, tras la pausa, quedan al menos 5 s de presupuesto; la pausa es `Retry-After` en segundos enteros (una fecha HTTP cuenta como ausente) o 500 ms ante un `502` o un error de conexión.
+  Una conexión por llamada, sin redirecciones y sin proxies del entorno (la clave del servicio solo va a la URL configurada).
+- `FakeAgentsClient`: recorre los seis fixtures en orden fijo y **cíclico** (cada llamada avanza, aunque sea el mismo documento: reintentar un ilegible en una demo da otra lectura); con un guion inyectado, lo sirve exacto y **falla si se agota**
+  (`FakeScriptExhausted`: así se prueba que completar dos veces no lee dos veces). Los fixtures se cargan al primer uso y se validan con los mismos modelos.
+- `document_url` la **genera siempre la API** con el JWT del usuario y `expiresIn ≤ 120`; nunca viene de una entrada de la persona. `AGENTS_BASE_URL` debe ser `https` salvo `APP_ENV=local`, y sin usuario, contraseña, consulta ni fragmento.
+- Variables nuevas: `AGENTS_BASE_URL` (opcional; una cadena vacía cuenta como ausente), `AGENTS_API_KEY` (obligatoria si hay URL), `AGENTS_TIMEOUT_SECONDS` (45; de 1 a 120). Con `APP_ENV=production` y sin `AGENTS_BASE_URL`, `create_app` lanza y **la API no arranca** (D-06); en `staging` sin URL se usa el simulado y se avisa en el registro.
+  `MAX_UPLOAD_BYTES` (15728640) llega con el hito 3, que es donde se usa por primera vez; `MAX_PROCESSING_PER_USER` se **retira** de esta lista: el 5 vive en SQL desde el hito 1 (Anexo B.3) y duplicarlo en una variable abriría dos fuentes de verdad.
+  Dependencia nueva del backend: `cuadre-contracts==1.0.0` (no está en PyPI: se instala antes, `pip install -e contracts/python`; un test comprueba que el pin, `contracts/python/pyproject.toml` y `contracts/VERSION` coinciden y que README, CI y SPEC-W-001 §8.2 respetan el orden).
 - **Storage** (`cuadre.documents`, `httpx2` contra `{SUPABASE_URL}/storage/v1`): basta `Authorization: Bearer <JWT del usuario>`; **no** hace falta `apikey` ni una variable nueva (la clave publicable sola actúa como `anon` y se deniega). Las respuestas de error traen HTTP 400 con `{"statusCode": "403"|"404"|"409"|"413"|"415", "error", "message", "code"}`: se interpreta el `statusCode` del cuerpo, no el de HTTP, y el texto de Storage no llega a la persona. Las rutas devueltas por Storage (`url`, `signedURL`) son relativas a `/storage/v1`.
 
 ### 5.5 Frontend
@@ -411,12 +419,12 @@ de SPEC-W-001 §8.2, que debe seguir en verde.
 |---|---|
 | AC-01 | `backend/tests/documents/test_upload_flow.py`; `frontend/e2e/gastos-subida.spec.ts` · «subida y lectura» |
 | AC-02 | `backend/tests/agents/test_fake_client.py`; `frontend/e2e/gastos-subida.spec.ts` · «dato dudoso» |
-| AC-03 | `backend/tests/agents/test_normalize.py` (parametrizada con importes inválidos) |
+| AC-03 | `backend/tests/agents/test_normalize.py` (parametrizada con importes inválidos; de punta a punta en `test_http_client.py`) |
 | AC-04 | `backend/tests/documents/test_file_validation.py` |
 | AC-05 | `backend/tests/agents/test_http_client.py` (servidor simulado: 422, 502 único, tiempo agotado, 401, 413, 415) |
 | AC-06 | `backend/tests/agents/test_normalize.py`; `frontend/e2e/gastos-subida.spec.ts` · «instrucciones ocultas» |
 | AC-07 | `backend/tests/rls/test_documents.py`, `test_storage_policies.py` (reparto de cinco y estados del vínculo) y `test_storage_live.py` (API real de Storage); `rls_matrix.yaml` |
-| AC-08 | `backend/tests/agents/test_selection.py`, `test_http_client.py`, `test_contract_examples.py` |
+| AC-08 | `backend/tests/agents/test_selection.py`, `test_http_client.py`, `test_contract_examples.py`; `backend/tests/rules/test_agents_boundary.py` (el paquete no puede importar la base de datos ni el JWT) y `test_contracts_dependency.py` |
 | AC-09 | `backend/tests/documents/test_no_sensitive_logs.py` |
 | AC-10 | `frontend/e2e/gastos-subida.spec.ts` · «cámara y sin scroll» (seis proyectos) |
 | AC-11 a AC-14 | `backend/tests/documents/test_states.py`, `test_limits.py`, `test_discard.py`, `test_review.py`; `frontend/src/lib/money.test.ts`. En la base de datos (hito 1): `backend/tests/rls/test_documents_states.py` (estados, trigger, límites, caducidad, descarte, correcciones y las CHECK de importes de AC-03) |
@@ -441,6 +449,7 @@ de SPEC-W-001 §8.2, que debe seguir en verde.
 1. **Base de datos**: enums, `documents`, funciones `app.*`, trigger, bucket y políticas, matriz y `test_documents` / `test_storage_policies`, con mutaciones.
    **Hecho el 2026-11-05** (migraciones `20261105100100` a `…300`; decisiones y mutaciones en el Anexo B.3).
 2. **`cuadre.agents`**: Protocol, Fake, Http, normalización, errores y selección por entorno; pruebas de contrato con los seis ejemplos; dependencia `cuadre-contracts` (README, CI y SPEC-W-001 §8.2 en el mismo commit).
+   **Hecho el 2026-11-06** (paquete `backend/src/cuadre/agents/`; decisiones, pruebas y mutaciones en el Anexo B.4).
 3. **API de documentos**: rutas, módulo de Storage, lectura dentro de la petición `complete` / `retry`, límites y registro sin datos sensibles; `openapi.json` y `schema.d.ts` regenerados.
 4. **Frontend**: `money.ts`, `/gastos` y `/gastos/[id]`, subida y cámara, refresco, estados; navegación activa para `usuario`.
 5. **E2E y cierre**: `gastos-subida.spec.ts` (tres motores, dos anchos), `roles.spec.ts` actualizado, mutaciones, Anexo B, `tasks.json` y commit.
@@ -493,6 +502,34 @@ Tres migraciones: `20261105100100_documents_table.sql` (enums, `documents`, CHEC
 **Mutaciones** (28; método de SPEC-W-001 hito 1: se rompe a propósito la base local, se comprueba que la suite falla y se revierte; un ejecutor desechable compara una huella del esquema antes y después): lectura abierta, gestor sin mirar el vínculo, política extra para el admin, `INSERT/UPDATE/DELETE` concedidos, `FORCE RLS` retirada, trigger eliminado, transiciones ilegales permitidas, lectura descongelada, identidad modificable, CHECK de importes eliminada, CHECK de ruta eliminada, función sin comprobar el rol, sin comprobar el dueño, límite eliminado al empezar la lectura, `mark_document_uploaded` sin comprobar el estado, reintento sin exigir caducidad, marca de inyección perdida, nombre de archivo en el registro de actividad, `search_path` sin fijar, INSERT de Storage sin la fila reservada, SELECT de Storage abierto, DELETE de Storage sin mirar `registered`, política para `anon`, UPDATE permitido, cualquier gestor lee los archivos, subida aunque el documento ya no esté en `uploading`, carpetas que no son uuid que lanzan excepción y cerrojo asesor eliminado. **Las 28 hacen fallar la suite**; tras revertirlas, vuelve a verde y la huella del esquema es idéntica. Lecciones: una mutación que quita una CHECK deja filas que impiden volver a ponerla (el revertir debe borrarlas), y las funciones releídas con `pg_get_functiondef` cambian en espacios en blanco (la huella los normaliza).
 
 **Para el hito 3** (API): traducir los errores de la base a `problem+json`: `document_not_found` → 404, `document_wrong_state` → 409, `too_many_processing` → 429 con `Retry-After`, `42501` → 403; `invalid_review` y las CHECK (`23514`) solo pueden aparecer si la validación de forma falló antes, y son un error interno.
+
+### B.4 Hito 2 · `cuadre.agents` · 2026-11-06
+
+Paquete `backend/src/cuadre/agents/`: `errors.py` (`FailureCode`, `AgentsError`, `AgentsConfigurationError`), `client.py` (Protocol), `text.py` (limpieza de textos), `normalize.py`, `fake.py`, `http.py` y `selection.py`. `create_app` elige el cliente y lo guarda en `app.state.agents_client`; la dependencia `Depends(...)` que lo entrega a las rutas es del hito 3. No hay rutas nuevas: `openapi.json` y `schema.d.ts` no cambian, y `contracts/` tampoco (el contrato C1 se cumple tal cual).
+
+**Decisiones tomadas al implementar** (ya reflejadas en §5.3 y §5.4):
+- El modelo del contrato **deja pasar dígitos de otros alfabetos** (`\d` casa `٣` y `Decimal` los lee) y la validación Pydantic por defecto acepta una fecha como entero y `"true"` como booleano. Por eso el cliente HTTP valida en modo estricto y `normalize_extraction` repite sus comprobaciones con dígitos ASCII y `fullmatch` (un `$` admitiría `"120.00\n"`): doble cerco, probado saltándose la validación con `model_copy`.
+- Cotas: más de 10 líneas de IVA o 50 dudosos invalidan la respuesta entera (no se trunca dinero); `warnings` se recorta a 5; una duda que apunta a una línea inexistente pierde el índice pero se conserva; el coste debe ser `< 1000` porque `agent_cost_eur` es `numeric(9,6)` y el contrato admite más.
+- Textos: además de control, se eliminan los caracteres de formato (controles bidireccionales: suplantación de texto) y los sustitutos sueltos (PostgreSQL no los admite en `jsonb`).
+- Mapeo de errores completado (ver §5.4). Un `400` o un `422` con otro código son **nuestros** (la petición enviada es la errónea) y dan `internal`, no `unreadable`: el documento no tiene la culpa.
+- Una conexión por llamada, sin redirecciones y sin proxies del entorno (`trust_env=False`): la clave del servicio solo va a la URL configurada. Las excepciones de validación se lanzan `from None` y no se registran: su texto lleva los datos recibidos.
+- `FakeAgentsClient` cíclico y que falla al agotarse el guion; en `staging` sin URL se usa y se avisa; en `production` la API no arranca. Un test antiguo (`test_the_interactive_docs_are_off_in_production`) tuvo que declarar el servicio de agentes por esa misma regla.
+- Solo tres variables nuevas (`AGENTS_BASE_URL`, `AGENTS_API_KEY`, `AGENTS_TIMEOUT_SECONDS`); una cadena vacía cuenta como ausente porque `.env.example` las trae vacías. `MAX_UPLOAD_BYTES` pasa al hito 3 y `MAX_PROCESSING_PER_USER` se retira.
+- `cuadre-contracts==1.0.0` en el backend (y `jsonschema` en `dev`). Orden de instalación: `contracts/requirements.txt` → `contracts/python` → `backend[dev]`, en la acción `python-env`, el README, `CLAUDE.md` y SPEC-W-001 §8.2. Se comprobó en un entorno virtual **limpio** con esa secuencia exacta.
+
+**Pruebas** (277 en `backend/tests/agents/` y 9 en `backend/tests/rules/`; el conjunto «no rls» pasa de 123 a 409, y las 289 de RLS siguen igual): servidor HTTP local de verdad (puerto efímero, guion por petición, registra lo recibido) para probar tiempos agotados, conexión rechazada, reintentos y cabeceras por el cable; los cinco ejemplos de respuesta y el de error por Fake y por HTTP; importes con «trampas» de coma flotante (`0.29`, `1.15`, `4.35`); la normalización contra la base real (`app.record_extraction` y la CHECK de importes de los cinco ejemplos); `FailureCode` = CHECK de `error_code`, y cada código pasa por `app.fail_extraction`; registros sin URL firmada, `token=`, clave, NIF ni nombre; el paquete no puede importar la base de datos, la autenticación ni el JWT (`test_agents_boundary`); y el pin de `cuadre-contracts` coincide con `contracts/` y con el orden de instalación (`test_contracts_dependency`).
+
+**Mutaciones** (48, mismo método que en los hitos anteriores, ejecutor desechable fuera del repositorio): importe vía `float`, formato sin comprobar, `match` en vez de `fullmatch`, `\d` Unicode, sin quitar control / formato / sustitutos, sin recorte ni colapso de espacios, sin los cuatro topes, línea de duda fuera de rango, marca de inyección perdida, traza sin acotar, sin cada una de las tres cabeceras, reintento ante cualquier `4xx`, tras tiempo agotado o sin límite, `Retry-After` sin tope, 401/403/404 como `unreadable`, redirecciones y proxies admitidos, sin tope de cuerpo, plazo sin comprobar entre trozos, reintento sin presupuesto, la clave en los registros, validación no estricta, producción con simulacro, sin `https`, sin clave, URL con credenciales, cadena vacía como valor, tiempo sin rango, Fake desordenado / compartido / sin detectar el guion agotado, API sin selección, pin distinto, acción y README en orden inverso, `422` y `413` mal mapeados, e importar `psycopg` o leer `supabase_url` dentro del paquete. **Las 48 hacen fallar la suite.** Una sobrevivió en la primera pasada (el tope de 1 MiB: la prueba mandaba basura, que se rechaza igual por no ser JSON); ahora la prueba manda una respuesta *válida* rellena de espacios y distingue 1 MiB exactos (se acepta) de 1 MiB + 1 (se rechaza).
+
+**Lo que no se puede garantizar o no se ha comprobado:**
+- El presupuesto de 45 s se aplica a la conexión, la espera de cabeceras y entre trozos del cuerpo (acotado a 1 MiB), pero los tiempos de `httpx2` son **por lectura de socket**: un servidor que gotee el cuerpo a propósito podría estirar la espera hasta ~2× el presupuesto. El tope duro lo pone la función de Vercel (`maxDuration`, spec de despliegue). El servicio de agentes es infraestructura propia, así que se acepta.
+- `HttpAgentsClient` nunca ha hablado con el servicio real (depende de la SPEC-A de lectura de facturas en cuadre-agents): solo con el servidor local de pruebas.
+- En Windows una conexión rechazada tarda ~2 s en fallar, así que la prueba del reintento tras error de conexión dura unos 4 s; es la más lenta del paquete.
+- `FakeAgentsClient` lee los fixtures de `contracts/examples/`, fuera de `backend/`. Si el despliegue de Vercel no los incluye, el simulado falla con `AgentsConfigurationError` (no con un documento ilegible); no afecta a producción, donde no existe, pero sí a un `staging` sin URL. Va con el resto de lo de `contracts/` a la spec de despliegue (B.2).
+
+**Para los hitos siguientes:**
+- **Hito 3:** el Storage de `cuadre.documents` es el único que fabrica `document_url` (≤ 120 s, con el JWT de la persona). Pasar `AgentsError.code.value` a `app.fail_extraction`; los textos en español de cada motivo (§5.1) viven allí. Añadir `MAX_UPLOAD_BYTES`, retirar `MAX_PROCESSING_PER_USER` y exponer `app.state.agents_client` con una dependencia. Pasar el `request_id` de la petición al cliente (`X-Request-Id`). `test_vercel_compat` no debe confundir `itertools.count` (el Fake) con un hilo.
+- **Hito 5:** el Fake recorre sus fixtures en orden cíclico, así que un E2E que necesite un fixture concreto depende del orden de llegada. El constructor ya acepta un guion; falta decidir cómo llega desde el entorno de la prueba (variable solo con `APP_ENV=local`, o un cliente inyectado).
 
 ### B.2 Sin comprobar todavía
 

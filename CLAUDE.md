@@ -69,7 +69,7 @@ Entorno virtual de Python en la **raíz**: `.venv/` (Python 3.12). Docker Deskto
 
 ```powershell
 .\.venv\Scripts\Activate.ps1            # PowerShell  (Git Bash: source .venv/Scripts/activate · Linux: .venv/bin/activate)
-pip install -r contracts/requirements.txt   # tooling de contratos (hoy). Backend: pip install -e "backend[dev]" (W-001)
+pip install -r contracts/requirements.txt ; pip install -e contracts/python ; pip install -e "backend[dev]"   # en este orden: el backend depende de cuadre-contracts
 npx supabase start | stop | db reset    # pila local de Supabase
 npm run gen:signing-key ; npm run env:local   # una vez por clon: clave ES256 y .env / frontend/.env.local desde la pila en marcha
 python contracts/tools/export_schemas.py [--check]     # regenera / comprueba esquemas y tools.json

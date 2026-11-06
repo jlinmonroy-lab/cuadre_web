@@ -1,5 +1,5 @@
 name: Entorno de Python
-description: Python 3.12 con las dependencias de contratos y del backend (extra dev). Equivale a los pasos de «Puesta en marcha» del README.
+description: Python 3.12 con las dependencias de contratos y del backend (extra dev). Equivale a los pasos de «Puesta en marcha» del README. Los contratos (contracts/python) se instalan ANTES que el backend, que depende de ellos.
 
 runs:
   using: composite
@@ -11,10 +11,13 @@ runs:
         cache: pip
         cache-dependency-path: |
           contracts/requirements.txt
+          contracts/python/pyproject.toml
           backend/pyproject.toml
 
+    # Orden: `cuadre-contracts` no está en PyPI; con él ya instalado, el backend no lo busca en el índice.
     - name: Dependencias de Python
       shell: bash
       run: |
         pip install -r contracts/requirements.txt
+        pip install -e contracts/python
         pip install -e "backend[dev]"

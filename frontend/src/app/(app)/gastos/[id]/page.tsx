@@ -1,16 +1,20 @@
 import { ArrowLeft, CircleAlert, LoaderCircle, ShieldAlert, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
+import { NoticeBox } from "@/components/auth/auth-card";
 import { AutoRefresh } from "@/components/documents/auto-refresh";
 import { DiscardButton } from "@/components/documents/discard-button";
 import { OriginalViewer } from "@/components/documents/original-viewer";
 import { RereadButton } from "@/components/documents/reread-button";
 import { ReviewForm } from "@/components/documents/review-form";
 import { StatusBadge } from "@/components/documents/status-badge";
+import { DirtyProvider } from "@/components/expenses/dirty-context";
+import { RegisterPanel } from "@/components/expenses/register-panel";
 import { getDocument } from "@/lib/documents-api";
 import { failureHint, formatMoment } from "@/lib/documents";
+import { noticeFor } from "@/lib/notices";
 import { initialValues } from "@/lib/review";
 import { requireRole } from "@/lib/session";
 
@@ -22,8 +26,11 @@ export const metadata: Metadata = { title: "Revisar gasto" };
 export default async function DocumentPage(props: PageProps<"/gastos/[id]">) {
   await requireRole("usuario");
   const { id } = await props.params;
-  const document = await getDocument(id);
+  const [document, params] = await Promise.all([getDocument(id), props.searchParams]);
   if (!document) notFound();
+  // Un documento ya registrado se ve en su gasto (si lo anulan, el documento vuelve a «Para revisar» y esta pantalla vuelve a ser la suya).
+  if (document.status === "registered" && document.expense_id) redirect(`/gastos/registrados/${document.expense_id}`);
+  const notice = noticeFor(params.aviso);
 
   const doubts = document.extraction?.doubtful_fields ?? [];
   const reviewable = document.status === "review" || document.status === "extraction_failed";
@@ -46,6 +53,7 @@ export default async function DocumentPage(props: PageProps<"/gastos/[id]">) {
       </header>
 
       <div className="grid gap-6">
+        <NoticeBox notice={notice} />
         {document.injection_suspected ? (
           <div className="flex items-start gap-3 rounded-md border border-status-doubt-line bg-status-doubt-bg px-4 py-3 text-status-doubt">
             <ShieldAlert aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
@@ -122,21 +130,26 @@ export default async function DocumentPage(props: PageProps<"/gastos/[id]">) {
 
         <div className={hasFile && reviewable ? "grid items-start gap-8 min-[1280px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : "grid gap-8"}>
           {reviewable ? (
-            <section aria-labelledby="datos-titulo" className="grid min-w-0 gap-4">
-              <h2 id="datos-titulo">Datos de la factura</h2>
-              <ReviewForm
-                key={formKey}
-                documentId={document.id}
-                initial={initialValues({ extraction: document.extraction, review: document.review })}
-                doubts={doubts}
-                actions={
-                  <>
-                    <RereadButton documentId={document.id} />
-                    <DiscardButton documentId={document.id} />
-                  </>
-                }
-              />
-            </section>
+            // El formulario y el panel de comprobaciones comparten si hay cambios sin guardar: las comprobaciones son las del servidor sobre lo guardado.
+            <DirtyProvider key={formKey}>
+              <div className="grid min-w-0 gap-6">
+                <section aria-labelledby="datos-titulo" className="grid min-w-0 gap-4">
+                  <h2 id="datos-titulo">Datos de la factura</h2>
+                  <ReviewForm
+                    documentId={document.id}
+                    initial={initialValues({ extraction: document.extraction, review: document.review })}
+                    doubts={doubts}
+                    actions={
+                      <>
+                        <RereadButton documentId={document.id} />
+                        <DiscardButton documentId={document.id} />
+                      </>
+                    }
+                  />
+                </section>
+                <RegisterPanel documentId={document.id} validation={document.validation} />
+              </div>
+            </DirtyProvider>
           ) : null}
           {hasFile ? <OriginalViewer documentId={document.id} mimeType={document.mime_type} filename={document.original_filename} /> : null}
         </div>

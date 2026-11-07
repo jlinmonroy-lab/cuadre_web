@@ -55,3 +55,45 @@ test("cuerpos que no son un objeto no rompen nada", () => {
     assert.equal(problem.code, "error");
   }
 });
+
+// --- SPEC-W-003: campos de un gasto ---------------------------------------------------------------------------------------------------
+
+test("invalid_expense: el campo viene de una lista cerrada", () => {
+  const body = (field: unknown) => ({ code: "invalid_expense", detail: "La fecha no puede ser futura.", field });
+  assert.equal(describeProblem({ status: 422, body: body("expense_date") }).field, "expense_date");
+  for (const bad of ["owner_id", "values", "", "constructor", "__proto__", 3, null, ["concept"]]) {
+    assert.equal("field" in describeProblem({ status: 422, body: body(bad) }), false, String(bad));
+  }
+});
+
+test("validation_failed: solo códigos de comprobación conocidos y sin repetir", () => {
+  const problem = describeProblem({
+    status: 422,
+    body: { code: "validation_failed", detail: "Corrige los datos.", failed_checks: ["total", "total", "supplier_tax_id", "hackeado", 3, "constructor", null] },
+  });
+  assert.deepEqual(problem.failedChecks, ["total", "supplier_tax_id"]);
+  assert.equal("failedChecks" in describeProblem({ status: 422, body: { code: "validation_failed", failed_checks: [] } }), false);
+  assert.equal("failedChecks" in describeProblem({ status: 422, body: { code: "validation_failed", failed_checks: "total" } }), false);
+});
+
+test("validation_error: los campos salen de las ubicaciones del cuerpo y de una lista cerrada", () => {
+  const problem = describeProblem({
+    status: 422,
+    body: {
+      code: "validation_error",
+      detail: "Revisa los datos enviados.",
+      errors: [{ loc: "body.concept", msg: "x" }, { loc: "body.amount_cents", msg: "x" }, { loc: "body.concept", msg: "y" }, { loc: "body.owner_id", msg: "z" }, { loc: "query.month", msg: "z" }, "texto", null, { msg: "sin loc" }],
+    },
+  });
+  assert.deepEqual(problem.invalidFields, ["concept", "amount_cents"]);
+  // Solo con ese código: el mismo cuerpo bajo otro no cuenta.
+  assert.equal("invalidFields" in describeProblem({ status: 422, body: { code: "otra", errors: [{ loc: "body.concept" }] } }), false);
+});
+
+test("un 5xx no devuelve ninguno de los campos del cuerpo", () => {
+  const problem = describeProblem({
+    status: 500,
+    body: { code: "validation_error", field: "concept", failed_checks: ["total"], errors: [{ loc: "body.concept" }] },
+  });
+  assert.deepEqual(problem, { status: 500, code: "validation_error", message: "El servicio no está disponible ahora mismo. Inténtalo de nuevo en unos segundos." });
+});

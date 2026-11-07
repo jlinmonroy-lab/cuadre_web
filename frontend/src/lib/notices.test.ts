@@ -18,3 +18,10 @@ test("lo desconocido no produce aviso, ni siquiera con nombres de Object.prototy
     assert.equal(noticeFor(unknown as never), null, String(unknown));
   }
 });
+
+test("avisos de gastos (SPEC-W-003)", () => {
+  assert.deepEqual(noticeFor("registrado"), { tone: "success", text: "Gasto registrado." });
+  assert.deepEqual(noticeFor("anotado"), { tone: "success", text: "Gasto anotado." });
+  assert.deepEqual(noticeFor("anulado"), { tone: "success", text: "Gasto anulado." });
+  assert.deepEqual(noticeFor("anulado-documento"), { tone: "success", text: "Gasto anulado: el documento vuelve a «Para revisar»." });
+});

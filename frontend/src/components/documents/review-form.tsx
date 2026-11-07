@@ -4,13 +4,14 @@ import { CircleCheck, Plus, TriangleAlert, X } from "lucide-react";
 import { useActionState, useState, type ReactNode } from "react";
 
 import type { components } from "@/api/schema";
+import { useDirty } from "@/components/expenses/dirty-context";
 import { ErrorSummary } from "@/components/error-summary";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DOC_TYPES, DOC_TYPE_LABELS, DOUBT_FIELD_LABELS, doubtReasonText } from "@/lib/documents";
 import { saveReview } from "@/lib/documents-actions";
-import { initialFormState } from "@/lib/form-state";
+import { initialFormState, type FormState } from "@/lib/form-state";
 import { MAX_LINES, lineName, type FormValues } from "@/lib/review";
 import { cn } from "@/lib/utils";
 
@@ -89,7 +90,13 @@ type Props = {
 };
 
 export function ReviewForm({ documentId, initial, doubts, actions }: Props) {
-  const [state, action, pending] = useActionState(saveReview.bind(null, documentId), initialFormState);
+  const { setDirty } = useDirty();
+  // Guardar con éxito deja el formulario "limpio": las comprobaciones del panel vuelven a ser las de lo que se ve. Un guardado con error no.
+  const [state, action, pending] = useActionState(async (previous: FormState, formData: FormData) => {
+    const next = await saveReview(documentId, previous, formData);
+    if (next.status === "sent") setDirty(false);
+    return next;
+  }, initialFormState);
   const values = state.values ?? initial;
   const errors = state.fieldErrors ?? {};
   const [lines, setLines] = useState<Line[]>(() => {
@@ -110,6 +117,7 @@ export function ReviewForm({ documentId, initial, doubts, actions }: Props) {
   const structure = (next: (current: Line[]) => Line[]) => {
     setLines(next);
     setEditedAt(state);
+    setDirty(true);
   };
 
   const fieldIds: Record<string, string> = {};
@@ -150,7 +158,7 @@ export function ReviewForm({ documentId, initial, doubts, actions }: Props) {
   };
 
   return (
-    <form action={action} noValidate className="grid gap-6">
+    <form action={action} noValidate onChange={() => setDirty(true)} className="grid gap-6">
       <ErrorSummary state={state} fieldIds={fieldIds} />
       {state.status === "sent" ? (
         <p role="status" className="flex items-center gap-2 rounded-md border border-status-ok bg-status-ok-bg px-3 py-2.5 text-sm font-semibold text-status-ok">
@@ -272,14 +280,6 @@ export function ReviewForm({ documentId, initial, doubts, actions }: Props) {
           {pending ? "Guardando…" : "Guardar cambios"}
         </Button>
         {actions}
-        <div className="ml-auto grid justify-items-end gap-1">
-          <Button type="button" disabled aria-describedby="registrar-pronto">
-            Registrar gasto
-          </Button>
-          <p id="registrar-pronto" className="text-xs font-semibold text-ink-soft">
-            Próximamente: aquí se validará y registrará el gasto.
-          </p>
-        </div>
       </div>
     </form>
   );

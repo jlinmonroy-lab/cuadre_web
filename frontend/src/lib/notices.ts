@@ -11,6 +11,11 @@ const NOTICES = new Map<string, Notice>([
   ["enlace", Object.freeze({ tone: "error", text: "El enlace no es válido o ha caducado. Pide uno nuevo." })],
   ["sesion", Object.freeze({ tone: "info", text: "Tu sesión ha caducado. Inicia sesión de nuevo." })],
   ["descartado", Object.freeze({ tone: "success", text: "Documento descartado." })],
+  // SPEC-W-003: registrar, anotar y anular un gasto.
+  ["registrado", Object.freeze({ tone: "success", text: "Gasto registrado." })],
+  ["anotado", Object.freeze({ tone: "success", text: "Gasto anotado." })],
+  ["anulado", Object.freeze({ tone: "success", text: "Gasto anulado." })],
+  ["anulado-documento", Object.freeze({ tone: "success", text: "Gasto anulado: el documento vuelve a «Para revisar»." })],
 ]);
 
 export function noticeFor(code: unknown): Notice | null {

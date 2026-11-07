@@ -20,7 +20,7 @@ from psycopg.types.json import Jsonb
 from cuadre.db import user_transaction
 from tests.support import GOOD_EXTRACTION, Cast, Doc, Pool, advance, attempt, call, new_document
 
-STATES = ["uploading", "processing", "review", "extraction_failed", "discarded"]
+STATES = ["uploading", "processing", "review", "extraction_failed", "discarded", "registered"]
 LIVE_STATES = ["uploading", "processing", "review", "extraction_failed"]
 
 
@@ -135,6 +135,7 @@ ALLOWED = {
     "review": {"save_document_review", "discard_document"},
     "extraction_failed": {"retry_document", "save_document_review", "discard_document"},
     "discarded": set(),
+    "registered": set(),  # solo vuelve a revisión anulando su gasto (SPEC-W-003): ninguna función de documentos lo toca
 }
 ILLEGAL = [(s, f) for s in STATES for f in ARGS if f not in ALLOWED[s]]
 

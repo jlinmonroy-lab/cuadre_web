@@ -126,6 +126,8 @@ class Outcome:
     rowcount: int
     sqlstate: str | None = None
     message: str | None = None
+    detail: str | None = None  # `DETAIL` del error: `invalid_expense` lleva aquí el campo que falla
+    constraint: str | None = None  # restricción o índice que saltó (23xxx)
 
     @property
     def error(self) -> bool:
@@ -145,7 +147,7 @@ def attempt(pool: Pool, person: Person, sql: str, params: Any = None) -> Outcome
             rows = cur.fetchall() if cur.description else []
             return Outcome(rows, cur.rowcount)
     except psycopg.Error as exc:
-        return Outcome([], 0, exc.sqlstate, str(exc).splitlines()[0])
+        return Outcome([], 0, exc.sqlstate, str(exc).splitlines()[0], exc.diag.message_detail, exc.diag.constraint_name)
 
 
 def call(pool: Pool, person: Person, function: str, *args: Any) -> Outcome:
@@ -211,6 +213,50 @@ GOOD_EXTRACTION: dict[str, Any] = {
 }
 
 
+# Valores ya normalizados de un gasto de documento (SPEC-W-003 §5.2, `p_values`): los mismos campos que `RegistrableValues`, con las
+# líneas de IVA como `tax_breakdown` y sin `invoice_number_key` (la base la genera). Sintéticos: el NIF es el de `contracts/examples`.
+GOOD_VALUES: dict[str, Any] = {
+    "expense_date": "2026-10-15",
+    "supplier_name": "Proveedor Sintético SL",
+    "supplier_tax_id": "B00000042",
+    "supplier_scope": "national",
+    "invoice_number": "A-311",
+    "doc_type": "full_invoice",
+    "base_cents": 10000,
+    "vat_cents": 2100,
+    "withholding_cents": 0,
+    "total_cents": 12100,
+    "tax_breakdown": [{"vat_rate": "21", "base_cents": 10000, "vat_cents": 2100}],
+    "deductible_vat": True,
+}
+
+
+def values(**changes: Any) -> dict[str, Any]:
+    return {**GOOD_VALUES, **changes}
+
+
+_UNSET: Any = object()
+
+
+def register(
+    pool: Pool,
+    person: Person,
+    doc: Doc,
+    *,
+    category: str | None = "software",
+    payload: Any = _UNSET,
+    acknowledged: bool | None = False,
+) -> Outcome:
+    """Registra el gasto de un documento como `person`. `payload` sustituye a `GOOD_VALUES` entero; `None` es el NULL de SQL."""
+    body = GOOD_VALUES if payload is _UNSET else payload
+    return attempt(
+        pool,
+        person,
+        "select app.register_expense_from_document(%s, %s, %s, %s) as id",
+        (doc.id, category, None if body is None else Jsonb(body), acknowledged),
+    )
+
+
 def new_document(
     pool: Pool,
     person: Person,
@@ -232,7 +278,7 @@ def new_document(
 
 
 def advance(pool: Pool, person: Person, doc: Doc, state: str) -> Doc:
-    """Lleva un documento recién creado a `state` por los mismos caminos que la API."""
+    """Lleva un documento recién creado a `state` por los mismos caminos que la API (`registered` incluido: SPEC-W-003)."""
     steps: dict[str, list[tuple[str, tuple[Any, ...]]]] = {
         "uploading": [],
         "processing": [("mark_document_uploaded", (doc.id,))],
@@ -242,6 +288,15 @@ def advance(pool: Pool, person: Person, doc: Doc, state: str) -> Doc:
         ],
         "extraction_failed": [("mark_document_uploaded", (doc.id,)), ("fail_extraction", (doc.id, "unreadable"))],
         "discarded": [("discard_document", (doc.id,))],
+        # Un número de factura distinto por documento: el índice anti-duplicados es por persona.
+        "registered": [
+            ("mark_document_uploaded", (doc.id,)),
+            ("record_extraction", (doc.id, Jsonb(GOOD_EXTRACTION), False, "trace-test", None)),
+            (
+                "register_expense_from_document",
+                (doc.id, "software", Jsonb(values(invoice_number=f"R-{doc.id.hex[:12]}")), False),
+            ),
+        ],
     }
     for function, args in steps[state]:
         placeholders = ", ".join(["%s"] * len(args))

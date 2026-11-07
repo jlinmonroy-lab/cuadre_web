@@ -149,7 +149,7 @@ expenses                                                    -- tabla financiera
   owner_id            uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE
   origin              expense_origin NOT NULL
   document_id         uuid REFERENCES documents(id)          -- NULL si es manual
-  expense_date        date NOT NULL                          -- la fecha de la factura, o la que se anota
+  expense_date        date NOT NULL CHECK (expense_date >= '2000-01-01')   -- la fecha de la factura, o la que se anota
   supplier_name       text NOT NULL CHECK (char_length(supplier_name) BETWEEN 1 AND 200)    -- el concepto, en los manuales
   supplier_tax_id     text CHECK (supplier_tax_id ~ '^[A-Z0-9]{5,20}$')                     -- normalizado; NULL en los manuales
   invoice_number      text CHECK (char_length(invoice_number) BETWEEN 1 AND 64)
@@ -160,7 +160,7 @@ expenses                                                    -- tabla financiera
   base_cents          bigint NOT NULL CHECK (base_cents >= 0)
   vat_cents           bigint NOT NULL CHECK (vat_cents >= 0)
   withholding_cents   bigint NOT NULL DEFAULT 0 CHECK (withholding_cents >= 0)
-  total_cents         bigint NOT NULL CHECK (total_cents > 0)   -- y como máximo 15 cifras, como en documents
+  total_cents         bigint NOT NULL CHECK (total_cents > 0)   -- los cuatro importes, como máximo 15 cifras (999999999999999), como en documents
   tax_breakdown       jsonb NOT NULL DEFAULT '[]'              -- líneas validadas: solo céntimos enteros
   deductible_vat      boolean NOT NULL
   suspicion_acknowledged boolean NOT NULL DEFAULT false
@@ -171,7 +171,8 @@ expenses                                                    -- tabla financiera
          AND vat_cents = 0 AND withholding_cents = 0 AND base_cents = total_cents AND NOT deductible_vat AND tax_breakdown = '[]'))
   CHECK (abs(total_cents - (base_cents + vat_cents - withholding_cents)) <= 1)
   CHECK (NOT deductible_vat OR (supplier_scope = 'national' AND vat_cents > 0))
-  -- en los de documento, base_cents y vat_cents son exactamente la suma de las líneas de tax_breakdown
+  CHECK (origin <> 'document' OR (supplier_tax_id IS NOT NULL AND supplier_scope IS NOT NULL AND doc_type IS NOT NULL
+         AND <tax_breakdown son de 1 a 10 líneas {vat_rate, base_cents, vat_cents}, con céntimos enteros >= 0, que suman EXACTAMENTE base_cents y vat_cents>))
 UNIQUE INDEX expenses_one_active_per_document  ON expenses (document_id) WHERE voided_at IS NULL AND document_id IS NOT NULL
 UNIQUE INDEX expenses_duplicate_invoice        ON expenses (owner_id, supplier_tax_id, invoice_number_key)
                                                   WHERE voided_at IS NULL AND supplier_tax_id IS NOT NULL AND invoice_number_key IS NOT NULL
@@ -197,7 +198,9 @@ INDEX        expenses_by_owner_date            ON expenses (owner_id, expense_da
 
 **Lo que la función no puede garantizar:** que el NIF sea válido, que la cuota cuadre con el tipo o que no sea un duplicado salvo el exacto; eso es de `cuadre.validators` (D-01). Recomprueba lo que se puede sin duplicar las reglas fiscales.
 
-**Trigger de `expenses`** (`expenses_guard`, `BEFORE UPDATE`): solo cambian `category`, `voided_at` y `updated_at`; cualquier otra columna da `expense_immutable_column`. `voided_at` solo pasa de nulo a no nulo (`expense_already_voided`) y una vez anulado, la categoría tampoco cambia.
+**`p_values` y errores** (decidido en el hito 2, Anexo B.3). `p_values` es un objeto con exactamente las claves `expense_date` (`AAAA-MM-DD`), `supplier_name`, `supplier_tax_id`, `supplier_scope`, `invoice_number` (puede ser nulo), `doc_type`, `base_cents`, `vat_cents`, `withholding_cents`, `total_cents` (enteros JSON de 0 a 15 cifras), `tax_breakdown` (las líneas) y `deductible_vat`: los campos de `RegistrableValues` salvo `invoice_number_key`, que genera la base. `invalid_expense` lleva en el `DETAIL` del error el campo que falla (`values` si el objeto en sí no vale, `category`, `expense_date`, `concept`, `amount_cents`, `tax_breakdown` o la clave de `p_values`), que la API devuelve como `field`. `suspicion_acknowledged` es verdadero solo si el documento tenía `injection_suspected` y se reconoció. El concepto de un gasto sin factura se guarda recortado.
+
+**Trigger de `expenses`** (`expenses_guard`, `BEFORE UPDATE`): solo cambian `category`, `voided_at` y `updated_at`; cualquier otra columna da `expense_immutable_column`. `voided_at` solo pasa de nulo a no nulo (`expense_already_voided`) y una vez anulado, la categoría tampoco cambia. `invoice_number_key` no se compara: es una columna generada, que PostgreSQL calcula después de los triggers `BEFORE`.
 
 **`documents_guard` ampliado** (sustituye al de SPEC-W-002): `discarded` sigue siendo terminal; `registered` deja de serlo. Transiciones nuevas: `review → registered` y `extraction_failed → registered`, **solo si existe un gasto no anulado de ese documento**; `registered → review` y `registered → extraction_failed`, **solo si el gasto de ese documento se ha anulado en esta misma transacción**
 (`voided_at = now()`, que en PostgreSQL es la hora de la transacción). Cualquier otra actualización de un `registered` sigue dando `document_invalid_transition`. `discard_document` y `save_document_review` siguen respondiendo `document_wrong_state` sobre un `registered`. La lectura original sigue congelada.
@@ -426,7 +429,7 @@ npm --prefix frontend exec -- playwright test e2e/gastos-registro.spec.ts      #
 | AC-03, AC-04 | `backend/tests/validators/test_tax_id.py` (tablas de valores sintéticos; sin red, comprobado con un guard de sockets) |
 | AC-05 | `backend/tests/validators/test_dates.py` (reloj fijo, frontera de Madrid) |
 | AC-06, AC-07 | `backend/tests/validators/test_vat.py` (fronteras de ±1 y ±2 céntimos, importes con trampas de coma flotante) |
-| AC-08 | `backend/tests/validators/test_duplicates.py` (normalización y **paridad con la columna generada**); `backend/tests/expenses/test_concurrency.py` (dos confirmaciones a la vez); `frontend/e2e/gastos-registro.spec.ts` · «la misma factura dos veces» |
+| AC-08 | `backend/tests/validators/test_duplicates.py` (normalización); `backend/tests/rls/test_expenses_parity.py` (**paridad con la columna generada**, categorías y constantes) y `test_expenses.py` / `test_expenses_states.py` (el índice único, también con dos transacciones a la vez); `backend/tests/expenses/test_concurrency.py` (dos confirmaciones a la vez); `frontend/e2e/gastos-registro.spec.ts` · «la misma factura dos veces» |
 | AC-09 | `backend/tests/expenses/test_confirm.py`; `backend/tests/rls/test_expenses_states.py` (la función SQL sin reconocimiento); `frontend/e2e/gastos-registro.spec.ts` · «instrucciones ocultas» |
 | AC-10 | `backend/tests/validators/test_checks.py`, `test_deductibility.py`; `frontend/e2e/gastos-registro.spec.ts` · «dato dudoso» (reinterpreta el AC-02 de SPEC-W-002: el botón está desactivado mientras haya comprobaciones fallidas, ya no «hasta SPEC-W-003») |
 | AC-11 | `backend/tests/expenses/test_manual_expense.py`; `frontend/src/lib/expenses.test.ts`; `frontend/e2e/gastos-registro.spec.ts` · «gasto sin factura» |
@@ -434,7 +437,7 @@ npm --prefix frontend exec -- playwright test e2e/gastos-registro.spec.ts      #
 | AC-13 | `backend/tests/expenses/test_void.py`; `backend/tests/rls/test_expenses_states.py`; `frontend/e2e/gastos-registro.spec.ts` · «anular y volver a registrar» |
 | AC-14 | `backend/tests/expenses/test_list_expenses.py` (paginación, filtros, cursor); `frontend/e2e/gastos-registro.spec.ts` |
 | AC-15 | `backend/tests/rls/test_expenses.py` y `rls_matrix.yaml`; lado API: `backend/tests/expenses/test_roles.py` |
-| AC-16 | `backend/tests/rls/test_expenses_states.py` (CHECK, índices, trigger, `documents_guard`) |
+| AC-16 | `backend/tests/rls/test_expenses.py` (CHECK, índices, trigger) y `test_expenses_states.py` (`documents_guard`) |
 | AC-17 | `backend/tests/expenses/test_no_sensitive_logs.py` |
 | AC-18 | `frontend/e2e/gastos-registro.spec.ts` (seis proyectos) y `frontend/src/lib/expenses.test.ts` |
 | AC-19 | `backend/tests/rls/test_rls_guard.py` y las guardas de `backend/tests/rules/` (incluida `test_validators_boundary.py`) |
@@ -455,6 +458,7 @@ npm --prefix frontend exec -- playwright test e2e/gastos-registro.spec.ts      #
 1. **Validadores puros** (`cuadre.validators`) con sus tablas de pruebas, `Clock`, dependencias fijadas y `test_validators_boundary`, con mutaciones.
    **Hecho el 2026-11-06** (resultado en el Anexo B.2: 528 pruebas, 11 guardas y 81 mutaciones detectadas; la paridad con SQL pasa al hito 2).
 2. **Base de datos**: enums, `expenses`, funciones, trigger, `documents_guard` ampliado, matriz y `test_expenses` / `test_expenses_states`, con mutaciones.
+   **Hecho el 2026-11-07** (migraciones `20261107100000` a `…200`; decisiones, pruebas y mutaciones en el Anexo B.3).
 3. **API**: `cuadre.expenses`, `confirm_document` y las cinco rutas de gastos, `Document.validation` y `expense_id`, `openapi.json` y `schema.d.ts` regenerados, verbo `void`, con mutaciones.
 4. **Frontend**: lista de comprobaciones, categoría, registrar, gastos registrados, gasto sin factura, detalle y anulación; unitarias.
 5. **E2E y cierre**: `gastos-registro.spec.ts` (tres motores, dos anchos), actualizar `gastos-subida.spec.ts`, mutaciones, Anexo B, `tasks.json` y commit.
@@ -551,3 +555,45 @@ Entorno: `python-stdnum` 2.2 (rueda `python_stdnum-2.2-py3-none-any.whl`, 1.193.
 - La columna generada de §5.2 es `nullif(upper(regexp_replace(invoice_number, '[^0-9A-Za-z]', '', 'g')), '')`, igual que `normalize_invoice_number`. La prueba de paridad debe incluir acentos, ligaduras, dígitos de ancho completo y saltos de línea, porque los rangos `[A-Za-z]` pueden depender del *collation* de la base.
 - `CHECK (supplier_tax_id ~ '^[A-Z0-9]{5,20}$')`: probarlo con un valor que acabe en salto de línea, que es justo la rendija del B.1 (el prefiltro de Python usa `fullmatch`; en SQL hay que comprobar que `$` se comporta igual).
 - Los campos de `RegistrableValues` (`expense_date`, `supplier_name`, `supplier_tax_id`, `supplier_scope`, `invoice_number`, `invoice_number_key`, `doc_type`, `base_cents`, `vat_cents`, `withholding_cents`, `total_cents`, `tax_lines`, `deductible_vat`) deben corresponder uno a uno con los parámetros de `app.register_expense_from_document` y las columnas de §5.2. Si alguno sobra o falta, se corrige en el hito 2, antes de la API.
+
+### B.3 Hito 2 · base de datos de gastos · 2026-11-07
+
+Tres migraciones: `20261107100000_expenses_table.sql` (enums, ayudantes, la tabla con todas sus CHECK con nombre, los tres índices, RLS, políticas y el trigger `expenses_guard`), `…100_documents_guard_registered.sql` (`CREATE OR REPLACE` de `private.documents_guard`; la migración aplicada no se toca) y `…200_expenses_functions.sql` (las cinco funciones `app.*` y sus ayudantes). Se aplican igual con `supabase db reset` que con `migration up`. No cambia ninguna ruta: `openapi.json`, `schema.d.ts`, `contracts/` y el CI siguen igual.
+
+**Decisiones tomadas al implementar** (completan §5.2, que ya las recoge):
+
+| Tema | Decisión |
+|---|---|
+| Forma de `p_values` | Un objeto con exactamente las claves de `RegistrableValues` salvo `invoice_number_key`, que genera la base, y con `tax_lines` llamado `tax_breakdown`, como en `documents`. `private.expense_values_problem` rechaza claves de más o de menos, tipos que no son los esperados y cualquier importe que no sea un entero JSON de hasta 15 cifras (`100.5`, `"100"`, `-1`, `true` y `null` no valen) y devuelve **qué campo** falla |
+| Errores con campo | `invalid_expense` lleva el campo en el `DETAIL` del error de PostgreSQL (`values` si el objeto en sí no vale, `category`, `expense_date`, `concept`, `amount_cents`, `tax_breakdown`, o la clave de `p_values`), porque §5.3 pide `field`. En un gasto sin factura, con varios fallos a la vez se informa del primero en el orden fecha, concepto, categoría, importe |
+| CHECK de más | Más allá de §5.2: un gasto de documento lleva `supplier_tax_id`, `supplier_scope` y `doc_type`, y de 1 a 10 líneas `{vat_rate, base_cents, vat_cents}` con céntimos enteros ≥ 0 que **suman exactamente** `base_cents` y `vat_cents` (el comentario de §5.2, ahora impuesto por la base); `expense_date ≥ 2000-01-01`; y los cuatro importes, de 15 cifras como mucho. Todo lo que sale del hito 1 ya lo cumple |
+| Reconocimiento | `suspicion_acknowledged` es verdadero solo si el documento tenía `injection_suspected` **y** se reconoció; reconocer algo que nadie sospechaba no deja marca. El registro de actividad usa el mismo valor. Con sospecha sin reconocer, `suspicion_not_acknowledged` se comprueba **antes** que la forma de `p_values` |
+| Fecha y concepto | «Hoy» es `(now() at time zone 'Europe/Madrid')::date`. El concepto de un gasto sin factura se guarda recortado (`btrim`) y debe quedar de 1 a 200 caracteres |
+| Cerrojos | Primero el documento y después el gasto, también al anular (el gasto se localiza sin bloquear, se bloquea el documento y luego el gasto). Un gasto manual, sin documento que serialice, se serializa con el cerrojo del propio gasto |
+| Categoría fuera de la lista | La propia conversión al enum (`22P02`); la API no llega ahí porque valida la forma antes |
+| Trigger de `expenses` | No compara `invoice_number_key`: es una columna generada y PostgreSQL la calcula **después** de los triggers `BEFORE`, así que en `NEW` aún no vale. Depende solo de `invoice_number`, que sí se compara, y no se puede escribir (`428C9`) |
+
+**Cosas que la base hizo distinto de lo que yo esperaba** (cada una tiene su prueba):
+- `NOT deductible_vat OR (supplier_scope = 'national' AND vat_cents > 0)` con `supplier_scope` nulo y cuota 0 da **falso**, no nulo (`NULL AND FALSE`): un manual deducible salta antes por `expenses_deductible_rule` que por `expenses_manual_shape`. Con alcance nulo y cuota positiva sí pasa (da nulo), y por eso hace falta la CHECK de más que exige alcance en un gasto de documento.
+- PostgreSQL guarda `BETWEEN 1 AND n` como `>= 1 AND <= n`, y al recrear una CHECK desde `pg_get_constraintdef` aplana los paréntesis: la huella del esquema de las mutaciones los ignora.
+- **Límite conocido:** un número de factura sin ningún carácter `[0-9A-Za-z]` (`---`) no tiene `invoice_number_key` y el índice anti-duplicados no lo compara. Lo cubre el aviso blando y `required_data`; no es una regresión del hito 1, que lo trata igual.
+
+**Pruebas** (todas en `backend/tests/rls/`, 577 en total frente a 289): `test_expenses.py` (112: visibilidad por rol y por estado del vínculo, nadie escribe directamente ni el dueño, cada CHECK con el nombre de la restricción que salta, el NIF con salto de línea, los índices y el trigger columna a columna), `test_expenses_states.py` (146: el camino completo, la costura con el hito 1, estados y roles, sospecha, `p_values` mal formado en 64 variantes, fechas, gasto manual, categoría, anular, las transiciones de `documents_guard`, concurrencia con hilos y registro de actividad sin datos sensibles), `test_expenses_parity.py` (10: la expresión de `invoice_number_key` leída del catálogo frente a Python con 2.037 cadenas, categorías, tipos de documento, constantes, tolerancia, longitudes y la zona de «hoy») y `expenses_support.py`. `test_documents_states.py` añade `registered` a los estados. `Outcome` de `tests/support.py` gana `detail` y `constraint`. **Costura con el hito 1:** `invoice_ok`, `invoice_injection` y `ticket_simplified` pasan por `normalize_extraction`, `from_stored` y `validate`, y los `RegistrableValues` se guardan con `app.register_expense_from_document`; la fila resultante coincide campo a campo, incluida la clave del número, que calcula la base y compara Python. La prueba de paridad vive aquí y no en `tests/validators`, como decía §8.3, porque necesita la base y esa carpeta es pura.
+
+**Mutaciones** (91; método de SPEC-W-002 hito 1: se rompe a propósito la base local con `psql`, se ejecuta la suite de RLS con `-x`, se revierte y una huella del esquema —funciones normalizadas y en bruto, políticas, CHECK, triggers, índices, privilegios, `search_path`, enums— antes y después demuestra que queda idéntica). Grupos: lectura, privilegios y RLS de `expenses` (8); trigger de `expenses` (10); cada una de las 11 CHECK; los dos índices únicos eliminados y con los anulados incluidos (4); los ayudantes de líneas, constantes y `p_values` (9); `lock_document` y el cerrojo del gasto (4); `register_expense_from_document` (13: estado, reconocimiento, fechas, validación, categoría, actividad con nombre o NIF); gasto manual (6); cambio de categoría (4); anular (7); `documents_guard` (10, incluidas `registered` terminal, registrar sin gasto vivo, salir sin anular o con la anulación de otra transacción, `discarded` no terminal y orígenes no permitidos); y `EXECUTE` para `anon`, `search_path` sin fijar, el registro de actividad ejecutable, una categoría renombrada y «hoy» en UTC.
+- **Dos pasadas.** La primera se cortó en M81 porque el sistema se quedó sin memoria: 79 detectadas y **dos supervivientes**, que eran huecos de mis pruebas: **M37** (una línea de IVA con la base decimal, de texto o nula no se detectaba si otras líneas sumaban bien) y **M46** (sin `FOR UPDATE` sobre el gasto, nada distinguía dos operaciones a la vez sobre un gasto *manual*; mis pruebas de concurrencia usaban gastos de documento, que serializa el documento). Se añadieron 6 casos de línea mal formada a `test_expenses.py`, 2 a `test_expenses_states.py` y una prueba de concurrencia sobre un gasto manual. La segunda pasada ejecutó **solo las 12 que faltaban** (M37, M46 y M82 a M91): las 12 detectadas.
+- **Resultado:** las 91 mutaciones hacen fallar la suite. Las M01 a M81, salvo las dos anteriores, se ejecutaron contra las pruebas previas a esos 10 casos nuevos, que solo añaden comprobaciones. Una cortada a medias (M82) dejó la base mutada; se restauró reaplicando la función de la migración y la huella volvió a coincidir.
+- El primer intento del ejecutor tropezó con dos fallos suyos, no del código: una mutación de índice más estricto no se podía construir sobre datos de pruebas anteriores, y la huella comparaba los paréntesis de las CHECK recreadas.
+
+**Lo que no se ha comprobado:**
+- **La frontera de medianoche de Madrid en SQL.** `now()` no se puede fijar: la prueba comprueba que `private.today_madrid()` usa `Europe/Madrid` y coincide con `now() at time zone 'Europe/Madrid'`; el cálculo equivalente con reloj fijo es el de `cuadre.core.clock` (hito 1). Las pruebas de fecha comprueban hoy, ayer y mañana y se repiten si el día de Madrid cambia a mitad.
+- **El orden de cerrojos** entre registrar y anular: se diseñó para que no se crucen, pero ninguna prueba ni mutación lo observa (anular sin bloquear antes el documento no rompe nada visible).
+- **Planes de consulta** del índice `expenses_by_owner_date` con volumen: lo verá el hito 3 con la lista y el cursor.
+- **`service_role` y los jobs** no tienen ningún privilegio sobre `expenses`: los añadirán las specs que los necesiten (cierre mensual, MCP).
+- **El CI de GitHub** no se ha ejecutado (sin remoto todavía).
+
+**Para el hito 3** (API):
+- Traducir los errores de la base: `document_not_found` y `expense_not_found` → 404; `document_wrong_state` y `expense_wrong_state` → 409; `suspicion_not_acknowledged` → 422; `invalid_expense` → 422 con `field` tomado del `DETAIL` (`values` y cualquier clave de `p_values` solo pueden salir si la API construyó mal el objeto: error interno); `23505` según `constraint_name`: `expenses_duplicate_invoice` → `duplicate_expense` (409) y `expenses_one_active_per_document`, que solo puede darse en una carrera, también `document_wrong_state`; `42501` → 403. `23514` y `22P02` solo aparecen si la validación falló antes: error interno.
+- El mapa `RegistrableValues` → `p_values` que usan las pruebas (`db_values` en `test_expenses_states.py`) es el contrato; `cuadre.expenses` debe producir exactamente eso, y conviene una prueba que compare ambos.
+- El flujo de `confirm_document` sigue siendo `app.lock_document` → perfil y gastos del mismo proveedor (por RLS) → `validate` → `register_expense_from_document`; los gastos del mismo proveedor que pide `ValidationContext.existing` son los no anulados.
+- `list_documents` deja de listar los `registered`, que ya existen de verdad.

@@ -91,3 +91,19 @@ tables:
       # El dueño ve la suya; el gestor, solo la de quien le dio acceso activo; el administrador, ninguna (D3).
       default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
       active: { gina: [alicia] }
+
+  expenses:
+    kind: financial
+    owner_column: owner_id
+    grants:
+      table: [SELECT]       # toda escritura pasa por app.* (SPEC-W-003 §5.2)
+    # Un gasto manual por usuario del reparto antes de comparar: con la tabla vacía la prueba no demostraría nada.
+    seed: >-
+      insert into public.expenses (owner_id, origin, expense_date, supplier_name, category, base_cents, vat_cents, total_cents, deductible_vat)
+      values (%(owner)s, 'manual', date '2026-10-01', 'Matriz', 'software', 100, 0, 100, false)
+    probe_insert: "insert into public.expenses (owner_id, origin, expense_date, supplier_name, category, base_cents, vat_cents, total_cents, deductible_vat) values (%(owner)s, 'manual', date '2026-10-01', 'x', 'other', 1, 0, 1, false)"
+    probe_update: { column: supplier_name, value: hacked }
+    select:
+      # El dueño ve el suyo; el gestor, solo el de quien le dio acceso activo; el administrador, ninguno (D3).
+      default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
+      active: { gina: [alicia] }

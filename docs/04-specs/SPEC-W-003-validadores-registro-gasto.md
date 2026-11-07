@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-003
 titulo: Validadores deterministas y registro del gasto
-estado: en-progreso
+estado: en-revision
 prioridad: must
 riesgo: alto
 historias: [US-005]
@@ -435,23 +435,23 @@ npm --prefix frontend exec -- playwright test e2e/gastos-registro.spec.ts      #
 | AC-09 | `backend/tests/expenses/test_confirm.py`; `backend/tests/rls/test_expenses_states.py` (la función SQL sin reconocimiento); `frontend/e2e/gastos-registro.spec.ts` · «instrucciones ocultas» |
 | AC-10 | `backend/tests/validators/test_checks.py`, `test_deductibility.py`; `backend/tests/expenses/test_document_validation.py` (la validación en el documento); `frontend/e2e/gastos-registro.spec.ts` · «dato dudoso» (reinterpreta el AC-02 de SPEC-W-002: el botón está desactivado mientras haya comprobaciones fallidas, ya no «hasta SPEC-W-003») |
 | AC-11 | `backend/tests/expenses/test_manual_expense.py`; `frontend/src/lib/expense-form.test.ts`; `frontend/e2e/gastos-registro.spec.ts` · «gasto sin factura» |
-| AC-12 | `backend/tests/validators/test_categories.py`; `backend/tests/expenses/test_categories_api.py`; `frontend/src/lib/expenses.test.ts` (etiquetas completas) |
+| AC-12 | `backend/tests/validators/test_categories.py`; `backend/tests/expenses/test_categories_api.py`; `frontend/src/lib/expenses.test.ts` (etiquetas completas); `frontend/e2e/gastos-registro.spec.ts` · «registrar una factura» (la sugerida y el cambio) |
 | AC-13 | `backend/tests/expenses/test_void.py`; `backend/tests/rls/test_expenses_states.py`; `frontend/e2e/gastos-registro.spec.ts` · «anular y volver a registrar» |
-| AC-14 | `backend/tests/expenses/test_list_expenses.py` (paginación, filtros, cursor); `frontend/e2e/gastos-registro.spec.ts` |
+| AC-14 | `backend/tests/expenses/test_list_expenses.py` (paginación, filtros, cursor); `frontend/e2e/gastos-registro.spec.ts` · «lista paginada» |
 | AC-15 | `backend/tests/rls/test_expenses.py` y `rls_matrix.yaml`; lado API: `backend/tests/expenses/test_roles.py` |
 | AC-16 | `backend/tests/rls/test_expenses.py` (CHECK, índices, trigger) y `test_expenses_states.py` (`documents_guard`) |
 | AC-17 | `backend/tests/expenses/test_no_sensitive_logs.py` |
-| AC-18 | `frontend/e2e/gastos-registro.spec.ts` (seis proyectos) y `frontend/src/lib/expenses.test.ts` |
+| AC-18 | `frontend/e2e/gastos-registro.spec.ts` (seis proyectos), `frontend/e2e/responsive.spec.ts` (`/gastos/nuevo`) y `frontend/src/lib/expenses.test.ts` |
 | AC-19 | `backend/tests/rls/test_rls_guard.py` y las guardas de `backend/tests/rules/` (incluidas `test_validators_boundary.py` y `backend/tests/expenses/test_imports.py`) |
 
 ### 8.4 Definición de hecho
 
-- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001 y SPEC-W-002 §8.2 siguen en verde.
-- [ ] `pytest backend/tests/rls -m rls` incluye `expenses` y el `documents_guard` ampliado.
-- [ ] `python-stdnum` y `tzdata` están fijados en `backend/pyproject.toml` y un test lo comprueba; el CI instala el backend como hasta ahora.
-- [ ] «Registrar gasto» está activo; el botón desactivado y el texto «Próximamente» de SPEC-W-002 se han retirado y `gastos-subida.spec.ts` se ha actualizado donde los daba por hechos.
-- [ ] `docs/04-specs/tasks.json` actualizado; los ADR 0003, 0004, 0006, 0012, 0015 y 0016 enlazados.
-- [ ] Sin secretos ni documentos reales en el cambio; `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
+- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001 y SPEC-W-002 §8.2 siguen en verde. *(En local, hecho el 2026-11-07 con la batería completa de E2E dos veces seguidas, B.6; el CI aún no se ha ejecutado: el primer `push` al repositorio remoto lo lanzará por primera vez.)*
+- [x] `pytest backend/tests/rls -m rls` incluye `expenses` y el `documents_guard` ampliado.
+- [x] `python-stdnum` y `tzdata` están fijados en `backend/pyproject.toml` y un test lo comprueba; el CI instala el backend como hasta ahora.
+- [x] «Registrar gasto» está activo; el botón desactivado y el texto «Próximamente» de SPEC-W-002 se han retirado y `gastos-subida.spec.ts` se ha actualizado donde los daba por hechos.
+- [x] `docs/04-specs/tasks.json` actualizado; los ADR 0003, 0004, 0006, 0012, 0015 y 0016 enlazados.
+- [x] Sin secretos ni documentos reales en el cambio; `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
 
 ## Anexo A · Orden de implementación sugerido (un plan y un commit por hito)
 
@@ -466,6 +466,7 @@ npm --prefix frontend exec -- playwright test e2e/gastos-registro.spec.ts      #
 4. **Frontend**: lista de comprobaciones, categoría, registrar, gastos registrados, gasto sin factura, detalle y anulación; unitarias.
    **Hecho el 2026-11-07** (`frontend/src/lib/{expenses,expense-form,expenses-api,expenses-actions,api-actions}.ts`, `components/expenses/` y las pantallas `/gastos`, `/gastos/[id]`, `/gastos/nuevo` y `/gastos/registrados/[id]`; decisiones, pruebas y mutaciones en el Anexo B.5).
 5. **E2E y cierre**: `gastos-registro.spec.ts` (tres motores, dos anchos), actualizar `gastos-subida.spec.ts`, mutaciones, Anexo B, `tasks.json` y commit.
+   **Hecho el 2026-11-07** (`frontend/e2e/gastos-registro.spec.ts`, `frontend/e2e/helpers/{ledger,gastos}.ts`, `E2E_AGENTS_PORT`; decisiones, pruebas y mutaciones en el Anexo B.6).
 
 ## Anexo B · Decisiones que esta spec dejó a la implementación
 
@@ -674,8 +675,41 @@ Tres migraciones: `20261107100000_expenses_table.sql` (enums, ayudantes, la tabl
 - **`failedChecks`** no se muestra (véase arriba) y el rango de la fecha del `max` del selector es una ayuda: el límite lo pone la API.
 - **El CI de GitHub** no se ha ejecutado (sin remoto todavía).
 
-**Para el hito 5:**
+**Para el hito 5** *(todo hecho en B.6)*:
 - `gastos-registro.spec.ts` en tres motores y dos anchos con los seis escenarios de arriba como punto de partida, y actualizar `gastos-subida.spec.ts` donde aún dé por hecho lo anterior.
 - **Los localizadores deben filtrar lo visible:** con las dos vistas de la lista en el DOM y las pantallas ocultas que conserva `cacheComponents`, `getByText(...).first()` puede coger la oculta (`getByRole` no).
 - **Puerto del servidor de agentes:** `playwright.config.ts` fija el 8765. Un `python -m http.server` ajeno ocupaba ese puerto y, en Windows, el servidor de agentes se enlazó al mismo sin error mientras las peticiones iban al otro; la comprobación se hizo con el servidor de agentes en el 8766 y una configuración temporal sin `webServer`. Conviene un `E2E_AGENTS_PORT`.
 - Para sembrar decenas de gastos (la paginación) bastó un `insert` por `docker exec ... psql` sobre la cuenta del worker; un ayudante de E2E debe encapsularlo (o crearlos por la API).
+
+### B.6 Hito 5 · E2E de gastos y cierre de la spec · 2026-11-07
+
+Nuevos: `frontend/e2e/gastos-registro.spec.ts` (9 pruebas) y `frontend/e2e/helpers/{ledger,gastos}.ts`. Cambian `helpers/{env,fixtures}.ts` (`E2E_AGENTS_PORT` y el fixture `ledger`), `playwright.config.ts`, `responsive.spec.ts` (suma `/gastos/nuevo`), `gastos-subida.spec.ts` (solo importa los ayudantes, que ahora están en `helpers/gastos.ts`) y `backend/tests/agents/e2e_server.py` con su test (41 pruebas, una nueva). **No cambia ningún código de producción**, ni las migraciones, `contracts/`, `openapi.json` o `schema.d.ts`: ninguna prueba descubrió un fallo real de la aplicación.
+
+**Decisiones tomadas al implementar:**
+
+| Tema | Decisión |
+|---|---|
+| Las pruebas comparten cuenta | Cada worker usa una cuenta nueva (`gastosUser`) y varias pruebas registran la misma factura de ejemplo, así que un gasto vivo de una rompería «No está registrada ya» en otra. Una cuenta por prueba no sirve: cada una envía un correo y la pila local limita a 100 por hora (`[auth.rate_limit] email_sent`). El fixture `ledger` anula por la API todos los gastos vivos de la cuenta antes y después de cada prueba, también si esta falla a mitad. Anular no borra nada: los anulados no cuentan para los duplicados ni salen en la lista |
+| Cómo habla con la API | `helpers/ledger.ts` inicia sesión con la contraseña de la cuenta contra GoTrue (`/auth/v1/token?grant_type=password`), como hace la web, y llama a la API con ese token: nunca la service key. La URL y la clave pública salen de `frontend/.env.local` (lo que genera `npm run env:local`, también en el CI) o de `E2E_SUPABASE_URL` y `E2E_SUPABASE_ANON_KEY`; si faltan, el error dice qué hacer. Ni el token ni la clave se escriben en ningún sitio |
+| Sembrar | 51 gastos sin factura por la API, uno por día desde el 1 de enero de 2026 (siempre pasados): la primera página trae 50 y «Ver más antiguos» lleva al que falta |
+| Duplicados con tickets | `ticket_simplified` trae número (`T-58213`): dos iguales son un duplicado duro, no un aviso. El «posible duplicado» (mismo proveedor, día e importe con otro número) se alcanza cambiando el número del segundo en la revisión; el aviso no bloquea y el IVA sigue sin deducirse (no lleva el NIF de la persona) |
+| Carrera de React 19 con el reinicio del formulario | Con `<form action>`, React pinta primero el resultado (el error) y reinicia los campos sin controlar en un commit posterior, a unos milisegundos: un `fill` justo después del error puede perderse. Con un script desechable: 1 de 40 en WebKit a 390 px y 0 de 40 en Chromium. Solo ocurre si se escribe en esa ventana, cosa que una persona no hace. Las pruebas esperan dos fotogramas (`settleForm`) tras cada envío fallido, y 15 repeticiones seguidas en WebKit a 390 px pasan. La aplicación no cambia |
+| Salto tarjetas/tabla | Una sola prueba cambia el ancho a 1.279 y a 1.280 px y comprueba que nunca se ven las dos vistas, que cada una tiene sus 50 gastos y que no hay scroll horizontal (lo que B.5 dejó sin comprobar) |
+| Localizadores | La tarjeta de un documento ya leído enlaza por el proveedor, no por el nombre del archivo; una imagen se muestra en `<img>` y solo el PDF en `<iframe>` (la prueba de registrar sube un PDF); la cabecera de la tabla cuenta como `tr`, así que las filas se buscan en `tbody tr`. Las dos vistas de la lista están en el DOM, por eso todo pasa por `shown` |
+| `E2E_AGENTS_PORT` | El servidor de agentes usa el 8765 por omisión y `E2E_AGENTS_PORT` si otro proceso lo ocupa. La causa de fondo: `ThreadingHTTPServer` activa `SO_REUSEADDR`, que en Windows deja que dos procesos escuchen en el mismo puerto sin error, y las peticiones de la API iban al otro. `AgentsServer` lo desactiva en Windows y una prueba comprueba que un segundo servidor en el mismo puerto no puede enlazarse (en Linux pasa con o sin esa línea) |
+| Ayudantes compartidos | Subir, abrir la revisión, `shown`… pasan de `gastos-subida.spec.ts` a `helpers/gastos.ts`, junto con `settleForm`; el spec de subida solo cambia sus importaciones y su cabecera |
+
+**Pruebas:** las 9 de `gastos-registro.spec.ts` en los seis proyectos: registrar una factura (AC-02, 12, 18), suma que no cuadra (AC-01), dato dudoso (AC-10), instrucciones ocultas (AC-09, 18), la misma factura dos veces —factura y ticket— (AC-08), gasto sin factura (AC-11, 18), anular y volver a registrar (AC-13) y lista paginada (AC-14, 18). Cada pantalla pasa por «sin scroll horizontal» y «todo campo con etiqueta». Se ejecutó **dos veces seguidas la batería completa** (auth, roles, responsive, bundle, subida y registro) con la configuración real de Playwright —que levanta y reconstruye la API y la web—, un motor por invocación, `--workers=1`, `E2E_WEB_PORT=3100` y `E2E_AGENTS_PORT=8766`: Chromium 117, Firefox 115 y WebKit 115 pruebas (cuentan las de preparación de sesión y, solo en Chromium a 1.440 px, `bundle.spec.ts`), sin fallos ni pruebas inestables y con los mismos recuentos las dos veces. La primera pasada arrancó con unos 2,6 GB libres y la segunda con unos 2,2 GB: el equipo no recuperó más, así que la guarda de memoria del ejecutor (2.500 MB) se bajó a 2.000 MB solo para esa pasada; el sistema no cortó ningún proceso. La secuencia de §8.2 termina con código 0 tras un `db reset`: `ruff`, esquemas y ejemplos de `contracts/`, 756 pruebas de `validators` y `expenses`, 577 de RLS, 1.530 sin RLS, `export_openapi --check`, `gen:api --check`, `lint`, `typecheck`, 176 unitarias, `build`, `check:bundle` y `test:scripts`; charter y PRD con los mismos hashes.
+
+**Mutaciones** (22, mismo método que en los hitos anteriores: ejecutor desechable que reconstruye la API y la web en cada una): en la aplicación, `registerGate` que ignora los cambios sin guardar, la casilla de reconocimiento o `can_register`; la casilla que sale siempre; la categoría sugerida sin seleccionar; un documento registrado que no lleva a su gasto; registrar sin aviso; el salto a tabla que baja de 1.280 a 1.024 px; las tarjetas que desbordan a 390 px; «Ver más antiguos» que desaparece; el formulario manual sin el error junto al campo; anular en un solo paso; cambiar la categoría que guarda otra; anular un gasto de documento sin volver al documento; un gasto anulado que conserva sus acciones; la casilla que no se envía; el detalle sin el original; la revisión que no marca cambios sin guardar; la lista que ignora el cursor. En el backend, «No está registrada ya» que siempre pasa y la suma del total que nunca falla. En el servidor de agentes, `SO_REUSEADDR` también en Windows (solo detectable en Windows). **Las 22 hacen fallar la prueba prevista** y los archivos quedan idénticos por huella.
+- **El ejecutor tenía un fallo:** contaba como «detectada» cualquier salida con código distinto de cero, también un error de compilación. Cuatro mutaciones (G02, G04, G06 y G10) tardaron unos 6 s sin citar ninguna prueba: `false && …` y `{false ? …` hacen que TypeScript pierda el estrechamiento de tipos y la compilación falle. Ahora solo cuenta una detección con un resumen «N failed» y sin error de compilación; G02 y G04 se repitieron con `… && false` y G06 y G10 con formas que conservan los tipos (redirigir a otro sitio, una condición siempre falsa que mantiene el estrechamiento), y las cuatro hacen fallar la prueba prevista.
+
+**Lo que no se ha comprobado:**
+- **El CI.** Sigue sin ejecutarse en un runner de GitHub: el repositorio remoto se configuró justo después de este hito y su primer `push` lanzará el CI por primera vez (B.2 de SPEC-W-001). La batería de tres motores y dos anchos solo se ha ejecutado en local y con un worker, porque el equipo va justo de memoria.
+- **Un PDF real en el visor, HEIC, la cámara de un móvil y un Safari real:** el WebKit de Playwright no es Safari.
+- **Anchos intermedios** distintos de 390, 1.279, 1.280 y 1.440 px.
+- **`failedChecks`:** la interfaz lo interpreta pero no lo pinta; tras un fallo se refresca y las comprobaciones salen del documento.
+- **El servicio real de agentes y Vercel**, como en SPEC-W-002.
+- **Lector de pantalla y Lighthouse**, que siguen propuestos.
+
+**Para lo que sigue:** SPEC-W-003 pasa a `en-revision` y pasará a `hecha` con la primera ejecución del CI, como SPEC-W-001 y SPEC-W-002. Deja registrados los gastos con su categoría, su IVA y su deducibilidad, que es lo que consumirán el 303 y el 130 (SPEC-W-008 y SPEC-W-009).

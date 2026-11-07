@@ -2,7 +2,8 @@ import path from "node:path";
 
 import { test as base, expect, type BrowserContext, type Page } from "@playwright/test";
 
-import { AUTH_DIR, type RoleKey } from "./env";
+import { API_URL, AUTH_DIR, type RoleKey } from "./env";
+import { Ledger } from "./ledger";
 import { signUpAndConfirm, uniqueEmail } from "./session";
 
 /** Falla la prueba si el navegador registra un `console.error` o una excepción de página (p. ej. un error de hidratación). */
@@ -36,6 +37,12 @@ type Fixtures = {
   pageAs: (role: RoleKey) => Promise<Page>;
   /** Página con la sesión de `gastosUser` (misma cuenta durante todo el worker; mismo viewport y motor que el proyecto). */
   gastosPage: Page;
+  /**
+   * El libro de gastos de `gastosUser` por la API: `seed` crea gastos y, al terminar la prueba, **todos los gastos vivos de la cuenta se
+   * anulan**. La cuenta es la del worker y varias pruebas registran la misma factura de ejemplo; sin esta limpieza un gasto que quedase
+   * vivo (o una prueba que falla a mitad) haría fallar «No está registrada ya» en la siguiente.
+   */
+  ledger: Ledger;
 };
 
 type WorkerFixtures = {
@@ -71,6 +78,12 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
     const found = [...problems]; // lo que provoque el cierre no cuenta
     await closeQuietly(context);
     expect(found, "el navegador registró errores").toEqual([]);
+  },
+
+  ledger: async ({ request, gastosUser }, use) => {
+    const ledger = new Ledger(request, gastosUser.email, API_URL);
+    await use(ledger);
+    await ledger.voidAll();
   },
 
   page: async ({ page }, use) => {

@@ -1,6 +1,7 @@
 // Pruebas de extremo a extremo (SPEC-W-001 §8): Chromium, Firefox y WebKit, a 390 y 1.440 px, contra `next start` (producción).
 // Con la pila de Supabase en marcha (`npx supabase start`) y los puertos 3000, 8000 y 8765 libres: `npm run test:e2e`.
 // Variables opcionales: E2E_PYTHON, E2E_API_URL, E2E_MAILPIT_URL, E2E_SEED_PASSWORD, E2E_WEB_PORT (si el 3000 está ocupado),
+// E2E_AGENTS_PORT (si lo está el 8765), E2E_SUPABASE_URL y E2E_SUPABASE_ANON_KEY (si no se leen de `frontend/.env.local`),
 // E2E_REUSE_SERVER=1, E2E_DEBUG_SERVERS=1.
 //
 // Tres servidores: la API, la web (producción) y un servidor de agentes de E2E (`backend/tests/agents/e2e_server.py`). La API lo usa como
@@ -11,10 +12,9 @@ import path from "node:path";
 
 import { defineConfig, devices } from "@playwright/test";
 
-import { API_URL as API, WEB_PORT, WEB_URL as WEB } from "./e2e/helpers/env";
+import { AGENTS_PORT, API_URL as API, WEB_PORT, WEB_URL as WEB } from "./e2e/helpers/env";
 
 const repoRoot = path.resolve(__dirname, "..");
-const AGENTS_PORT = 8765;
 const AGENTS_URL = `http://127.0.0.1:${AGENTS_PORT}`;
 /** Clave inventada que comparten la API y el servidor de agentes de E2E: no protege nada, es un dato de prueba. */
 const AGENTS_KEY = "e2e-agents-key-solo-para-pruebas";

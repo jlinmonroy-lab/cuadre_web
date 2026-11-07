@@ -5,55 +5,30 @@
 // lee el agente con el marcador `fixture:<nombre>` que lleva dentro el archivo que sube (ver `helpers/files.ts`). Cada worker usa una
 // cuenta de `usuario` nueva (`gastosUser`): su lista empieza vacía y el límite de 5 lecturas simultáneas no se comparte.
 //
-// Ojo con los localizadores: con `cacheComponents`, Next 16 conserva **ocultas** las pantallas por las que se ha navegado (`<Activity>`),
-// así que tras pulsar un enlace la lista de Gastos sigue en el DOM con su texto y sus ids. `getByRole` ignora lo oculto; `getByText`,
-// `getByLabel` y los selectores CSS no, y por eso pasan por `shown`.
-import type { Locator, Page, Request } from "@playwright/test";
+// Los ayudantes (subir, abrir la revisión, `shown`…) y el aviso sobre los localizadores con pantallas ocultas están en `helpers/gastos.ts`.
+import type { Request } from "@playwright/test";
 
 import { WEB_URL } from "./helpers/env";
 import { expect, settle, test } from "./helpers/fixtures";
-import { pdfFile, pngFile, uniqueName, type UploadFile } from "./helpers/files";
+import { pdfFile, pngFile, uniqueName } from "./helpers/files";
+import {
+  DOCUMENT_URL,
+  FAILED,
+  READING_TIMEOUT,
+  READY,
+  card,
+  field,
+  idFrom,
+  openGastos,
+  registerButton,
+  savedMessage,
+  shown,
+  text,
+  upload,
+  uploadAndOpen,
+  uploadRow,
+} from "./helpers/gastos";
 import { expectEveryFieldLabelled, expectNoHorizontalScroll } from "./helpers/layout";
-
-const DOCUMENT_URL = /\/gastos\/[0-9a-f-]{36}$/;
-const READY = "Listo: ya puedes revisarlo.";
-const FAILED = "No se ha podido leer.";
-const READING_TIMEOUT = 30_000;
-
-const shown = (locator: Locator): Locator => locator.filter({ visible: true });
-const text = (page: Page, value: string | RegExp): Locator => shown(page.getByText(value));
-/** La fila de la zona de subida (la de este archivo), no la tarjeta de la lista. */
-const uploadRow = (page: Page, file: UploadFile): Locator => shown(page.locator("[aria-live=polite] li")).filter({ hasText: file.name });
-/** La tarjeta de la lista de documentos. */
-const card = (page: Page, file: UploadFile): Locator => page.getByRole("article").filter({ hasText: file.name });
-const idFrom = (page: Page): string => new URL(page.url()).pathname.split("/").pop() ?? "";
-const field = (page: Page, label: string): Locator => shown(page.getByLabel(label, { exact: true }));
-const registerButton = (page: Page): Locator => page.getByRole("button", { name: "Registrar gasto" });
-const savedMessage = (page: Page): Locator => page.getByRole("status").filter({ hasText: "Cambios guardados." });
-
-async function openGastos(page: Page): Promise<void> {
-  await settle(page); // no se navega con una petición RSC a medias (ver `settle`)
-  await page.goto("/gastos");
-  await expect(page.getByRole("heading", { level: 1, name: "Gastos" })).toBeVisible();
-}
-
-/** Sube los archivos por «Elegir archivos» y espera a que cada uno termine (bien o mal: qué se esperaba lo comprueba cada prueba). */
-async function upload(page: Page, ...files: UploadFile[]): Promise<void> {
-  await page.locator("#gastos-archivos").setInputFiles(files);
-  for (const file of files) {
-    await expect(uploadRow(page, file).getByText(new RegExp(`${READY}|${FAILED}`.replaceAll(".", "\\.")))).toBeVisible({ timeout: READING_TIMEOUT });
-  }
-}
-
-/** Sube un archivo, espera a que termine y abre su pantalla de revisión. */
-async function uploadAndOpen(page: Page, file: UploadFile): Promise<string> {
-  await openGastos(page);
-  await upload(page, file);
-  await uploadRow(page, file).getByRole("link", { name: /^(Revisar|Abrir)$/ }).click();
-  await expect(page).toHaveURL(DOCUMENT_URL);
-  await expect(page.getByRole("heading", { level: 1, name: file.name })).toBeVisible();
-  return idFrom(page);
-}
 
 test("subida y lectura (AC-01): el PDF sube directo a Storage y llega a «Para revisar»", async ({ gastosPage: page }) => {
   const file = pdfFile(uniqueName("factura-nubesoft", "pdf"), "fixture:invoice_ok");

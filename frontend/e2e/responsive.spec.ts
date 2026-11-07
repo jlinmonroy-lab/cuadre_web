@@ -9,6 +9,7 @@ const ANONYMOUS_PAGES = ["/login", "/registro", "/recuperar"];
 const SIGNED_IN_PAGES: [RoleKey, string][] = [
   ["alicia", "/inicio"],
   ["alicia", "/gastos"],
+  ["alicia", "/gastos/nuevo"],
   ["alicia", "/403"],
   ["gina", "/cartera"],
   ["adan", "/admin"],

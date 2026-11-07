@@ -1,12 +1,15 @@
 import path from "node:path";
 
-/** Puerto de la web de E2E: 3000, o `E2E_WEB_PORT` para poder probar con un `next dev` propio ocupando el 3000. */
-function webPort(): number {
-  const wanted = process.env.E2E_WEB_PORT ?? "3000";
-  if (!/^\d{2,5}$/.test(wanted) || Number(wanted) > 65_535) throw new Error(`E2E_WEB_PORT no es un puerto válido: ${wanted}`);
+/** Un puerto de la variable de entorno `name`, o `fallback`; falla con un mensaje claro si no es un puerto. */
+function port(name: string, fallback: number): number {
+  const wanted = process.env[name] ?? String(fallback);
+  if (!/^\d{2,5}$/.test(wanted) || Number(wanted) > 65_535) throw new Error(`${name} no es un puerto válido: ${wanted}`);
   return Number(wanted);
 }
-export const WEB_PORT = webPort();
+/** Puerto de la web de E2E: 3000, o `E2E_WEB_PORT` para poder probar con un `next dev` propio ocupando el 3000. */
+export const WEB_PORT = port("E2E_WEB_PORT", 3000);
+/** Puerto del servidor de agentes de E2E: 8765, o `E2E_AGENTS_PORT` si otro proceso lo ocupa. */
+export const AGENTS_PORT = port("E2E_AGENTS_PORT", 8765);
 export const WEB_URL = `http://localhost:${WEB_PORT}`; // siempre localhost: las cookies de sesión van por host
 export const API_URL = process.env.E2E_API_URL ?? "http://127.0.0.1:8000";
 export const MAILPIT_URL = process.env.E2E_MAILPIT_URL ?? "http://127.0.0.1:54324";

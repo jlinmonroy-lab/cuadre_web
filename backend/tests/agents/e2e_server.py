@@ -91,6 +91,9 @@ def error_body(code: str, message: str) -> bytes:
 
 class AgentsServer(ThreadingHTTPServer):
     daemon_threads = True
+    # `SO_REUSEADDR` en Windows deja que dos procesos escuchen en el mismo puerto sin ningún error: con otro servidor en el 8765, las
+    # peticiones de la API iban al ajeno y esta prueba fallaba sin explicación. Sin él, un puerto ocupado es un `OSError` al arrancar.
+    allow_reuse_address = sys.platform != "win32"
 
     def __init__(self, port: int, api_key: str, *, fetch_timeout_s: float = 10.0) -> None:
         super().__init__(("127.0.0.1", port), _Handler)

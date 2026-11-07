@@ -246,6 +246,12 @@ def test_healthz_and_unknown_paths(double: AgentsServer) -> None:
     assert httpx.post(f"{double.url}/v1/otra", content=b"{}", timeout=10).status_code == 404
 
 
+def test_a_busy_port_is_an_error_and_not_a_second_listener(double: AgentsServer) -> None:
+    # En Windows, con `SO_REUSEADDR`, esto se enlazaba sin error y las peticiones iban al proceso que no era.
+    with pytest.raises(OSError):
+        AgentsServer(double.server_address[1], API_KEY)
+
+
 def test_it_writes_nothing_about_the_document_or_its_url(
     double: AgentsServer, server: ScriptedServer, capfd: pytest.CaptureFixture[str]
 ) -> None:

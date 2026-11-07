@@ -1,7 +1,7 @@
 """T3-03, AC-19 · `cuadre.validators` es Python puro y estructuralmente no puede salirse de ahí (SPEC-W-003 §6).
 
-No importa la base de datos, la red, FastAPI ni la configuración; no lee ningún reloj (`today` entra como parámetro); solo `tax_id.py` toca
-`python-stdnum`, y nunca la consulta a VIES ni su cliente SOAP. Así «sin red» y «sin reloj» no dependen de que alguien se acuerde.
+No importa la base de datos, la red, FastAPI ni la configuración; no lee ningún reloj (`today` entra como parámetro); solo `tax_id.py` (NIF) e `iban.py` (IBAN) tocan
+`python-stdnum`, cada uno con sus módulos, y nunca la consulta a VIES ni su cliente SOAP. Así «sin red» y «sin reloj» no dependen de que alguien se acuerde.
 """
 
 import ast
@@ -10,6 +10,7 @@ from tests.rules.paths import SRC, python_files, rel
 
 VALIDATORS = SRC / "validators"
 TAX_ID = VALIDATORS / "tax_id.py"
+IBAN = VALIDATORS / "iban.py"
 
 FORBIDDEN_IMPORTS = (
     "cuadre.db",
@@ -48,7 +49,8 @@ CLOCK_CALLS = {
     "perf_counter",
     "sleep",
 }
-STDNUM_ALLOWED = ("stdnum.es", "stdnum.eu")
+TAX_ID_STDNUM = ("stdnum.es", "stdnum.eu")
+IBAN_STDNUM = ("stdnum.iban",)
 VIES_NAMES = {"check_vies", "check_vies_approx", "get_soap_client"}
 
 
@@ -84,8 +86,8 @@ def stdnum_imports(source: str) -> list[str]:
     return [m for m in imported_modules(source) if m == "stdnum" or m.startswith("stdnum.")]
 
 
-def disallowed_stdnum_imports(source: str) -> list[str]:
-    return [m for m in stdnum_imports(source) if not any(m == a or m.startswith(a + ".") for a in STDNUM_ALLOWED)]
+def disallowed_stdnum_imports(source: str, allowed: tuple[str, ...] = TAX_ID_STDNUM) -> list[str]:
+    return [m for m in stdnum_imports(source) if not any(m == a or m.startswith(a + ".") for a in allowed)]
 
 
 def vies_uses(source: str) -> list[str]:
@@ -117,6 +119,12 @@ def test_the_detectors_detect() -> None:
     assert stdnum_imports("import re") == []
     assert disallowed_stdnum_imports("from stdnum.util import get_soap_client")
     assert disallowed_stdnum_imports("from stdnum.es import nif\nfrom stdnum.eu import vat") == []
+    assert disallowed_stdnum_imports("import stdnum.iban as i", IBAN_STDNUM) == []
+    assert disallowed_stdnum_imports("import stdnum.iban as i", TAX_ID_STDNUM)  # el IBAN no es cosa del NIF
+    assert disallowed_stdnum_imports("from stdnum.es import nif", IBAN_STDNUM)  # ni el NIF del IBAN
+    assert disallowed_stdnum_imports(
+        "from stdnum import iban", IBAN_STDNUM
+    )  # `stdnum` a secas no vale: se importa el submódulo
     assert vies_uses("from stdnum.eu import vat\nvat.check_vies('DE1')")
     assert vies_uses("from stdnum.util import get_soap_client")
     assert vies_uses("import stdnum.eu.vies")
@@ -126,6 +134,7 @@ def test_the_detectors_detect() -> None:
 def test_the_validators_package_exists_and_has_code() -> None:
     assert len(list(python_files(VALIDATORS))) >= 10
     assert TAX_ID.exists()
+    assert IBAN.exists()
 
 
 def test_the_validators_import_nothing_that_reaches_the_database_the_network_or_the_application() -> None:
@@ -140,10 +149,11 @@ def test_the_validators_never_read_a_clock() -> None:
     assert offenders == {}
 
 
-def test_only_tax_id_touches_python_stdnum_and_only_its_spanish_and_eu_modules() -> None:
+def test_only_tax_id_and_iban_touch_python_stdnum_and_each_only_its_own_modules() -> None:
     importers = [p for p in python_files(VALIDATORS) if stdnum_imports(p.read_text(encoding="utf-8"))]
-    assert importers == [TAX_ID]
-    assert disallowed_stdnum_imports(TAX_ID.read_text(encoding="utf-8")) == []
+    assert importers == [IBAN, TAX_ID]
+    assert disallowed_stdnum_imports(TAX_ID.read_text(encoding="utf-8"), TAX_ID_STDNUM) == []
+    assert disallowed_stdnum_imports(IBAN.read_text(encoding="utf-8"), IBAN_STDNUM) == []
 
 
 def test_nothing_in_the_package_can_reach_vies_or_the_soap_client() -> None:

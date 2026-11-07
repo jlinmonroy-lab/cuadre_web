@@ -8,6 +8,7 @@ from cuadre.validators.categories import LABELS as CATEGORY_LABELS
 from cuadre.validators.categories import ExpenseCategory, suggest_category
 from cuadre.validators.checks import validate
 from cuadre.validators.duplicates import normalize_invoice_number
+from cuadre.validators.iban import normalize_iban
 from cuadre.validators.tax_id import TaxId, normalize_tax_id
 from cuadre.validators.types import (
     Check,
@@ -42,6 +43,7 @@ __all__ = [
     "WarningCode",
     "Withholding",
     "from_stored",
+    "normalize_iban",
     "normalize_invoice_number",
     "normalize_tax_id",
     "suggest_category",

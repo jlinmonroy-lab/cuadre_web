@@ -63,3 +63,14 @@ EU_VAT_PREFIXES = frozenset(
 )
 # La librería acepta `GR` y `EL` y los devuelve como se escribieron: aquí se unifican en el oficial.
 PREFIX_ALIASES = {"GR": "EL"}
+
+# --- IBAN (SPEC-W-005 Anexo B.1) --------------------------------------------------------------------------------------------------
+
+IBAN_MAX_LENGTH = 64
+# Prefiltro ANTES de llamar a la librería: solo ASCII y estos separadores. `U+00A0` y `U+202F` (copiados de un PDF o de un banco) se pasan a
+# espacio antes; todo lo demás que no sea esto (saltos de línea interiores, ancho cero, dígitos de otros alfabetos…) no llega a la librería.
+IBAN_RAW = re.compile(r"[0-9A-Za-z .-]{1,64}")
+IBAN_SEPARATORS = " .-"
+IBAN_SPACES = {"\u00a0": " ", "\u202f": " "}
+# Lo que se guarda y se compara: el IBAN compacto (de 15 a 34 caracteres según el país).
+IBAN_KEY = re.compile(r"[A-Z0-9]{15,34}")

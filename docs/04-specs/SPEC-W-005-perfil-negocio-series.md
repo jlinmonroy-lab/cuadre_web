@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-005
 titulo: Perfil personal y del negocio y series de facturación
-estado: especificada
+estado: en-progreso
 prioridad: must
 riesgo: bajo
 historias: [US-007]
@@ -41,12 +41,14 @@ SPEC-W-003 ya **lee** el perfil: `expenses/repository.py` (`profile_tax_id`) pas
 | D-06 | **Régimen de IVA: solo `general` en la v1.** La columna admite un único valor y la pantalla lo enseña como dato fijo («Régimen general»). El 303 de SPEC-W-008 es del régimen general | Admitir recargo de equivalencia o exentos: otras casillas y otros cálculos, otra spec. Ampliarlo es quitar un CHECK y añadir valores a una constante |
 | D-07 | **La serie del año la crea `update_profile`** de forma idempotente (`app.ensure_year_series`), en la misma transacción; **una lectura nunca escribe**. SPEC-W-007 llama a la misma función antes de emitir, así que el primer año nuevo no se queda sin serie. La serie creada es la predeterminada **solo si no hay otra predeterminada** | Crearla al registrarse: toca el trigger de alta de SPEC-W-001 y crea series a cuentas de gestor y administrador. Crearla al leer: una lectura con efectos |
 | D-08 | **Retención: solo 7 o 15** (`"7.00"` o `"15.00"`, o ninguna mientras no se elija), en la API y con un CHECK en la base | Cualquier valor de 0 a 100, como hoy la columna: dejaría pasar un 1 por un 7. Cambiarlo es una constante y un CHECK |
-| D-09 | **El IBAN puede ser de cualquier país** con dígitos de control válidos (`python-stdnum`, ya fijado), no solo español; se guarda en mayúsculas y sin espacios | Solo `ES`: bloquea a quien cobra en una cuenta europea. Cambiarlo es una condición en el validador |
+| D-09 | **El IBAN puede ser de cualquier país** con dígitos de control válidos (`python-stdnum`, ya fijado; su registro trae 89 países, B.1), no solo español; se guarda en mayúsculas y sin separadores | Solo `ES`: bloquea a quien cobra en una cuenta europea. Cambiarlo es una condición en el validador |
 | D-10 | **Gestor y administrador no tienen pantalla de perfil.** Su fila de `business_profiles` existe (la crea el trigger) pero no se usa: las rutas son solo del rol `usuario`. El gestor lee el perfil del autónomo por RLS cuando SPEC-W-010 le dé pantalla | Perfil propio para el gestor (despacho, datos de contacto): no está en RF-004 ni en el PRD |
 | D-11 | **Aviso «Completa tu perfil»** en Inicio mientras no se pueda emitir (con los campos que faltan) y en la revisión de una **factura simplificada o ticket** cuando falta el NIF, que es lo que hace deducible su IVA (nota B.0 de SPEC-W-003) | Sin avisos: la persona descubriría la carencia al intentar emitir (SPEC-W-007). Avisos en todas las pantallas: ruido |
 | D-12 | **La cuota de autónomos mensual del prototipo (`monthlyFee`) no es un campo del perfil**: no está en RF-004 ni en `business_profiles`. Su sitio es un gasto recurrente (SPEC-W-012 / W-009) | Añadir la columna: duplicaría lo que ya registra SPEC-W-003 como gasto sin factura |
 | D-13 | **`logo_path` deja de ser editable por escritura directa**: se quita de las columnas con `UPDATE` y solo cambian `app.set_business_logo` y `app.clear_business_logo`, que comprueban la ruta (`{owner_id}/{uuid}.{png\|jpg\|webp}`). Un CHECK de la tabla lo repite | Dejar la columna editable y confiar en la API: una escritura directa podría apuntar a una ruta ajena (la política de Storage la denegaría al leer, pero el dato quedaría sucio) |
 | D-14 | **La validación fiscal vive en Python** (`cuadre.profile`); la base defiende solo lo barato: longitudes, rangos, el 7 o el 15, el régimen y el formato de la ruta del logo y del código de serie. **No** valida NIF ni IBAN en SQL (`python-stdnum` es Python, como en SPEC-W-003, D-01). El seed pasa a llevar NIF e IBAN válidos (sintéticos) | Validar también en SQL: duplicar los dígitos de control y romper el principio de una fuente por regla (T5-03) |
+
+*Visto bueno del 2026-11-07: la persona pidió el plan del hito 0 sin cambios a D-05 a D-14 (D-01 a D-04 ya estaban decididas); se tratan como aprobadas y la spec pasa a `en-progreso`. El spike del hito 0 comprobó el IBAN, los logos en Storage, la forma de los decimales y el DDL de §5.2, y corrigió §5.1, §5.2, §5.3, §5.4, T5-01, T5-07, AC-09, AC-12 y AC-17 (Anexo B.1).*
 
 ## 2. Objetivo
 
@@ -115,9 +117,9 @@ Los textos de error van en español, **no repiten el valor escrito** (T5-05) y s
 | `iae_epigraph` | `iae_epigraph` | texto, 0 a 20 | solo letras, números, puntos, guiones y espacios | «El epígrafe del IAE solo lleva letras, números y puntos.» |
 | `activity_start_date` | `activity_start_date` | fecha | desde 1950-01-01 hasta un año después de hoy (Europe/Madrid) | «La fecha de alta no puede ser anterior a 1950 ni estar a más de un año.» |
 | `vat_regime` | `vat_regime` | `"general"` | único valor admitido (D-06) | «En esta versión solo está disponible el régimen general.» |
-| `irpf_rate` | `irpf_rate` | `"7.00"`, `"15.00"` o `null` | solo esos dos (D-08) | «Elige 7 % o 15 %.» |
-| `home_pct` | `home_pct` | decimal de 0 a 100 con hasta 2 decimales, o `null` | `Decimal`, nunca `float` | «Escribe un porcentaje entre 0 y 100, por ejemplo 30.» |
-| `iban` | `iban` | texto o `null` | IBAN con dígitos de control válidos (`python-stdnum`, cualquier país: D-09). Se **guarda normalizado** (mayúsculas, sin espacios) | «El IBAN no es válido: revisa los dígitos de control.» |
+| `irpf_rate` | `irpf_rate` | `"7.00"`, `"15.00"` o `null` | cadena `^[0-9]{1,3}(\.[0-9]{1,2})?$` (ASCII) que, como `Decimal`, vale 7 o 15 (D-08, B.1). Se devuelve como `"7.00"` o `"15.00"` | «Elige 7 % o 15 %.» |
+| `home_pct` | `home_pct` | decimal de 0 a 100 con hasta 2 decimales, o `null` | cadena `^[0-9]{1,3}(\.[0-9]{1,2})?$` (ASCII) que, como `Decimal`, está entre 0 y 100; nunca `float`. Se devuelve con dos decimales (`"30.00"`) | «Escribe un porcentaje entre 0 y 100, por ejemplo 30.» |
+| `iban` | `iban` | texto o `null` | IBAN que valida `iban.validate` de `python-stdnum` con la comprobación del país activada (módulo 97, estructura del país y, en `ES`, los dígitos de control de la cuenta; 89 países: D-09). Se **recorta**, `U+00A0` y `U+202F` pasan a espacio, solo admite `[0-9A-Za-z .-]` (hasta 64 caracteres) y se **guarda normalizado** (mayúsculas, sin separadores, `[A-Z0-9]{15,34}`) | «El IBAN no es válido: revisa los dígitos de control.» |
 
 **Campos que faltan para emitir** (`missing_for_invoicing`, en este orden y con estas etiquetas; D-05): `legal_name` → «Nombre o razón social», `tax_id` → «NIF», `fiscal_address` → «Domicilio fiscal». Un NIF guardado que ya no se entiende como español (p. ej. el del seed antiguo) cuenta como **faltante**. `can_issue` = la lista está vacía.
 
@@ -125,7 +127,7 @@ Los textos de error van en español, **no repiten el valor escrito** (T5-05) y s
 
 **Series.** Código: 1 a 8 caracteres, mayúsculas, números y guion, sin guion al principio ni al final; lo que se escribe en minúsculas se pasa a mayúsculas. Descripción: hasta 80 caracteres, opcional. Número inicial: entero de 1 a 999999. El formato del número de factura (`{código}-{NNN}`) lo fija SPEC-W-007.
 
-**Logo.** `image/png`, `image/jpeg` o `image/webp`; de 1 byte a 1 MiB (1.048.576 bytes); la firma del archivo (sus primeros bytes) debe corresponder al tipo declarado.
+**Logo.** `image/png`, `image/jpeg` o `image/webp`; de 1 byte a 1 MiB (1.048.576 bytes); la firma del archivo, leída con `Range` en sus **12 primeros bytes**, debe corresponder al tipo declarado: PNG `89 50 4E 47 0D 0A 1A 0A`, JPEG `FF D8 FF`, WebP `RIFF` + 4 bytes + `WEBP`.
 
 ### 5.2 Base de datos
 
@@ -161,7 +163,7 @@ invoice_series
 UNIQUE INDEX invoice_series_one_default ON invoice_series (owner_id) WHERE is_default
 ```
 
-«**En uso**» = `next_number > first_number`: SPEC-W-007 avanza `next_number` al emitir y por eso esta spec no necesita saber de facturas. Trigger `invoice_series_guard` (`BEFORE UPDATE`): `owner_id` y `created_at` no cambian; `code` y `first_number` solo cambian si la serie no está en uso (`series_in_use`); `next_number` **no baja nunca** (`series_number_regression`), con una sola excepción: una serie sin uso a la que se cambia `first_number` fija `next_number` igual al nuevo `first_number` (la serie sigue sin uso, así que no se «retrocede» ninguna factura).
+«**En uso**» = `next_number > first_number`: SPEC-W-007 avanza `next_number` al emitir y por eso esta spec no necesita saber de facturas. Trigger `invoice_series_guard` (`BEFORE UPDATE`): `owner_id` y `created_at` no cambian; `code` y `first_number` solo cambian si la serie no está en uso (`series_in_use`); `next_number` **no baja nunca** (`series_number_regression`), con una sola excepción: una serie sin uso a la que se cambia `first_number` fija `next_number` igual al nuevo `first_number` (la serie sigue sin uso, así que no se «retrocede» ninguna factura). **Si cambia `first_number`, `next_number` debe quedar igual al nuevo `first_number`** (`series_first_number_mismatch`): sin esta regla, bajar solo `first_number` dejaba una serie sin uso con `next_number > first_number`, es decir, «en uso» sin haberse emitido nada (B.1). Las restricciones llevan nombre propio (`invoice_series_code_format`, `invoice_series_one_default`, `invoice_series_default_not_archived`…) para que la API las traduzca por nombre.
 
 **Privilegios.** `authenticated`: `SELECT` y nada más; toda escritura por funciones (como `documents` y `expenses`).
 
@@ -170,7 +172,7 @@ UNIQUE INDEX invoice_series_one_default ON invoice_series (owner_id) WHERE is_de
 | SELECT | las suyas, archivadas incluidas | las de usuarios con vínculo activo (`private.gestor_has_access(owner_id)`) | **ninguna** |
 | INSERT / UPDATE / DELETE | denegado (solo `app.*`) | denegado | denegado |
 
-**Funciones `app.*`** (`SECURITY DEFINER`, `search_path = ''`, verifican `auth.uid()` y `private.app_role() = 'usuario'`; `P0001` con código estable, `42501` si el rol no basta):
+**Funciones `app.*`** (`SECURITY DEFINER`, `search_path = ''`, verifican `auth.uid()` y `private.app_role() = 'usuario'`; `P0001` con código estable, `42501` si el rol no basta). **Todas toman primero un cerrojo asesor por persona** (`pg_advisory_xact_lock(hashtextextended('invoice_series:' || owner, 0))`, como `documents.processing`): sin él, `ensure_year_series` y `create_invoice_series(…, predeterminada)` a la vez hacían fallar a una con 23505 en el índice de la predeterminada (B.1):
 
 | Función | Efecto |
 |---|---|
@@ -178,15 +180,15 @@ UNIQUE INDEX invoice_series_one_default ON invoice_series (owner_id) WHERE is_de
 | `app.create_invoice_series(p_code, p_description, p_first_number, p_make_default)` | Código válido y no usado (`series_code_taken`, también entre archivadas), `next_number = first_number`. Si `p_make_default`, quita la marca a la anterior en la misma transacción |
 | `app.update_invoice_series(p_id, p_code, p_description, p_first_number)` | Cualquiera de los tres, o ninguno. `code` y `first_number` solo si la serie no está en uso (`series_in_use`); al cambiar `first_number` también se pone `next_number`. `series_not_found` si no existe o es ajena |
 | `app.set_default_invoice_series(p_id)` | La hace predeterminada y quita la marca a la anterior. Una archivada da `series_archived` |
-| `app.set_invoice_series_archived(p_id, p_archived)` | Archiva o reactiva. Archivar la predeterminada da `series_is_default` (hay que elegir otra antes). Una archivada no se ofrece para emitir (SPEC-W-007) |
+| `app.set_invoice_series_archived(p_id, p_archived)` | Archiva o reactiva. Archivar la predeterminada da `series_is_default` (hay que elegir otra antes; la función lo comprueba **antes** de que lo haga el CHECK de la tabla, que daría un 23514 sin un código útil). Una archivada no se ofrece para emitir (SPEC-W-007) |
 | `app.set_business_logo(p_path)` | Comprueba que `p_path` es `{auth.uid()}/{uuid}.{png\|jpg\|webp}` y lo guarda en `business_profiles.logo_path`; devuelve la ruta **anterior** (o nulo) para que la API borre ese objeto |
 | `app.clear_business_logo()` | Pone `logo_path` a nulo y devuelve la ruta anterior |
 
-**Storage.** Bucket `logos` privado, `file_size_limit = 1048576`, `allowed_mime_types = {image/png, image/jpeg, image/webp}`. Políticas de `storage.objects` (`to authenticated`, `(select auth.uid())`): `INSERT` y `DELETE` solo en `{auth.uid()}/…` con nombre `{uuid}.{png|jpg|webp}`; `SELECT` para el dueño y para el gestor con vínculo activo sobre esa carpeta; el administrador, ninguna. Mientras no haya política, nadie lee ni escribe.
+**Storage.** Bucket `logos` privado, `file_size_limit = 1048576`, `allowed_mime_types = {image/png, image/jpeg, image/webp}`. Las políticas de `storage.objects` (`to authenticated`) llaman a funciones `private.logo_*` (`SECURITY DEFINER`, `STABLE`, `search_path = ''`) que **nunca lanzan una excepción**: `private.logo_folder_owner(name)` reconoce la ruta exacta `{uuid}/{uuid}.{png|jpg|webp}` con una expresión regular **dentro de un `CASE`** y devuelve el dueño o nulo (una política en línea con `::uuid` falla con un error ante `not-a-uuid/x.png`: B.1). `INSERT` (se evalúa al firmar) y `DELETE`: solo el dueño de la carpeta **y con rol `usuario`** (`private.logo_can_upload`, `private.logo_can_delete`), así que un gestor o un administrador no pueden ni firmar una subida a su propia carpeta; `SELECT` (`private.logo_can_read`): el dueño y el gestor con vínculo **activo**; el administrador, ninguna. Todo lo demás, denegado, también el `UPDATE` (los archivos no se sobrescriben). Mientras no haya política, nadie lee ni escribe.
 
 **Matriz de RLS.** `invoice_series`: `kind: financial`, `owner_column: owner_id`, privilegios `SELECT`, y un `seed` con una serie por persona. `business_profiles`: se quita `logo_path` de `grants.columns.UPDATE` y la sonda de `UPDATE` sigue usando `legal_name`.
 
-**Seed (sintético).** NIF e IBAN de Alicia y Beto con dígitos de control válidos y una serie por persona; ningún dato real (RES-07).
+**Seed (sintético).** Alicia: NIF `12345678Z` e IBAN `ES36 0000 0000 0500 0000 0001`; Beto: NIF `01230956L` e IBAN `ES63 0000 0000 0100 0000 0002` (entidad y oficina `0000`, que no existen; los dos pasan el módulo 97 y el de la cuenta: B.1). Una serie por persona. Ningún dato real (RES-07).
 
 ### 5.3 API HTTP
 
@@ -217,13 +219,15 @@ Profile {
 InvoiceSeries { id, code, description: string|null, first_number: int, next_number: int, is_default: bool, archived: bool, in_use: bool, created_at }
 ```
 
+Los decimales (`irpf_rate`, `home_pct`) entran y salen como **cadenas** (`"7.00"`); la entrada admite `"7"` o `"007.00"`, que se normalizan, y rechaza números JSON, notación científica y dígitos de otros alfabetos (B.1).
+
 **Códigos de error nuevos** (`code`, HTTP): `invalid_profile` 422 (con el miembro extra `fields: [ { field, message } ]`, **todos** los que fallan) · `invalid_series` 422 (con `field`) · `series_code_taken` 409 · `series_in_use` 409 · `series_is_default` 409 · `series_archived` 409 · `series_not_found` 404 (también si es de otra persona: no se distingue) · `logo_unsupported_type` 415 · `logo_too_large` 413 · `logo_invalid` 422 (no se subió, no coincide con lo anunciado o la firma no es del tipo) · `logo_not_found` 404. Los errores de forma del cuerpo son el `validation_error` 422 de siempre. Los textos van en español y no repiten el valor escrito.
 
 ### 5.4 Backend
 
 - **Paquetes.** `cuadre.profile` (`rules` y `limits` puros; `service`, `repository`, `models`, `errors`, `logo`) y `api/routes_profile.py` (perfil, logo y series). `rules` importa `cuadre.validators` (NIF) y `stdnum.iban`, nada de base de datos, red ni FastAPI; lo vigila `backend/tests/rules/test_profile_boundary.py`, como `test_validators_boundary`.
 - **Flujo de `update_profile`.** Una transacción corta: validar todo → `UPDATE business_profiles` con las columnas permitidas → `app.ensure_year_series()` → leer el perfil y calcular `completeness` y `retention` con el reloj inyectado (`cuadre.core.clock`) → confirmar. El NIF y el IBAN se guardan normalizados.
-- **Logo.** `HttpStorage` recibe el bucket (hoy lleva `BUCKET = "documents"` y su expresión de ruta fijos); el logo usa el bucket `logos` y su propia expresión de ruta. La firma del archivo se lee con `read_head` (nunca se descarga el archivo: Vercel limita el cuerpo a 4,5 MB, ADR-0016). El borrado del logo anterior ocurre dentro de la petición; si Storage falla, la ruta nueva ya está guardada y el objeto viejo queda huérfano (T5-06).
+- **Logo.** `HttpStorage` pasa a `HttpStorage(supabase_url, *, bucket="documents", path=PATH)` (hoy `BUCKET` y `PATH` están fijados en `storage.py`, se construye una vez en `main.py` y los tests de documentos lo llaman sin argumentos, así que no cambian); el logo usa una segunda instancia con el bucket `logos` y su propia expresión de ruta. La firma del archivo se lee con `read_head(…, length=12)` (nunca se descarga el archivo: Vercel limita el cuerpo a 4,5 MB, ADR-0016). `upload_logo` valida tipo y tamaño **antes** de firmar, porque Storage responde 413 y 415 al `PUT` del navegador, y la pantalla también lo comprueba antes de subir. El borrado del logo anterior ocurre dentro de la petición; si Storage falla, la ruta nueva ya está guardada y el objeto viejo queda huérfano (T5-06).
 - **`test_operation_ids`** no cambia: `get`, `update`, `upload`, `complete`, `delete`, `list`, `create` y `set` ya existen.
 - **Sin dependencias nuevas:** `python-stdnum` ya está fijado desde SPEC-W-003.
 
@@ -241,13 +245,13 @@ Guardar el perfil y gestionar las series son **Server Actions** (`useActionState
 
 | ID | Restricción |
 |---|---|
-| T5-01 | **Sin `float`** en código, migraciones ni JSON: `irpf_rate` y `home_pct` son `Decimal` y viajan como cadenas; `test_no_float` sigue verde (RES-02) |
+| T5-01 | **Sin `float`** en código, migraciones ni JSON: `irpf_rate` y `home_pct` son `Decimal` en el dominio y viajan como **cadenas con el patrón ASCII `^[0-9]{1,3}(\.[0-9]{1,2})?$`** en los modelos de la API, no como `Decimal` de Pydantic (que acepta números JSON, `1e1` y dígitos de otros alfabetos, no cuantiza y hace que el cliente generado admita `number`: B.1); se devuelven con dos decimales; `test_no_float` sigue verde (RES-02) |
 | T5-02 | **Sin modelos de lenguaje ni red**: ni para el NIF, ni para el IBAN, ni para la sugerencia de retención (RES-01); `cuadre.profile` no importa base de datos, `httpx`, FastAPI ni usa `datetime.now()` (el reloj entra como parámetro) |
 | T5-03 | **Una fuente por regla.** Longitudes, el 7 y el 15, el patrón del código de serie y los límites del logo viven en `cuadre.profile.limits`; los CHECK de la base los repiten y un test de paridad los compara |
 | T5-04 | **Solo `usuario`** lee y escribe su perfil por la API; el gestor con vínculo activo lee por RLS (revocar corta el acceso en la petición siguiente) y el administrador no ve el de otros (D3, NFR-06). La service key no interviene |
 | T5-05 | **Sin datos personales en logs, trazas, errores ni `activity_log`**: ni NIF, ni IBAN, ni nombre, ni domicilio, ni URLs firmadas (NFR-11). Los `422` dicen qué campo falla, no qué se escribió. Un test captura los registros de todo el flujo |
 | T5-06 | **Logo**: solo PNG, JPEG y WebP de hasta 1 MiB (**sin SVG**: puede llevar scripts); nunca pasa por la API (ADR-0016); la firma del archivo se comprueba con sus primeros bytes; se muestra solo con `<img>` y una URL firmada de 60 s; el logo anterior se borra dentro de la petición. Un objeto subido y no completado queda huérfano, y se acepta (un logo por persona, 1 MiB) |
-| T5-07 | **La numeración no se rompe**: esta spec nunca baja `next_number` de una serie en uso (lo defiende el trigger; solo se mueve junto con `first_number` en una serie sin uso), no asigna números y no borra series (se archivan) |
+| T5-07 | **La numeración no se rompe**: esta spec nunca baja `next_number` de una serie en uso (lo defiende el trigger; solo se mueve junto con `first_number` en una serie sin uso, y cambiar `first_number` obliga a dejar `next_number` igual a él), no asigna números y no borra series (se archivan) |
 | T5-08 | **Una lectura no escribe** (D-07): `get_profile` y `list_invoice_series` no crean nada |
 | T5-09 | **Sin trabajo posterior a la respuesta** (ADR-0016); `test_vercel_compat` sigue verde |
 | T5-10 | **Interfaz** como T3-11: tokens del prototipo, etiquetas, foco visible, estado con texto además de color, anuncios con `aria-live`, sin scroll horizontal a 390 y 1.440 px en los tres navegadores |
@@ -315,6 +319,7 @@ AC-09  Serie del año (D-07)
   Then existe una serie con código "2026", descripción "Serie del año", first_number 1, next_number 1, predeterminada y no archivada
     And guardar otra vez no crea ninguna más
     And dos guardados a la vez dejan una sola (UNIQUE y ON CONFLICT)
+    And guardar el perfil por primera vez a la vez que se crea otra serie como predeterminada deja una sola predeterminada y no falla (cerrojo por persona)
     And GET /api/profile y GET /api/invoice-series sobre una cuenta sin series no crean nada
 
 AC-10  Crear serie
@@ -335,6 +340,7 @@ AC-12  Número inicial y código (D-03)
   When la persona cambia first_number o code de cada una
   Then la primera se actualiza (y next_number con ella) y la segunda da 409 "series_in_use"
     And la descripción sí se puede cambiar en las dos
+    And bajar first_number de una serie sin uso sin cambiar next_number es un error (series_first_number_mismatch, probado con un UPDATE directo)
     And next_number de una serie en uso no puede bajar (trigger, probado con un UPDATE directo), y en una sin uso solo se mueve junto con first_number
 
 AC-13  Archivar
@@ -370,6 +376,7 @@ AC-17  Aislamiento (NFR-06)
     And Adán solo ve su propia fila de perfil y ninguna serie ni logo de nadie (D3)
     And Gina y Adán reciben 403 "forbidden" en las rutas de perfil y de series
     And un UPDATE directo de logo_path, o una ruta de otra carpeta, es rechazado (privilegio y CHECK)
+    And Gina y Adán tampoco pueden firmar una subida de logo a su propia carpeta de Storage (la política exige el rol usuario)
 
 AC-18  Integración con SPEC-W-003 (D-11)
   Given una factura simplificada cuyo NIF de destinatario es el de la persona / otro distinto, y una factura completa con destinatario 12345678Z
@@ -451,7 +458,8 @@ npm --prefix frontend exec -- playwright test e2e/perfil.spec.ts       # AC-19 y
 
 ## Anexo A · Orden de implementación sugerido (un plan y un commit por hito)
 
-0. **Spike**: con valores **sintéticos**, qué acepta y rechaza `stdnum.iban` (espacios, minúsculas, longitudes por país, dígitos de control) y que no usa la red; y en el Supabase local, que el bucket `logos` con sus políticas por carpeta permite firmar una subida, subir una imagen de unos KB y leerla con URL firmada, y que `Range` devuelve los primeros bytes. Resultado al Anexo B.
+0. **Spike**: con valores **sintéticos**, qué acepta y rechaza `stdnum.iban` (espacios, minúsculas, longitudes por país, dígitos de control) y que no usa la red; y en el Supabase local, que el bucket `logos` con sus políticas por carpeta permite firmar una subida, subir una imagen de unos KB y leerla con URL firmada, y que `Range` devuelve los primeros bytes. También, la forma de los decimales en la API y el DDL de §5.2 en seco. Resultado al Anexo B.
+   **Hecho el 2026-11-07** (resultado en el Anexo B.1; corrigió el trigger de series, añadió el cerrojo por persona y el rol `usuario` en las políticas de Storage, y fijó la forma de los decimales y el normalizador del IBAN).
 1. **Dominio puro** (`cuadre.profile`): campos, `missing_for_invoicing`, retención con reloj, IBAN, código de serie, `limits`, `test_profile_boundary`, con tablas de pruebas y mutaciones.
 2. **Base de datos**: CHECK de `business_profiles`, `invoice_series` con trigger y funciones, `app.*` del logo, bucket y políticas, seed, matriz y pruebas de RLS, con mutaciones.
 3. **API**: `cuadre.profile` (servicio y repositorio), `HttpStorage` por bucket, las diez rutas, `openapi.json` y `schema.d.ts` regenerados, con mutaciones.
@@ -465,10 +473,78 @@ npm --prefix frontend exec -- playwright test e2e/perfil.spec.ts       # AC-19 y
 ### B.0 Notas que esta spec deja a otras specs
 
 - **SPEC-W-006 (clientes).** El ámbito de un cliente necesita un tercer valor que `supplier_scope` (`national`/`eu`) no tiene: el prototipo usa `non_eu`, C3 usa `nacional|ue|fuera_ue` y la interfaz ya tiene los tokens `scope-eu` y `scope-non-eu`. W-006 debe definir su enum y mapear los tres nombres en un solo sitio. `normalize_tax_id` solo distingue nacional y UE; «fuera de la UE» es la ausencia de un NIF-IVA reconocido.
-- **SPEC-W-007 (facturas).** (1) Llama a `app.ensure_year_series()` antes de emitir. (2) **Aplica la regla de US-007**: usa `cuadre.profile.rules.missing_for_invoicing` en la API y comprueba lo mismo en la función SQL de emisión, y devuelve los campos que faltan por nombre. (3) Numera con una función `SECURITY DEFINER` que bloquea la fila de la serie (`SELECT … FOR UPDATE`) y avanza `next_number` de uno en uno, sin huecos; no puede bajarlo (el trigger lo impide) y no emite en una serie archivada. (4) Congela en la factura una **copia** de los datos del emisor (nombre, NIF, domicilio, logo, IBAN) y del cliente, porque el perfil es editable y la factura no. (5) Decide el formato del número (`{código}-{NNN}`, tres cifras como mínimo) y qué serie se propone por defecto cuando cambia el año (hoy la del año nuevo solo es predeterminada si no hay otra: D-07). (6) Lee el logo con una URL firmada o el objeto, sin pasarlo por la API (4,5 MB). (7) `in_use` sale de `next_number > first_number`: si cambia ese contrato, hay que cambiar el trigger.
+- **SPEC-W-007 (facturas).** (1) Llama a `app.ensure_year_series()` antes de emitir. (2) **Aplica la regla de US-007**: usa `cuadre.profile.rules.missing_for_invoicing` en la API y comprueba lo mismo en la función SQL de emisión, y devuelve los campos que faltan por nombre. (3) Numera con una función `SECURITY DEFINER` que bloquea la fila de la serie (`SELECT … FOR UPDATE`) y avanza `next_number` de uno en uno, sin huecos; no puede bajarlo (el trigger lo impide) y no emite en una serie archivada. (4) Congela en la factura una **copia** de los datos del emisor (nombre, NIF, domicilio, logo, IBAN) y del cliente, porque el perfil es editable y la factura no. (5) Decide el formato del número (`{código}-{NNN}`, tres cifras como mínimo) y qué serie se propone por defecto cuando cambia el año (hoy la del año nuevo solo es predeterminada si no hay otra: D-07). (6) Lee el logo con una URL firmada o el objeto, sin pasarlo por la API (4,5 MB). (7) `in_use` sale de `next_number > first_number`: si cambia ese contrato, hay que cambiar el trigger. (8) Toma el mismo cerrojo asesor por persona que las funciones de series (`invoice_series:<dueño>`) antes de elegir serie o numerar, para no competir con ellas.
 - **SPEC-W-008 y W-009 (303 y 130).** Usan `irpf_rate` (7 o 15) y `home_pct`. `vat_regime` es siempre `general` (D-06): otros regímenes necesitan su propia spec. `home_pct` solo se guarda aquí; la deducción de la vivienda afecta es de W-009.
 - **SPEC-W-009 / W-012.** La cuota de autónomos mensual (`monthlyFee` del prototipo) no es un campo del perfil (D-12): si se quiere automática, es un gasto recurrente.
 - **SPEC-W-010 (gestor).** Las políticas de lectura de `business_profiles`, `invoice_series` y el bucket `logos` para el gestor ya existen; faltan la pantalla y el registro de cada lectura. El IBAN lo ve el gestor con vínculo activo (D-02).
 - **SPEC-W-017 (cierre de cuenta).** El perfil, las series y el logo son datos de la persona: la exportación y el borrado de la cuenta deben incluirlos y borrar el objeto de Storage. `invoice_series` se borra en cascada con la cuenta; las facturas (W-007) no, por CONF-004.
 - **SPEC-W-003.** Esta spec cierra la carencia de B.0 («sin el NIF en `business_profiles.tax_id`, ninguna simplificada es deducible»). Las pruebas y los E2E de W-003 que dependen del NIF de la cuenta deben dejar el perfil como lo encontraron (T5-11).
 - **ADR pendiente.** Cifrado en reposo del IBAN (D-02): decide si se cifra la columna, con qué clave y quién la lee.
+
+### B.1 Spike · hito 0 · 2026-11-07
+
+Entorno: Windows 11, Python 3.12.10, `python-stdnum` 2.2 (ya fijado; no se ha instalado nada), FastAPI 0.162.0, Pydantic 2.14.2, psycopg 3.3.7, `openapi-typescript` 7.13.0 (el del repositorio), Supabase CLI 3.0.0, PostgreSQL 17.11, `storage-api v1.88.0`, GoTrue v2.197.0 y Kong 2.8.1, con tokens ES256 reales de GoTrue para Alicia, Beto, Gina (gestora), Gus (gestor sin vínculo) y Adán (administrador). Cuatro guiones desechables, no commiteados, que no escriben ningún token ni URL firmada. **El bloque A se ejecutó tres veces con semilla fija y dio la misma salida.** El bloque D se rehízo una vez para corregir dos pruebas mal planteadas por mí (el «código repetido» usaba un código que la propia secuencia había cambiado, y el «hueco» del trigger subía `first_number` en vez de bajarlo); se cuenta la última ejecución. Lo de Storage y de la base se hizo con bucket, esquema, políticas y vínculos **provisionales**. **La limpieza del bloque B falló la primera vez** (Storage no deja borrar un bucket con sus triggers activos, `storage.protect_delete`) y se retiraron a mano el bucket, ya vacío, y el esquema; una foto del estado de la base (buckets, objetos, políticas, esquemas, vínculos, `activity_log`, columnas con privilegios, restricciones y funciones) es **idéntica** antes y después.
+
+**A · IBAN con `python-stdnum`**
+
+| Pregunta | Resultado |
+|---|---|
+| **¿Qué países cubre?** | El registro trae **89 países** (no solo la UE: también `GB`, `CH`, `NO`, `AD`, `LI`, `MC`, `SM`, `VA`, `UA`, `TR`, `SA`, `AE`, `BR`, `RU`…); se obtuvo un IBAN sintético válido para **los 89**. Un código fuera del registro con el módulo 97 bien hecho a propósito (`US`, `MX`, `CN`, `JP`, `IN`, `AR`, `CA`, `AU`, `ZA`, `XX`) da `InvalidComponent`. D-09 («cualquier país con IBAN válido») significa, pues, 89 países; acotarlo a SEPA sería una constante |
+| **¿Qué comprueba?** | Módulo 97, estructura del cuerpo por país y, **solo en `BE`, `ES`, `ME` y `NO`, el módulo nacional**. En `ES` comprueba además los dos dígitos de control de la cuenta (CCC): con el módulo 97 bien y la CCC mal, **rechazó 18 de 18**, y con `check_country=False` los acepta todos. El hito 1 debe llamar a `validate` con el valor por omisión |
+| **¿Sale a la red?** | No. **106.800 comprobaciones** con la guarda de red activa, 0 intentos de conexión y 0 de DNS. Importar `stdnum.iban` y `stdnum.es.iban` cuesta unos 56–58 ms (Windows; sin medir en Vercel) |
+| **Separadores y blancos** | `compact` quita espacios, guiones y puntos, pasa a mayúsculas, **recorta los blancos de los extremos** (tabulador, salto de línea, CRLF, NEL, separador de línea) y aplica NFKC (el espacio de no separación `U+00A0` y el estrecho `U+202F` cuentan como espacio; los dígitos de ancho completo valen como los normales y la ligadura «ﬁ» pasa a `FI`). **Rechaza** el espacio de ancho cero y los dígitos arábigo-índicos |
+| **La rendija del `$` (como con el NIF)** | **No aparece.** Un carácter insertado en cada una de las 25 posiciones, con 11 caracteres distintos: aceptó el espacio y el `U+00A0` en las 25; el tabulador, los saltos de línea, el tabulador vertical, el avance de página, `NEL` y el separador de línea, solo en los dos extremos (los recorta); el espacio de ancho cero y la marca `U+FEFF`, en ninguna. Ningún resultado aceptado llevó caracteres raros. Entradas de 35, 64, 1.000 y 10.000 caracteres: rechazadas en menos de 3 ms |
+| **Mutaciones** | Último dígito cambiado: **0 aceptadas de 522**; dos caracteres contiguos permutados: **0 de 1.761**; uno de menos: 0 de 89; uno de más: 0 de 89. (Es lo observado con esta semilla: el módulo 97 no detecta toda permutación posible, y no se afirma lo contrario) |
+| **Normalizador candidato** | Recortar, pasar `U+00A0` y `U+202F` a espacio, prefiltro `[0-9A-Za-z .-]{1,64}` con `fullmatch`, `iban.validate` dentro de un `try` ancho y comprobar que lo devuelto es `[A-Z0-9]{15,34}`. Probado con 12 casos (minúsculas, guiones, puntos, `U+00A0`, módulo malo, longitud mala, vacío, `None`, dígitos arábigos, salto de línea interior) y **idempotente** con las formas agrupada y compacta de los 89 IBAN |
+
+**Valores sintéticos** (calculados con la propia librería a partir de cuerpos aleatorios con semilla fija; los de otros países pueden coincidir por azar con cuentas reales y no identifican a nadie, RES-07):
+- **Seed (obviamente falsos):** `ES36 0000 0000 0500 0000 0001` (Alicia) y `ES63 0000 0000 0100 0000 0002` (Beto), con entidad `0000` y oficina `0000` (no existen) y los dos dígitos de control de la CCC calculados con `stdnum.es.ccc`; pasan el módulo 97 y el nacional. NIF del seed: `12345678Z` (Alicia, el destinatario de los ejemplos de `contracts/`) y `01230956L` (Beto); ambos dan `TaxId(scope='national')`.
+- **Tablas de pruebas:** `DE40 7958 1861 1790 1431 46`, `FR09 1653 9395 17WZ 04XB C2D5 W37`, `GB91 VWXV 3713 2777 3274 83`, `PT60 5665 8725 2488 3928 8031 9`, `IT24 A692 0881 442A AF59 M8IS PKG`, `NL91 BHGU 0170 3169 14`, `BE23 6851 3410 4891`, `IE17 WVCJ 6447 0320 1665 29`, `CH52 7925 9T3D S582 JMUI 3`; y el ejemplo de la documentación `ES91 2100 0418 4502 0005 1332`. Para los casos negativos: `DE40 …1431 40` (control mal) y `ES45 7089 6447 3536 7804 870` (un dígito de menos).
+
+**B · Logos en Storage (Supabase local)**
+
+| Pregunta | Resultado |
+|---|---|
+| **Política de INSERT por carpeta** | Se evalúa **al firmar**. Alicia y Beto, a su carpeta con `{uuid}.png`, `.jpg` o `.webp`: 200. Denegados con 403 «new row violates row-level security policy»: Alicia a la carpeta de Beto, el nombre fijo `logo.png`, `.svg`, `.gif`, una subcarpeta y un uuid en mayúsculas |
+| **¿Se puede exigir el rol `usuario` dentro de la política?** | **Sí.** Con `private.app_role() = 'usuario'` en la función de la política, **Gina (gestora) y Adán (administrador) no pueden ni firmar una subida a su propia carpeta** (403). Sin esa condición podrían, aunque la API no se lo ofrezca (T5-04) |
+| **Límites del bucket** | 1 MiB exacto: 200. 1 MiB + 1 byte: **413** «The object exceeded the maximum allowed size» (`Payload too large`). `image/svg+xml`, `image/gif` y `text/plain`: **415** `invalid_mime_type`. `image/png; charset=binary`: 200. Los errores llegan, como en SPEC-W-002, con HTTP 400 y el estado real en `statusCode` del cuerpo |
+| **¿Mira el contenido?** | **No.** Un texto de 21 bytes subido como `image/png` entra (`object/info`: 21 bytes, `image/png`); un PNG subido como `image/jpeg`, también. La firma del archivo la comprueba la API |
+| **Firma del archivo sin descargarlo** | `Range: bytes=0-11` devuelve 206 con `Content-Range: bytes 0-11/70` y **exactamente 12 bytes**: de un PNG `89 50 4E 47 0D 0A 1A 0A 00 00 00 0D`, de un JPEG `FF D8 FF E0 00 10 4A 46 49 46 00 01` y de un WebP `RIFF` + 4 bytes + `WEBP`. `object/info` da `size` y `content_type` tal como se declararon |
+| **Lectura firmada** | El dueño firma 60 s y un `GET` de la URL **sin ninguna cabecera** devuelve la imagen con su `Content-Type` y `Access-Control-Allow-Origin: *`: es lo único que necesita un `<img>`. Con `expiresIn` de 2 s: 200 al instante y, a los 3,2 s, 400 `InvalidJWT` («"exp" claim timestamp check failed») |
+| **Quién puede leer** | Alicia: sí. Beto, Gus (gestor sin vínculo) y Adán: **404**, igual que una ruta inexistente (no se distingue). Gina con vínculo `pending`, `revoked` o `declined`: 404; con vínculo **`active`**: 200, y puede leer con `Range` (206). Gina con vínculo activo **no puede borrar** (403 «Access denied») **ni firmar una subida** a la carpeta de Alicia (403) |
+| **Robustez ante carpetas que no son uuid** | Una política en línea con `((storage.foldername(name))[1])::uuid` **falla con un error**, no con una denegación: 400 `InvalidParameter` «invalid input syntax for type uuid» al consultar `not-a-uuid/x.png`. Con funciones que reconocen la forma de la ruta con una expresión regular **dentro de un `CASE`** (el patrón de `private.document_*` de SPEC-W-002), las cuatro rutas raras —`not-a-uuid/x.png`, `{uuid}/not-a-uuid.png`, `{uuid}/{uuid}.png/extra` y `{uuid}//{uuid}.png`— dan **404**, como una inexistente |
+| **Reemplazar y borrar con el JWT del dueño** | Un segundo logo con otro uuid se sube sin problema. Alicia borra el primero: 200 y la fila desaparece. Beto intenta borrarlo: **403** «Access denied» y el archivo sigue. Borrar otra vez, o una ruta que nunca existió: **404** (la API lo trata como éxito). Una subida que nadie completa deja el objeto: **los huérfanos existen** (ya excluido en §4) |
+| **`HttpStorage` hoy** | Fija el bucket en la constante `BUCKET = "documents"` (usada solo en `storage.py`, en los cinco métodos y en los prefijos de `_relative_url`) y la expresión de ruta en `PATH` (usada en `_path` y en `test_storage_client.py`). Se construye una sola vez en `main.py:52`. Cambio mínimo para el hito 3: `HttpStorage(supabase_url, *, bucket="documents", path=PATH)`; con los valores por omisión los tests de documentos no cambian |
+
+**C · Forma de los decimales en la API**
+
+| Pregunta | Resultado |
+|---|---|
+| **`Decimal` de Pydantic** | Acepta `7` y `7.5` como números JSON, `"1e1"` (devuelve `1E+1`) y el dígito arábigo `"٧"` (lo lee como 7); **no cuantiza** (`Decimal("7")` sale como `"7"`, `"7.0"` como `"7.0"`). En OpenAPI la entrada es `number \| string`, y `openapi-typescript` genera `irpf_rate?: number \| string \| null`: el cliente podría mandar un número (RES-02) |
+| **Cadena con patrón** | `Annotated[str, StringConstraints(pattern=…)]` rechaza `7` y `7.5` como números (`string_type`) y `"1e1"` y `"7.001"` (`string_pattern_mismatch`); OpenAPI da `string` con `pattern` y `openapi-typescript` genera `string \| null`. Con el patrón de `contracts/` (`\d`) **entra el `"٧"`**; con `[0-9]`, no. Deja pasar `"007.00"` y `"7"`: se normalizan en el dominio |
+| **Salida** | `psycopg` devuelve `numeric(5,2)` como `Decimal('7.00')`; `str()` da `'7.00'`. Para lo que venga de otro sitio, `quantize(Decimal("0.01"))` da siempre dos decimales. `Decimal('7.00') in (7, 15)` es verdadero, así que el CHECK `irpf_rate IN (7, 15)` funciona con `numeric` |
+
+**D · El DDL de §5.2 en seco**
+
+| Pregunta | Resultado |
+|---|---|
+| **CHECK de `business_profiles`** | Se añadieron los cuatro (retención, régimen, longitudes y epígrafe, ruta del logo) sobre las **6.236 filas** que hay (retenciones `7.00`, `15.00` y nulas; régimen `general`): ninguna los incumple. Se rechazan `irpf_rate = 10`, `vat_regime = 'recargo'` y `iae_epigraph = '<script>'`; se aceptan `'844.1'`, `tax_id = 'TEST-…'`, `legal_name = 'hacked'` y la retención nula |
+| **Los tests existentes** | Solo `test_gestor_access:89` pone `legal_name = 'x'` (valor que el CHECK rechazaría), y lo hace una gestora. Con el rol `authenticated` y las claims de Gina la actualización afecta a **0 filas** (la RLS la filtra antes) y el CHECK no se evalúa; con las de Alicia sobre lo suyo, `'x'` da 23514 y un nombre válido, 1 fila. Los demás tests solo tocan `tax_id` |
+| **`REVOKE UPDATE (logo_path)`** | De 11 columnas editables por `authenticated` pasa a 10, y **solo cambia `logo_path`**. Alicia escribiéndolo directamente: 42501; escribiendo `iban`: 1 fila |
+| **CHECK de `logo_path` y código de serie** | El de `logo_path` acepta `{owner}/{uuid}.png`, `.jpg`, `.webp` y nulo, y rechaza la carpeta de otro, `.svg`, `.gif`, un nombre que no es uuid, una subcarpeta, un uuid en mayúsculas y un salto de línea final (el `$` de PostgreSQL no lo admite). El patrón del código de serie acertó los 19 casos (`2026`, `A`, `ABCDEFGH`, `A-B-C-D` sí; vacío, `-A`, `A-`, 9 caracteres, minúsculas, espacio, `_`, `Ñ`, salto de línea, `٣` y `--`, no) |
+| **`invoice_series`** | La tabla de §5.2 compila: código repetido del mismo dueño, 23505 (`invoice_series_owner_id_code_key`); el mismo código en otro dueño, bien; dos predeterminadas, 23505 (`invoice_series_one_default`); **archivar la predeterminada** lo frena el CHECK (23514), así que la función debe comprobarlo antes y devolver `series_is_default` |
+| **El trigger de §5.2 tenía un hueco** | Con la regla escrita en la v1 de esta spec, **bajar `first_number` sin tocar `next_number`** en una serie sin uso (100, 100 → 50, 100) era válido y dejaba la serie con `next_number > first_number`, es decir, **«en uso» sin haberse emitido nada** (cualquier edición posterior daba `series_in_use`). Con la regla añadida «si cambia `first_number`, `next_number` debe quedar igual al nuevo» (`series_first_number_mismatch`) queda cerrado, y siguen bien: sin uso (`first` y `next` a la vez), en uso (código y `first_number` bloqueados, `next_number` solo sube, la descripción se edita) y el dueño inmutable |
+| **Carreras** | Dos `ensure_year_series` a la vez: la segunda espera 0,7 s, `DO NOTHING` y queda **una fila**. Pero **`ensure_year_series` y `create_invoice_series('FAC', predeterminada)` a la vez, sin cerrojo, hacen fallar a la segunda con 23505 en el índice de la predeterminada**. Con `pg_advisory_xact_lock(hashtextextended('invoice_series:' \|\| owner, 0))` en todas las funciones (el estilo de `documents.processing`), la segunda espera y se crea como no predeterminada: **dos filas, una predeterminada** |
+
+**Lo que no se ha comprobado:**
+- **El navegador real subiendo un logo** (CORS desde `localhost:3000`, tipos que declara de verdad un `<input type="file">`): se probó el `PUT` y el `GET` por HTTP, sin cabeceras de autorización, como en SPEC-W-002 B.1.
+- **WebP, JPEG y PNG decodificables**: Storage no los decodifica y los archivos de prueba son de unos bytes; solo se miraron las firmas.
+- **El arranque en frío en Vercel** del módulo `stdnum.iban`: los 56–58 ms son de Windows.
+- **Otras versiones de la librería**: subir el pin de `python-stdnum` exige repetir el bloque A (el hito 1 lo deja como prueba).
+- **Si conviene aceptar 89 países** en el IBAN o limitarlos a la zona SEPA: es una decisión de producto, hoy D-09.
+- **El E2E de las pruebas existentes con los CHECK nuevos**: se comprobaron las sentencias que usan, no la suite entera; la corre el hito 2.
+
+**Consecuencias para los hitos siguientes** (ya reflejadas en §5.1, §5.2, §5.3, §5.4, T5-01, T5-07, AC-12, AC-17 y el seed):
+- **Hito 1.** Normalizador de IBAN como arriba, con `check_country=True`; tabla de pruebas con los valores de esta sección y las entradas raras; las cadenas de los decimales con `^[0-9]{1,3}(\.[0-9]{1,2})?$`.
+- **Hito 2.** Políticas de `logos` por funciones `private.logo_*` que **nunca lanzan una excepción** (expresión regular dentro de un `CASE`) y que exigen el rol `usuario` para subir y borrar; trigger con la regla `series_first_number_mismatch`; cerrojo asesor por persona en todas las funciones de series; restricciones con nombre propio; la función de archivar comprueba la predeterminada antes que el CHECK; seed con los NIF e IBAN de arriba.
+- **Hito 3.** `HttpStorage` con `bucket` y `path` por instancia. Los errores 413 y 415 de Storage llegan al navegador al hacer el `PUT`: `upload_logo` valida tipo y tamaño antes de firmar y la pantalla lo comprueba antes de subir.

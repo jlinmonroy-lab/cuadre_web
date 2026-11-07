@@ -57,6 +57,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/documents/{document_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Registrar el gasto de un documento si todas las comprobaciones pasan */
+        post: operations["confirm_document"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents/{document_id}/preview": {
         parameters: {
             query?: never;
@@ -108,6 +125,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/expenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listar los gastos registrados (sin los anulados), del más reciente al más antiguo */
+        get: operations["list_expenses"];
+        put?: never;
+        /** Anotar un gasto sin factura */
+        post: operations["create_expense"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expenses/{expense_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Obtener un gasto (también uno anulado) */
+        get: operations["get_expense"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expenses/{expense_id}/category": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Cambiar la categoría de un gasto no anulado */
+        put: operations["set_expense_category"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expenses/{expense_id}/void": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Anular un gasto: deja de contar y su documento vuelve a revisión */
+        post: operations["void_expense"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -146,6 +232,50 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * CheckCode
+         * @description Las comprobaciones, en el orden en que se muestran. Son una lista cerrada (§5.1).
+         * @enum {string}
+         */
+        CheckCode: "doc_type" | "required_data" | "doubts_reviewed" | "supplier_tax_id" | "issue_date" | "currency" | "vat_rates" | "vat_amounts" | "withholding" | "total" | "not_duplicate";
+        /** CheckItem */
+        CheckItem: {
+            code: components["schemas"]["CheckCode"];
+            /** Detail */
+            detail: string | null;
+            /** Label */
+            label: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "failed";
+        };
+        /**
+         * ConfirmRequest
+         * @description `acknowledge_suspicion`: la persona confirma que comparó los datos con el original (solo se exige si hay sospecha, NFR-07).
+         */
+        ConfirmRequest: {
+            /**
+             * Acknowledge Suspicion
+             * @default false
+             */
+            acknowledge_suspicion: boolean;
+            category: components["schemas"]["ExpenseCategory"];
+        };
+        /** CreateExpense */
+        CreateExpense: {
+            /** Amount Cents */
+            amount_cents: number;
+            category: components["schemas"]["ExpenseCategory"];
+            /** Concept */
+            concept: string;
+            /**
+             * Expense Date
+             * Format: date
+             */
+            expense_date: string;
+        };
         /** Document */
         Document: {
             /**
@@ -154,6 +284,8 @@ export interface components {
              */
             created_at: string;
             error: components["schemas"]["DocumentError"] | null;
+            /** Expense Id */
+            expense_id: string | null;
             /** Extracted At */
             extracted_at: string | null;
             extraction: components["schemas"]["Extraction"] | null;
@@ -188,6 +320,7 @@ export interface components {
             updated_at: string;
             /** Uploaded At */
             uploaded_at: string | null;
+            validation: components["schemas"]["Validation"] | null;
         };
         /** DocumentError */
         DocumentError: {
@@ -265,6 +398,113 @@ export interface components {
              */
             reason: "illegible" | "ambiguous" | "missing" | "inconsistent";
         };
+        /** Expense */
+        Expense: {
+            /** Base Cents */
+            base_cents: number;
+            category: components["schemas"]["ExpenseCategory"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Deductible Vat */
+            deductible_vat: boolean;
+            /** Doc Type */
+            doc_type: ("full_invoice" | "simplified_invoice" | "ticket" | "receipt") | null;
+            /** Document Id */
+            document_id: string | null;
+            /**
+             * Expense Date
+             * Format: date
+             */
+            expense_date: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invoice Number */
+            invoice_number: string | null;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "document" | "manual";
+            /** Supplier Name */
+            supplier_name: string;
+            /** Supplier Scope */
+            supplier_scope: ("national" | "eu") | null;
+            /** Supplier Tax Id */
+            supplier_tax_id: string | null;
+            /** Suspicion Acknowledged */
+            suspicion_acknowledged: boolean;
+            /** Tax Breakdown */
+            tax_breakdown: components["schemas"]["ExpenseTaxLine"][];
+            /** Total Cents */
+            total_cents: number;
+            /** Vat Cents */
+            vat_cents: number;
+            /** Voided At */
+            voided_at: string | null;
+            /** Withholding Cents */
+            withholding_cents: number;
+        };
+        /**
+         * ExpenseCategory
+         * @enum {string}
+         */
+        ExpenseCategory: "software" | "workspace" | "supplies" | "utilities" | "advisory" | "self_employed_fee" | "training" | "other";
+        /** ExpensePage */
+        ExpensePage: {
+            /** Items */
+            items: components["schemas"]["ExpenseSummary"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /**
+         * ExpenseSummary
+         * @description Una fila de «Gastos registrados».
+         */
+        ExpenseSummary: {
+            category: components["schemas"]["ExpenseCategory"];
+            /** Deductible Vat */
+            deductible_vat: boolean;
+            /** Document Id */
+            document_id: string | null;
+            /**
+             * Expense Date
+             * Format: date
+             */
+            expense_date: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "document" | "manual";
+            /** Supplier Name */
+            supplier_name: string;
+            /** Supplier Scope */
+            supplier_scope: ("national" | "eu") | null;
+            /** Total Cents */
+            total_cents: number;
+            /** Vat Cents */
+            vat_cents: number;
+        };
+        /** ExpenseTaxLine */
+        ExpenseTaxLine: {
+            /** Base Cents */
+            base_cents: number;
+            /** Vat Cents */
+            vat_cents: number;
+            /** Vat Rate */
+            vat_rate: string;
+        };
         /**
          * Extraction
          * @description La lectura del agente ya normalizada. Es de solo lectura: la persona corrige en `Review`.
@@ -334,6 +574,16 @@ export interface components {
              */
             status: "active";
         };
+        /** Preview */
+        Preview: {
+            /** Deductible Note */
+            deductible_note: string | null;
+            /** Deductible Vat */
+            deductible_vat: boolean;
+            suggested_category: components["schemas"]["ExpenseCategory"];
+            /** Supplier Scope */
+            supplier_scope: ("national" | "eu") | null;
+        };
         /** PreviewResponse */
         PreviewResponse: {
             /** Expires In */
@@ -402,6 +652,10 @@ export interface components {
             /** Rate */
             rate?: string | null;
         };
+        /** SetCategory */
+        SetCategory: {
+            category: components["schemas"]["ExpenseCategory"];
+        };
         /** TaxLine */
         TaxLine: {
             /** Base Cents */
@@ -458,6 +712,18 @@ export interface components {
             status: "uploading";
             upload: components["schemas"]["UploadInstructions"];
         };
+        /** Validation */
+        Validation: {
+            /** Can Register */
+            can_register: boolean;
+            /** Checks */
+            checks: components["schemas"]["CheckItem"][];
+            preview: components["schemas"]["Preview"];
+            /** Requires Acknowledgement */
+            requires_acknowledgement: boolean;
+            /** Warnings */
+            warnings: components["schemas"]["WarningItem"][];
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -470,6 +736,30 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** VoidResult */
+        VoidResult: {
+            /** Document Id */
+            document_id: string | null;
+            /** Document Status */
+            document_status: ("uploading" | "processing" | "review" | "extraction_failed" | "discarded" | "registered") | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /**
+         * WarningCode
+         * @description Avisos que nunca bloquean.
+         * @enum {string}
+         */
+        WarningCode: "possible_duplicate" | "recipient_mismatch" | "eu_supplier";
+        /** WarningItem */
+        WarningItem: {
+            code: components["schemas"]["WarningCode"];
+            /** Message */
+            message: string;
         };
         /** Withholding */
         Withholding: {
@@ -583,7 +873,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Datos no válidos o archivo que no es del tipo indicado */
+            /** @description Datos no válidos, archivo que no es del tipo indicado o comprobaciones sin pasar */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -715,7 +1005,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description El documento no está en un estado que admita esa acción */
+            /** @description El documento no está en un estado que admita esa acción, o ya hay un gasto con esa factura */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -782,7 +1072,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description El documento no está en un estado que admita esa acción */
+            /** @description El documento no está en un estado que admita esa acción, o ya hay un gasto con esa factura */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -791,7 +1081,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Datos no válidos o archivo que no es del tipo indicado */
+            /** @description Datos no válidos, archivo que no es del tipo indicado o comprobaciones sin pasar */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -811,6 +1101,77 @@ export interface operations {
             };
             /** @description Almacenamiento no disponible */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    confirm_document: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Expense"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar documentos (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El documento no existe (también si es de otra persona) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El documento no está en un estado que admita esa acción, o ya hay un gasto con esa factura */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Datos no válidos, archivo que no es del tipo indicado o comprobaciones sin pasar */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -867,7 +1228,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description El documento no está en un estado que admita esa acción */
+            /** @description El documento no está en un estado que admita esa acción, o ya hay un gasto con esa factura */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -943,7 +1304,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description El documento no está en un estado que admita esa acción */
+            /** @description El documento no está en un estado que admita esa acción, o ya hay un gasto con esa factura */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1032,7 +1393,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description El documento no está en un estado que admita esa acción */
+            /** @description El documento no está en un estado que admita esa acción, o ya hay un gasto con esa factura */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1041,13 +1402,313 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Datos no válidos o archivo que no es del tipo indicado */
+            /** @description Datos no válidos, archivo que no es del tipo indicado o comprobaciones sin pasar */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_expenses: {
+        parameters: {
+            query?: {
+                category?: components["schemas"]["ExpenseCategory"] | null;
+                cursor?: string | null;
+                limit?: number;
+                month?: number | null;
+                year?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpensePage"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar gastos (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Datos no válidos, comprobaciones sin pasar o fecha fuera de rango */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    create_expense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateExpense"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Expense"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar gastos (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Datos no válidos, comprobaciones sin pasar o fecha fuera de rango */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_expense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                expense_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Expense"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar gastos (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El gasto no existe (también si es de otra persona) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_expense_category: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                expense_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetCategory"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Expense"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar gastos (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El gasto no existe (también si es de otra persona) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El gasto está anulado o el documento no admite esa acción */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Datos no válidos, comprobaciones sin pasar o fecha fuera de rango */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    void_expense: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                expense_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoidResult"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar gastos (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El gasto no existe (también si es de otra persona) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El gasto está anulado o el documento no admite esa acción */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -13,6 +13,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationInfo, field_validator
 
 from cuadre.agents.text import clean_text
+from cuadre.expenses.validation_models import Validation
 
 DocumentStatus = Literal["uploading", "processing", "review", "extraction_failed", "discarded", "registered"]
 DocType = Literal["full_invoice", "simplified_invoice", "ticket", "receipt", "other", "not_an_invoice"]
@@ -180,6 +181,10 @@ class Document(BaseModel):
     review: Review | None
     injection_suspected: bool
     error: DocumentError | None
+    # SPEC-W-003: las comprobaciones de lo guardado (nulo si no hay nada que comprobar o el documento no está en un estado registrable)
+    # y el gasto vivo del documento (solo si está `registered`).
+    validation: Validation | None
+    expense_id: UUID | None
 
 
 class DocumentState(BaseModel):

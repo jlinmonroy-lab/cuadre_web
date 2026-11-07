@@ -25,7 +25,7 @@ READ_URL_SECONDS = 120  # URL firmada que recibe el agente (NFR-11: corta)
 PREVIEW_URL_SECONDS = 60  # URL firmada de la vista previa
 SIGNATURE_BYTES = 32  # lo que se lee del archivo para comprobar su firma; nunca se descarga entero
 
-LIST_LIMIT = 200  # la paginación llegará con SPEC-W-003 (cuando haya documentos `registered`)
+LIST_LIMIT = 200  # los documentos en el flujo; los `registered` ya son gastos y tienen su propia lista paginada
 
 RETRY_AFTER_TOO_MANY_PROCESSING = 10  # segundos
 RETRY_AFTER_STORAGE_UNAVAILABLE = 5

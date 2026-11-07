@@ -52,10 +52,10 @@ def get(conn: Connection[DictRow], document_id: UUID) -> DictRow | None:
 
 
 def list_visible(conn: Connection[DictRow]) -> list[DictRow]:
-    """Los documentos de quien llama que no están `uploading` ni `discarded`, del más reciente al más antiguo."""
+    """Los documentos de quien llama que siguen en el flujo (ni `uploading`, ni `discarded`, ni `registered`: esos ya son gastos)."""
     return conn.execute(
         f"SELECT {COLUMNS} FROM public.documents "
-        "WHERE owner_id = (SELECT auth.uid()) AND status NOT IN ('uploading', 'discarded') "
+        "WHERE owner_id = (SELECT auth.uid()) AND status NOT IN ('uploading', 'discarded', 'registered') "
         "ORDER BY created_at DESC, id LIMIT %(limit)s",
         {"timeout": PROCESSING_TIMEOUT_SECONDS, "limit": LIST_LIMIT},
     ).fetchall()

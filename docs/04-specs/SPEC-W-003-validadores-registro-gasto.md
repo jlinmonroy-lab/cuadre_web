@@ -217,7 +217,7 @@ Todas exigen `Authorization: Bearer` y rol `usuario` (`forbidden` 403 para gesto
 |---|---|---|
 | `confirm_document` | `POST /api/documents/{id}/confirm` | Cuerpo `{ "category": ExpenseCategory, "acknowledge_suspicion": bool }` (`false` por defecto). En **una transacción**: bloquea el documento (`app.lock_document`), recalcula la validación sobre lo guardado y, si todo pasa, llama a `app.register_expense_from_document`. **201** `Expense`. Estados `review` y `extraction_failed` |
 | `create_expense` | `POST /api/expenses` | Cuerpo `{ "expense_date": date, "concept": string, "category": ExpenseCategory, "amount_cents": int }`. **201** `Expense`. Gasto sin factura |
-| `list_expenses` | `GET /api/expenses` | Parámetros opcionales `limit` (50 por defecto, máximo 100), `cursor`, `year`, `month` (exige `year`) y `category`. **200** `{ "items": [ExpenseSummary], "next_cursor": string \| null }`, sin anulados, de la fecha más reciente a la más antigua (`expense_date`, `created_at`, `id`). `cursor` es opaco; uno manipulado da `invalid_cursor` |
+| `list_expenses` | `GET /api/expenses` | Parámetros opcionales `limit` (50 por defecto, máximo 100), `cursor`, `year`, `month` (exige `year`) y `category`. **200** `{ "items": [ExpenseSummary], "next_cursor": string \| null }`, sin anulados, de la fecha más reciente a la más antigua (`expense_date`, `created_at`, `id`). `cursor` es opaco (base64url de la posición `{d, c, i}`, sin firma, leído con rigor); uno que no es nuestro da `invalid_cursor`, y `month` sin `year` es un `validation_error` con `query.month` |
 | `get_expense` | `GET /api/expenses/{id}` | **200** `Expense`, también un anulado (con `voided_at`) |
 | `set_expense_category` | `PUT /api/expenses/{id}/category` | Cuerpo `{ "category": ExpenseCategory }`. **200** `Expense` |
 | `void_expense` | `POST /api/expenses/{id}/void` | Sin cuerpo. **200** `{ "id", "document_id": uuid \| null, "document_status": DocumentStatus \| null }` |
@@ -239,6 +239,8 @@ Validation {
 
 `Document` gana `validation` y `expense_id` (el gasto no anulado del documento, o nulo). **Cambios en lo ya hecho:** `list_documents` deja de listar los `registered` (pasan a la lista de gastos); `get_document` y `get_document_preview` ya funcionan sobre un `registered`, y esta spec lo fija con una prueba.
 `validate_extraction`, que SPEC-W-002 §5.1 reservaba, **no es una ruta**: la validación viaja en el documento para no tener dos fuentes de la misma regla (D-02).
+
+**Orden de `confirm_document`** (decidido en el hito 3, Anexo B.4): estado del documento (`document_wrong_state` 409; uno descartado es `document_not_found` 404) → comprobaciones (`validation_failed` 422, con `failed_checks`) → reconocimiento de la sospecha (`suspicion_not_acknowledged` 422) → registro, todo en una transacción con el documento bloqueado. Sin nada guardado se comprueba una lectura vacía: nunca se registra en blanco.
 
 **Códigos de error nuevos** (`code`, HTTP): `validation_failed` 422 (con el miembro extra `failed_checks: [code]`; no se registra nada) · `suspicion_not_acknowledged` 422 · `duplicate_expense` 409 (lo detecta el índice único, también si dos confirmaciones llegan a la vez) · `invalid_expense` 422 (un gasto sin factura con fecha futura o fuera de rango; con `field`) ·
 `expense_not_found` 404 (también si es de otra persona: no se distingue) · `expense_wrong_state` 409 (ya anulado) · `invalid_cursor` 422. Los de documentos de SPEC-W-002 siguen igual (`document_wrong_state` 409 si ya está registrado o no está en un estado registrable). Los textos van en español y no repiten datos del documento.
@@ -284,7 +286,7 @@ La interfaz no valida nada fiscal: **muestra** el resultado del servidor. Si hay
 
 ```gherkin
 AC-01  Suma que no cuadra (US-005, fixture invoice_sum_mismatch)
-  Given una factura leída con base 120,00 €, cuota 25,20 € y total 147,00 €
+  Given una factura leída con base 120,00 €, cuota 25,20 € y total 147,00 € (el ejemplo trae además una duda de la lectura: el formulario ya está guardado, que confirma las dudas, AC-10)
   When la app valida la lectura
   Then la comprobación "Base más IVA igual al total" aparece como fallida con su motivo
     And "Registrar gasto" está desactivado
@@ -431,7 +433,7 @@ npm --prefix frontend exec -- playwright test e2e/gastos-registro.spec.ts      #
 | AC-06, AC-07 | `backend/tests/validators/test_vat.py` (fronteras de ±1 y ±2 céntimos, importes con trampas de coma flotante) |
 | AC-08 | `backend/tests/validators/test_duplicates.py` (normalización); `backend/tests/rls/test_expenses_parity.py` (**paridad con la columna generada**, categorías y constantes) y `test_expenses.py` / `test_expenses_states.py` (el índice único, también con dos transacciones a la vez); `backend/tests/expenses/test_concurrency.py` (dos confirmaciones a la vez); `frontend/e2e/gastos-registro.spec.ts` · «la misma factura dos veces» |
 | AC-09 | `backend/tests/expenses/test_confirm.py`; `backend/tests/rls/test_expenses_states.py` (la función SQL sin reconocimiento); `frontend/e2e/gastos-registro.spec.ts` · «instrucciones ocultas» |
-| AC-10 | `backend/tests/validators/test_checks.py`, `test_deductibility.py`; `frontend/e2e/gastos-registro.spec.ts` · «dato dudoso» (reinterpreta el AC-02 de SPEC-W-002: el botón está desactivado mientras haya comprobaciones fallidas, ya no «hasta SPEC-W-003») |
+| AC-10 | `backend/tests/validators/test_checks.py`, `test_deductibility.py`; `backend/tests/expenses/test_document_validation.py` (la validación en el documento); `frontend/e2e/gastos-registro.spec.ts` · «dato dudoso» (reinterpreta el AC-02 de SPEC-W-002: el botón está desactivado mientras haya comprobaciones fallidas, ya no «hasta SPEC-W-003») |
 | AC-11 | `backend/tests/expenses/test_manual_expense.py`; `frontend/src/lib/expenses.test.ts`; `frontend/e2e/gastos-registro.spec.ts` · «gasto sin factura» |
 | AC-12 | `backend/tests/validators/test_categories.py`; `backend/tests/expenses/test_categories_api.py`; `frontend/src/lib/expenses.test.ts` (etiquetas completas) |
 | AC-13 | `backend/tests/expenses/test_void.py`; `backend/tests/rls/test_expenses_states.py`; `frontend/e2e/gastos-registro.spec.ts` · «anular y volver a registrar» |
@@ -440,7 +442,7 @@ npm --prefix frontend exec -- playwright test e2e/gastos-registro.spec.ts      #
 | AC-16 | `backend/tests/rls/test_expenses.py` (CHECK, índices, trigger) y `test_expenses_states.py` (`documents_guard`) |
 | AC-17 | `backend/tests/expenses/test_no_sensitive_logs.py` |
 | AC-18 | `frontend/e2e/gastos-registro.spec.ts` (seis proyectos) y `frontend/src/lib/expenses.test.ts` |
-| AC-19 | `backend/tests/rls/test_rls_guard.py` y las guardas de `backend/tests/rules/` (incluida `test_validators_boundary.py`) |
+| AC-19 | `backend/tests/rls/test_rls_guard.py` y las guardas de `backend/tests/rules/` (incluidas `test_validators_boundary.py` y `backend/tests/expenses/test_imports.py`) |
 
 ### 8.4 Definición de hecho
 
@@ -460,6 +462,7 @@ npm --prefix frontend exec -- playwright test e2e/gastos-registro.spec.ts      #
 2. **Base de datos**: enums, `expenses`, funciones, trigger, `documents_guard` ampliado, matriz y `test_expenses` / `test_expenses_states`, con mutaciones.
    **Hecho el 2026-11-07** (migraciones `20261107100000` a `…200`; decisiones, pruebas y mutaciones en el Anexo B.3).
 3. **API**: `cuadre.expenses`, `confirm_document` y las cinco rutas de gastos, `Document.validation` y `expense_id`, `openapi.json` y `schema.d.ts` regenerados, verbo `void`, con mutaciones.
+   **Hecho el 2026-11-07** (paquete `backend/src/cuadre/expenses/` y `api/routes_expenses.py`; decisiones, pruebas y mutaciones en el Anexo B.4).
 4. **Frontend**: lista de comprobaciones, categoría, registrar, gastos registrados, gasto sin factura, detalle y anulación; unitarias.
 5. **E2E y cierre**: `gastos-registro.spec.ts` (tres motores, dos anchos), actualizar `gastos-subida.spec.ts`, mutaciones, Anexo B, `tasks.json` y commit.
 
@@ -597,3 +600,42 @@ Tres migraciones: `20261107100000_expenses_table.sql` (enums, ayudantes, la tabl
 - El mapa `RegistrableValues` → `p_values` que usan las pruebas (`db_values` en `test_expenses_states.py`) es el contrato; `cuadre.expenses` debe producir exactamente eso, y conviene una prueba que compare ambos.
 - El flujo de `confirm_document` sigue siendo `app.lock_document` → perfil y gastos del mismo proveedor (por RLS) → `validate` → `register_expense_from_document`; los gastos del mismo proveedor que pide `ValidationContext.existing` son los no anulados.
 - `list_documents` deja de listar los `registered`, que ya existen de verdad.
+
+### B.4 Hito 3 · API de gastos · 2026-11-07
+
+**Qué hay.** El paquete `backend/src/cuadre/expenses/` (`validation_models`, `models`, `errors`, `cursor`, `repository`, `validation`, `presentation` y `service`; el `__init__` queda vacío a propósito), `api/routes_expenses.py` con cinco rutas y `confirm_document` junto a las de documentos. Cambian `Document` (`validation` y `expense_id`), `list_documents` (sin los `registered`), `DocumentService` (recibe el reloj) y `main.py` (`app.state.clock`). `backend/openapi.json` y `frontend/src/api/schema.d.ts` están regenerados; en el frontend no cambia nada más. No hay migraciones: el hito 2 dejó lo necesario.
+
+**Decisiones tomadas al implementar** (completan §5.3, que ya las recoge):
+
+| Tema | Decisión |
+|---|---|
+| Orden de `confirm_document` | Estado del documento (409) → comprobaciones (`validation_failed`, 422, con `failed_checks`) → reconocimiento de la sospecha (`suspicion_not_acknowledged`, 422) → registro. Todo en **una** transacción corta con el documento bloqueado (`app.lock_document`): un fallo, también el `23505` del índice, lo revierte todo. La base repite lo que la API acaba de comprobar |
+| AC-01 y las dudas | `invoice_sum_mismatch` trae además **una duda de la lectura**: sin guardar el formulario, `failed_checks` es `["doubts_reviewed", "total"]`; guardado (aunque sea sin cambios, AC-10), es `["total"]`. §7 aclara el AC-01 |
+| Documento descartado | `confirm` sobre un documento descartado da `document_not_found` (404), no 409: `app.lock_document` lo trata como inexistente, igual que `get_document` |
+| `Document.validation` | La calcula la misma función que el registro (`expenses.validation`), en la misma transacción que el documento: tres lecturas pequeñas más por detalle, ninguna por fila de la lista. Es **nula** en cualquier estado que no sea `review` o `extraction_failed` y también si no hay nada guardado que comprobar; `confirm` en ese caso sí responde `validation_failed`, porque comprueba una lectura vacía y nunca registra en blanco. Un `processing` caducado se presenta como `extraction_failed` pero su validación es nula (en la base sigue en `processing`) |
+| Cursor | base64url de `{"d": fecha, "c": creación, "i": id}` leído con rigor: alfabeto, claves exactas, tipos, fecha `AAAA-MM-DD` (el formato básico `20260101` lo admite `fromisoformat` y el cursor no), hora con zona y uuid canónico; cualquier otra cosa es `invalid_cursor`. **Sin firma**: no hay secreto en la configuración y un cursor fabricado solo mueve una ventana sobre las filas de quien pregunta, que la RLS ya limita |
+| Lista | `limit` de 1 a 100 (50 por defecto); `year` de 2000 a 2100; `month` sin `year` es un `validation_error` 422 con `query.month`. Se piden `limit + 1` filas para saber si hay otra página sin una segunda consulta, y una página exacta no inventa cursor |
+| Gasto sin factura | Los cuerpos llevan `extra="forbid"`, el importe es un entero estricto de 1 a `CENTS_MAX` y el concepto se limpia (sin caracteres de control ni de formato, espacios colapsados) y debe quedar de 1 a 200 caracteres. La fecha futura o fuera de rango la decide la base con el «hoy» de Madrid y sale como `invalid_expense` con `field` |
+| Errores de la base | `translate_db_error` completo en `expenses.repository`, delegando en el de documentos: `invalid_expense` solo se traduce si el `DETAIL` es uno de los campos del gasto manual (`values` o una clave de `p_values` serían un fallo nuestro: 500); `23505` según `constraint_name`; las CHECK (`23514`) y las categorías fuera de la lista (`22P02`) no se disfrazan |
+| Módulos | Los modelos de `Validation` viven en un módulo hoja, `expenses/validation_models.py`, para que `documents.models` los importe sin ciclo (en el plan estaban en `models.py`). Una prueba importa cada módulo en un intérprete limpio y otra vigila que `expenses` no importe el servicio de documentos, Storage ni el cliente de agentes |
+| NIF del perfil | Sale de `business_profiles.tax_id` bajo la RLS de la persona; vacío o ausente, ninguna simplificada es deducible y no hay `recipient_mismatch` (nota para SPEC-W-005) |
+
+**Pruebas** (228 nuevas en `backend/tests/expenses/`; las 306 de `backend/tests/documents/` pasan sin tocar ninguna): `test_confirm.py` (42: los cinco ejemplos del contrato, cada comprobación que falla con su nombre, dudas, sospecha, D-11, estados, dueños, cuerpos mal formados y «hoy» en Madrid frente a UTC), `test_document_validation.py` (18), `test_manual_expense.py` (31), `test_categories_api.py` (11, con el enum del OpenAPI), `test_void.py` (9), `test_list_expenses.py` (49: 120 gastos de varios meses y categorías con empates de fecha y de hora, cualquier tamaño de página, filtros, parámetros mal formados y 20 cursores que no son nuestros), `test_roles.py` (33: las seis rutas para gestor y administrador, también con vínculo activo, sin sesión, con el rol cambiado en la base y con la cuenta suspendida), `test_concurrency.py` (5: con una transacción sin confirmar, dos documentos con la misma factura dejan un gasto y un 409 `duplicate_expense`, y dos confirmaciones del mismo documento, una gana y la otra 409; y sin sincronizar, seis confirmaciones a la vez dejan un gasto), `test_error_mapping.py` (14), `test_no_sensitive_logs.py` (2) y `test_imports.py` (14). En `tests/rules/test_operation_ids.py` entra el verbo `void`.
+
+**Mutaciones** (69 ejecuciones: 68 más una variante; método de hitos anteriores: se rompe a propósito un archivo de `expenses`, `documents` o `api`, se ejecuta `backend/tests/expenses` y `backend/tests/documents` con `-x`, se revierte y una huella sha256 demuestra que los archivos quedan idénticos). Grupos: la confirmación (sin validar, reconocimiento que no llega o se acepta por omisión, categoría ignorada, `failed_checks` vacío o invertido, el orden cambiado, «hoy» en UTC, registros con el NIF o el concepto), la lista y el cursor (los anulados incluidos, orden ascendente, cursor que repite o ignora la hora de creación o pierde los microsegundos, mes que incluye el día 1 del siguiente, filtros que no filtran, página de más), la validación (la lectura manda sobre el formulario, `has_review` fijo, dudosos, sospecha, NIF del perfil, gastos del proveedor), los modelos, errores y rutas (rol sin exigir, límites, `extra="ignore"`, `201` por `200`, concepto sin limpiar, importe cero) y `documents` (registrados en la lista, sin `expense_id`, sin comprobaciones, sin reloj), más un ciclo de importación. **66 detectadas. Tres sobreviven y son equivalentes:**
+- **A01** (la condición de registro sin la mitad `not result.can_register`): `values` existe si y solo si `can_register`, así que esa mitad es redundante (sirve al tipado). La variante que sí quita la validación (`if False:`) se detecta.
+- **R08** y **R18** (los gastos del proveedor y el NIF del perfil sin el filtro explícito `owner_id = auth.uid()`): para el rol `usuario` la RLS ya devuelve solo filas propias. El filtro es cinturón y tirantes; que el aislamiento lo hace la base lo muestra que ambas sobrevivan y que `test_an_expense_registered_by_one_person_never_blocks_the_same_invoice_for_another` pase.
+
+**Lo que no se ha comprobado:**
+- **El frontend** no se ejercita: solo se regenera el cliente y se comprueban sus tipos, lint y pruebas unitarias; la interfaz y los E2E son de los hitos 4 y 5.
+- **Storage real:** `confirm` no toca Storage, y las pruebas de gastos usan el doble en memoria; el flujo con Storage real sigue siendo el de `test_documents_live.py`, sin cambios.
+- **Carga:** la concurrencia se prueba con hasta seis hilos; el coste de las tres lecturas extra por documento no se ha medido.
+- **El cursor sin firma** es una decisión, no un fallo: si alguna vez la lista expusiera filas de más de una persona, habría que firmarlo.
+- **El CI de GitHub** no se ha ejecutado (sin remoto todavía).
+
+**Para el hito 4** (frontend):
+- Del cliente generado salen `Validation` (`checks` con `code`, `label`, `status` y `detail`; `warnings`; `preview`), `Expense`, `ExpensePage`, `VoidResult` y `ExpenseCategory` (el `Record<ExpenseCategory, string>` de etiquetas debe compilar contra él).
+- «Registrar gasto» se activa con `validation.can_register`, el formulario guardado y, si `requires_acknowledgement`, la casilla marcada. Los fallos de `confirm` traen `failed_checks` (los códigos, para marcar cada comprobación) y `suspicion_not_acknowledged`, `duplicate_expense` o `document_wrong_state` como mensaje propio.
+- Los errores de forma del gasto sin factura llegan como `validation_error` con `errors[].loc` = `body.concept`, `body.amount_cents`, `body.expense_date` o `body.category` (el mensaje va junto al campo); la fecha fuera de rango llega como `invalid_expense` con `field`.
+- Un documento `registered` trae `expense_id` (redirigir a su gasto); `list_documents` ya no lo lista. La lista de gastos se pide con `next_cursor` como `cursor` y un `invalid_cursor` se resuelve recargando la lista.
+- `month` exige `year`; `limit` llega a 100.

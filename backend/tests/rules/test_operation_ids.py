@@ -34,6 +34,8 @@ VERBS = {
     "retry",
     "save",
     "discard",
+    # SPEC-W-003 §5.4: anular un gasto.
+    "void",
 }
 
 

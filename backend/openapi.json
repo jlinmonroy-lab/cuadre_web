@@ -1,6 +1,112 @@
 {
   "components": {
     "schemas": {
+      "CheckCode": {
+        "description": "Las comprobaciones, en el orden en que se muestran. Son una lista cerrada (§5.1).",
+        "enum": [
+          "doc_type",
+          "required_data",
+          "doubts_reviewed",
+          "supplier_tax_id",
+          "issue_date",
+          "currency",
+          "vat_rates",
+          "vat_amounts",
+          "withholding",
+          "total",
+          "not_duplicate"
+        ],
+        "title": "CheckCode",
+        "type": "string"
+      },
+      "CheckItem": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/CheckCode"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "status",
+          "detail"
+        ],
+        "title": "CheckItem",
+        "type": "object"
+      },
+      "ConfirmRequest": {
+        "additionalProperties": false,
+        "description": "`acknowledge_suspicion`: la persona confirma que comparó los datos con el original (solo se exige si hay sospecha, NFR-07).",
+        "properties": {
+          "acknowledge_suspicion": {
+            "default": false,
+            "title": "Acknowledge Suspicion",
+            "type": "boolean"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ExpenseCategory"
+          }
+        },
+        "required": [
+          "category"
+        ],
+        "title": "ConfirmRequest",
+        "type": "object"
+      },
+      "CreateExpense": {
+        "additionalProperties": false,
+        "properties": {
+          "amount_cents": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 99999999999999.0,
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ExpenseCategory"
+          },
+          "concept": {
+            "title": "Concept",
+            "type": "string"
+          },
+          "expense_date": {
+            "format": "date",
+            "title": "Expense Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expense_date",
+          "concept",
+          "category",
+          "amount_cents"
+        ],
+        "title": "CreateExpense",
+        "type": "object"
+      },
       "Document": {
         "properties": {
           "created_at": {
@@ -17,6 +123,18 @@
                 "type": "null"
               }
             ]
+          },
+          "expense_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expense Id"
           },
           "extracted_at": {
             "anyOf": [
@@ -107,6 +225,16 @@
               }
             ],
             "title": "Uploaded At"
+          },
+          "validation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Validation"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -123,7 +251,9 @@
           "extraction",
           "review",
           "injection_suspected",
-          "error"
+          "error",
+          "validation",
+          "expense_id"
         ],
         "title": "Document",
         "type": "object"
@@ -352,6 +482,320 @@
         "title": "DoubtfulField",
         "type": "object"
       },
+      "Expense": {
+        "properties": {
+          "base_cents": {
+            "title": "Base Cents",
+            "type": "integer"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ExpenseCategory"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deductible_vat": {
+            "title": "Deductible Vat",
+            "type": "boolean"
+          },
+          "doc_type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "full_invoice",
+                  "simplified_invoice",
+                  "ticket",
+                  "receipt"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doc Type"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "expense_date": {
+            "format": "date",
+            "title": "Expense Date",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invoice_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Number"
+          },
+          "origin": {
+            "enum": [
+              "document",
+              "manual"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "supplier_name": {
+            "title": "Supplier Name",
+            "type": "string"
+          },
+          "supplier_scope": {
+            "anyOf": [
+              {
+                "enum": [
+                  "national",
+                  "eu"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Scope"
+          },
+          "supplier_tax_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Tax Id"
+          },
+          "suspicion_acknowledged": {
+            "title": "Suspicion Acknowledged",
+            "type": "boolean"
+          },
+          "tax_breakdown": {
+            "items": {
+              "$ref": "#/components/schemas/ExpenseTaxLine"
+            },
+            "title": "Tax Breakdown",
+            "type": "array"
+          },
+          "total_cents": {
+            "title": "Total Cents",
+            "type": "integer"
+          },
+          "vat_cents": {
+            "title": "Vat Cents",
+            "type": "integer"
+          },
+          "voided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voided At"
+          },
+          "withholding_cents": {
+            "title": "Withholding Cents",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "origin",
+          "expense_date",
+          "supplier_name",
+          "category",
+          "total_cents",
+          "vat_cents",
+          "deductible_vat",
+          "supplier_scope",
+          "document_id",
+          "doc_type",
+          "supplier_tax_id",
+          "invoice_number",
+          "base_cents",
+          "withholding_cents",
+          "tax_breakdown",
+          "suspicion_acknowledged",
+          "created_at",
+          "voided_at"
+        ],
+        "title": "Expense",
+        "type": "object"
+      },
+      "ExpenseCategory": {
+        "enum": [
+          "software",
+          "workspace",
+          "supplies",
+          "utilities",
+          "advisory",
+          "self_employed_fee",
+          "training",
+          "other"
+        ],
+        "title": "ExpenseCategory",
+        "type": "string"
+      },
+      "ExpensePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExpenseSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "ExpensePage",
+        "type": "object"
+      },
+      "ExpenseSummary": {
+        "description": "Una fila de «Gastos registrados».",
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/ExpenseCategory"
+          },
+          "deductible_vat": {
+            "title": "Deductible Vat",
+            "type": "boolean"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "expense_date": {
+            "format": "date",
+            "title": "Expense Date",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "document",
+              "manual"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "supplier_name": {
+            "title": "Supplier Name",
+            "type": "string"
+          },
+          "supplier_scope": {
+            "anyOf": [
+              {
+                "enum": [
+                  "national",
+                  "eu"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Scope"
+          },
+          "total_cents": {
+            "title": "Total Cents",
+            "type": "integer"
+          },
+          "vat_cents": {
+            "title": "Vat Cents",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "origin",
+          "expense_date",
+          "supplier_name",
+          "category",
+          "total_cents",
+          "vat_cents",
+          "deductible_vat",
+          "supplier_scope",
+          "document_id"
+        ],
+        "title": "ExpenseSummary",
+        "type": "object"
+      },
+      "ExpenseTaxLine": {
+        "properties": {
+          "base_cents": {
+            "title": "Base Cents",
+            "type": "integer"
+          },
+          "vat_cents": {
+            "title": "Vat Cents",
+            "type": "integer"
+          },
+          "vat_rate": {
+            "title": "Vat Rate",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vat_rate",
+          "base_cents",
+          "vat_cents"
+        ],
+        "title": "ExpenseTaxLine",
+        "type": "object"
+      },
       "Extraction": {
         "description": "La lectura del agente ya normalizada. Es de solo lectura: la persona corrige en `Review`.",
         "properties": {
@@ -564,6 +1008,51 @@
           "status"
         ],
         "title": "MeResponse",
+        "type": "object"
+      },
+      "Preview": {
+        "properties": {
+          "deductible_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deductible Note"
+          },
+          "deductible_vat": {
+            "title": "Deductible Vat",
+            "type": "boolean"
+          },
+          "suggested_category": {
+            "$ref": "#/components/schemas/ExpenseCategory"
+          },
+          "supplier_scope": {
+            "anyOf": [
+              {
+                "enum": [
+                  "national",
+                  "eu"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supplier Scope"
+          }
+        },
+        "required": [
+          "supplier_scope",
+          "deductible_vat",
+          "deductible_note",
+          "suggested_category"
+        ],
+        "title": "Preview",
         "type": "object"
       },
       "PreviewResponse": {
@@ -840,6 +1329,19 @@
         "title": "ReviewWithholding",
         "type": "object"
       },
+      "SetCategory": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/ExpenseCategory"
+          }
+        },
+        "required": [
+          "category"
+        ],
+        "title": "SetCategory",
+        "type": "object"
+      },
       "TaxLine": {
         "properties": {
           "base_cents": {
@@ -979,6 +1481,44 @@
         "title": "UploadResponse",
         "type": "object"
       },
+      "Validation": {
+        "properties": {
+          "can_register": {
+            "title": "Can Register",
+            "type": "boolean"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/CheckItem"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "preview": {
+            "$ref": "#/components/schemas/Preview"
+          },
+          "requires_acknowledgement": {
+            "title": "Requires Acknowledgement",
+            "type": "boolean"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/WarningItem"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "can_register",
+          "requires_acknowledgement",
+          "checks",
+          "warnings",
+          "preview"
+        ],
+        "title": "Validation",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -1017,6 +1557,80 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VoidResult": {
+        "properties": {
+          "document_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "document_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "uploading",
+                  "processing",
+                  "review",
+                  "extraction_failed",
+                  "discarded",
+                  "registered"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Status"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "document_id",
+          "document_status"
+        ],
+        "title": "VoidResult",
+        "type": "object"
+      },
+      "WarningCode": {
+        "description": "Avisos que nunca bloquean.",
+        "enum": [
+          "possible_duplicate",
+          "recipient_mismatch",
+          "eu_supplier"
+        ],
+        "title": "WarningCode",
+        "type": "string"
+      },
+      "WarningItem": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/WarningCode"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "WarningItem",
         "type": "object"
       },
       "Withholding": {
@@ -1187,7 +1801,7 @@
                 }
               }
             },
-            "description": "Datos no válidos o archivo que no es del tipo indicado"
+            "description": "Datos no válidos, archivo que no es del tipo indicado o comprobaciones sin pasar"
           },
           "429": {
             "content": {
@@ -1278,7 +1892,7 @@
                 }
               }
             },
-            "description": "El documento no está en un estado que admita esa acción"
+            "description": "El documento no está en un estado que admita esa acción, o ya hay un gasto con esa factura"
           },
           "422": {
             "content": {
@@ -1442,7 +2056,7 @@
                 }
               }
             },
-            "description": "El documento no está en un estado que admita esa acción"
+            "description": "El documento no está en un estado que admita esa acción, o ya hay un gasto con esa factura"
           },
           "422": {
             "content": {
@@ -1452,7 +2066,7 @@
                 }
               }
             },
-            "description": "Datos no válidos o archivo que no es del tipo indicado"
+            "description": "Datos no válidos, archivo que no es del tipo indicado o comprobaciones sin pasar"
           },
           "429": {
             "content": {
@@ -1481,6 +2095,104 @@
           }
         ],
         "summary": "Comprobar el archivo subido y leerlo (espera al agente)",
+        "tags": [
+          "documentos"
+        ]
+      }
+    },
+    "/api/documents/{document_id}/confirm": {
+      "post": {
+        "operationId": "confirm_document",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Expense"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar documentos (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El documento no existe (también si es de otra persona)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El documento no está en un estado que admita esa acción, o ya hay un gasto con esa factura"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Datos no válidos, archivo que no es del tipo indicado o comprobaciones sin pasar"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Registrar el gasto de un documento si todas las comprobaciones pasan",
         "tags": [
           "documentos"
         ]
@@ -1550,7 +2262,7 @@
                 }
               }
             },
-            "description": "El documento no está en un estado que admita esa acción"
+            "description": "El documento no está en un estado que admita esa acción, o ya hay un gasto con esa factura"
           },
           "422": {
             "content": {
@@ -1648,7 +2360,7 @@
                 }
               }
             },
-            "description": "El documento no está en un estado que admita esa acción"
+            "description": "El documento no está en un estado que admita esa acción, o ya hay un gasto con esa factura"
           },
           "422": {
             "content": {
@@ -1766,7 +2478,7 @@
                 }
               }
             },
-            "description": "El documento no está en un estado que admita esa acción"
+            "description": "El documento no está en un estado que admita esa acción, o ya hay un gasto con esa factura"
           },
           "422": {
             "content": {
@@ -1776,7 +2488,7 @@
                 }
               }
             },
-            "description": "Datos no válidos o archivo que no es del tipo indicado"
+            "description": "Datos no válidos, archivo que no es del tipo indicado o comprobaciones sin pasar"
           }
         },
         "security": [
@@ -1787,6 +2499,473 @@
         "summary": "Guardar las correcciones de la persona (la lectura original no cambia)",
         "tags": [
           "documentos"
+        ]
+      }
+    },
+    "/api/expenses": {
+      "get": {
+        "operationId": "list_expenses",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2100,
+                  "minimum": 2000,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Year"
+            }
+          },
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 12,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Month"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ExpenseCategory"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpensePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar gastos (solo `usuario`) o la cuenta está suspendida"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Datos no válidos, comprobaciones sin pasar o fecha fuera de rango"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Listar los gastos registrados (sin los anulados), del más reciente al más antiguo",
+        "tags": [
+          "gastos"
+        ]
+      },
+      "post": {
+        "operationId": "create_expense",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExpense"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Expense"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar gastos (solo `usuario`) o la cuenta está suspendida"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Datos no válidos, comprobaciones sin pasar o fecha fuera de rango"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Anotar un gasto sin factura",
+        "tags": [
+          "gastos"
+        ]
+      }
+    },
+    "/api/expenses/{expense_id}": {
+      "get": {
+        "operationId": "get_expense",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "expense_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Expense Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Expense"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar gastos (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El gasto no existe (también si es de otra persona)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Obtener un gasto (también uno anulado)",
+        "tags": [
+          "gastos"
+        ]
+      }
+    },
+    "/api/expenses/{expense_id}/category": {
+      "put": {
+        "operationId": "set_expense_category",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "expense_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Expense Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetCategory"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Expense"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar gastos (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El gasto no existe (también si es de otra persona)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El gasto está anulado o el documento no admite esa acción"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Datos no válidos, comprobaciones sin pasar o fecha fuera de rango"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Cambiar la categoría de un gasto no anulado",
+        "tags": [
+          "gastos"
+        ]
+      }
+    },
+    "/api/expenses/{expense_id}/void": {
+      "post": {
+        "operationId": "void_expense",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "expense_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Expense Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoidResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar gastos (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El gasto no existe (también si es de otra persona)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El gasto está anulado o el documento no admite esa acción"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Anular un gasto: deja de contar y su documento vuelve a revisión",
+        "tags": [
+          "gastos"
         ]
       }
     },

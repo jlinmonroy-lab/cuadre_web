@@ -24,6 +24,7 @@ from pydantic import ValidationError
 from cuadre.agents import AgentsClient, AgentsError, FailureCode, normalize_extraction
 from cuadre.agents.text import InvalidText, clean_text
 from cuadre.core.auth import CurrentUser
+from cuadre.core.clock import Clock, today_in_madrid
 from cuadre.core.errors import ProblemError
 from cuadre.db import user_transaction
 from cuadre.documents import errors, presentation, repository, signature
@@ -46,6 +47,8 @@ from cuadre.documents.models import (
     UploadResponse,
 )
 from cuadre.documents.storage import StorageError, StorageGateway, StorageNotFound
+from cuadre.expenses import repository as expenses_repository
+from cuadre.expenses import validation as expenses_validation
 from cuadre_contracts import ExtractRequest
 
 logger = logging.getLogger("cuadre.documents")
@@ -56,11 +59,12 @@ READING_STATES = frozenset({"processing", "review", "extraction_failed"})
 
 class DocumentService:
     def __init__(
-        self, pool: ConnectionPool[Connection[DictRow]], storage: StorageGateway, agents: AgentsClient
+        self, pool: ConnectionPool[Connection[DictRow]], storage: StorageGateway, agents: AgentsClient, clock: Clock
     ) -> None:
         self.pool = pool
         self.storage = storage
         self.agents = agents
+        self.clock = clock
 
     # --- Utilidades -----------------------------------------------------------------------------------------------------
 
@@ -111,7 +115,19 @@ class DocumentService:
         return [presentation.to_summary(row) for row in rows]
 
     def get_document(self, user: CurrentUser, document_id: UUID) -> Document:
-        return presentation.to_document(self._visible_row(user, document_id))
+        """El documento con sus comprobaciones y su gasto vivo, todo leído en la misma transacción (SPEC-W-003 §5.3)."""
+
+        def work(conn: Connection[DictRow]) -> Document:
+            row = repository.get(conn, document_id)
+            if row is None or row["status"] == "discarded":
+                raise errors.document_not_found()
+            validation = expenses_validation.document_validation(conn, row, today_in_madrid(self.clock))
+            expense_id = (
+                expenses_repository.active_expense_id(conn, document_id) if row["status"] == "registered" else None
+            )
+            return presentation.to_document(row, validation, expense_id)
+
+        return self._in_tx(user, work)
 
     def preview(self, user: CurrentUser, token: str, document_id: UUID) -> PreviewResponse:
         row = self._visible_row(user, document_id)

@@ -13,7 +13,9 @@ from fastapi import Depends, Request
 from starlette.responses import Response
 
 from cuadre.agents import AgentsClient
+from cuadre.api.routes_expenses import ExpenseService, get_expense_service
 from cuadre.core.auth import CurrentUser, get_verified_token, require_role_detached
+from cuadre.core.clock import Clock
 from cuadre.core.errors import ProblemDetails, request_id_of
 from cuadre.core.routing import new_router
 from cuadre.documents.models import (
@@ -27,6 +29,7 @@ from cuadre.documents.models import (
 )
 from cuadre.documents.service import DocumentService
 from cuadre.documents.storage import StorageGateway
+from cuadre.expenses.models import ConfirmRequest, Expense
 
 router = new_router(tags=["documentos"])
 
@@ -38,10 +41,12 @@ def get_service(request: Request) -> DocumentService:
     state = request.app.state
     storage: StorageGateway = state.storage
     agents: AgentsClient = state.agents_client
-    return DocumentService(state.db_pool, storage, agents)
+    clock: Clock = state.clock
+    return DocumentService(state.db_pool, storage, agents, clock)
 
 
 Service = Annotated[DocumentService, Depends(get_service)]
+Expenses = Annotated[ExpenseService, Depends(get_expense_service)]
 
 
 def request_id(request: Request) -> str:
@@ -54,10 +59,10 @@ def problems(*statuses: int) -> dict[int | str, dict[str, object]]:
         401: "Sin sesión, o sesión inválida o caducada",
         403: "El rol de la cuenta no puede usar documentos (solo `usuario`) o la cuenta está suspendida",
         404: "El documento no existe (también si es de otra persona)",
-        409: "El documento no está en un estado que admita esa acción",
+        409: "El documento no está en un estado que admita esa acción, o ya hay un gasto con esa factura",
         413: "El archivo supera el máximo de 15 MB",
         415: "Tipo de archivo no admitido",
-        422: "Datos no válidos o archivo que no es del tipo indicado",
+        422: "Datos no válidos, archivo que no es del tipo indicado o comprobaciones sin pasar",
         429: "Demasiadas lecturas en curso (con `Retry-After`)",
         503: "Almacenamiento no disponible",
     }
@@ -157,3 +162,15 @@ def retry_document_extraction(
 def discard_document(document_id: UUID, user: Usuario, token: Token, service: Service) -> Response:
     service.discard(user, token, document_id)
     return Response(status_code=204)
+
+
+@router.post(
+    "/api/documents/{document_id}/confirm",
+    operation_id="confirm_document",
+    status_code=201,
+    response_model=Expense,
+    summary="Registrar el gasto de un documento si todas las comprobaciones pasan",
+    responses=problems(401, 403, 404, 409, 422),
+)
+def confirm_document(document_id: UUID, body: ConfirmRequest, user: Usuario, expenses: Expenses) -> Expense:
+    return expenses.confirm(user, document_id, body)

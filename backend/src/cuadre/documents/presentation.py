@@ -5,6 +5,7 @@ AC-11) se PRESENTA como `extraction_failed` con motivo `timeout`, sin escribir n
 """
 
 from typing import Any
+from uuid import UUID
 
 from psycopg.rows import DictRow
 
@@ -19,6 +20,7 @@ from cuadre.documents.models import (
     Extraction,
     Review,
 )
+from cuadre.expenses.validation_models import Validation
 
 
 def status_of(row: DictRow) -> DocumentStatus:
@@ -40,7 +42,7 @@ def to_state(row: DictRow) -> DocumentState:
     return DocumentState(id=row["id"], status=status_of(row))
 
 
-def to_document(row: DictRow) -> Document:
+def to_document(row: DictRow, validation: Validation | None = None, expense_id: UUID | None = None) -> Document:
     return Document(
         id=row["id"],
         status=status_of(row),
@@ -56,6 +58,8 @@ def to_document(row: DictRow) -> Document:
         review=Review.model_validate(row["review"]) if row["review"] is not None else None,
         injection_suspected=row["injection_suspected"],
         error=error_of(row),
+        validation=validation,
+        expense_id=expense_id,
     )
 
 

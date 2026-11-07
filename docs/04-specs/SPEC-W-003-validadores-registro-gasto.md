@@ -446,7 +446,7 @@ npm --prefix frontend exec -- playwright test e2e/gastos-registro.spec.ts      #
 
 ### 8.4 Definición de hecho
 
-- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001 y SPEC-W-002 §8.2 siguen en verde. *(En local, hecho el 2026-11-07 con la batería completa de E2E dos veces seguidas, B.6; el CI aún no se ha ejecutado: el primer `push` al repositorio remoto lo lanzará por primera vez.)*
+- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001 y SPEC-W-002 §8.2 siguen en verde. *(En local, hecho el 2026-11-07 con la batería completa de E2E dos veces seguidas, B.6; el primer CI dejó en rojo solo el E2E de WebKit, B.7; falta un CI en verde.)*
 - [x] `pytest backend/tests/rls -m rls` incluye `expenses` y el `documents_guard` ampliado.
 - [x] `python-stdnum` y `tzdata` están fijados en `backend/pyproject.toml` y un test lo comprueba; el CI instala el backend como hasta ahora.
 - [x] «Registrar gasto» está activo; el botón desactivado y el texto «Próximamente» de SPEC-W-002 se han retirado y `gastos-subida.spec.ts` se ha actualizado donde los daba por hechos.
@@ -705,11 +705,50 @@ Nuevos: `frontend/e2e/gastos-registro.spec.ts` (9 pruebas) y `frontend/e2e/helpe
 - **El ejecutor tenía un fallo:** contaba como «detectada» cualquier salida con código distinto de cero, también un error de compilación. Cuatro mutaciones (G02, G04, G06 y G10) tardaron unos 6 s sin citar ninguna prueba: `false && …` y `{false ? …` hacen que TypeScript pierda el estrechamiento de tipos y la compilación falle. Ahora solo cuenta una detección con un resumen «N failed» y sin error de compilación; G02 y G04 se repitieron con `… && false` y G06 y G10 con formas que conservan los tipos (redirigir a otro sitio, una condición siempre falsa que mantiene el estrechamiento), y las cuatro hacen fallar la prueba prevista.
 
 **Lo que no se ha comprobado:**
-- **El CI.** Sigue sin ejecutarse en un runner de GitHub: el repositorio remoto se configuró justo después de este hito y su primer `push` lanzará el CI por primera vez (B.2 de SPEC-W-001). La batería de tres motores y dos anchos solo se ha ejecutado en local y con un worker, porque el equipo va justo de memoria.
+- **El CI.** *(Actualizado: el primer CI ya se ejecutó, B.7.)* Dejó en verde cuatro de cinco trabajos y en rojo el E2E de WebKit, que B.7 explica y arregla; sigue sin haber un CI en verde. La batería de tres motores y dos anchos solo se había ejecutado en local y con un worker, porque el equipo va justo de memoria.
 - **Un PDF real en el visor, HEIC, la cámara de un móvil y un Safari real:** el WebKit de Playwright no es Safari.
 - **Anchos intermedios** distintos de 390, 1.279, 1.280 y 1.440 px.
 - **`failedChecks`:** la interfaz lo interpreta pero no lo pinta; tras un fallo se refresca y las comprobaciones salen del documento.
 - **El servicio real de agentes y Vercel**, como en SPEC-W-002.
 - **Lector de pantalla y Lighthouse**, que siguen propuestos.
 
-**Para lo que sigue:** SPEC-W-003 pasa a `en-revision` y pasará a `hecha` con la primera ejecución del CI, como SPEC-W-001 y SPEC-W-002. Deja registrados los gastos con su categoría, su IVA y su deducibilidad, que es lo que consumirán el 303 y el 130 (SPEC-W-008 y SPEC-W-009).
+**Para lo que sigue:** SPEC-W-003 pasa a `en-revision` y pasará a `hecha` con el primer CI en verde (B.7), como SPEC-W-001 y SPEC-W-002. Deja registrados los gastos con su categoría, su IVA y su deducibilidad, que es lo que consumirán el 303 y el 130 (SPEC-W-008 y SPEC-W-009).
+
+### B.7 Primer CI y su único fallo · 2026-11-07
+
+El primer CI se ejecutó con el `push` de `cc47aa9` (14:23–14:38 UTC). Los registros de los cinco trabajos los dejó el usuario en una carpeta `Logs/` que no se versiona.
+
+| Trabajo | Resultado |
+|---|---|
+| RLS (NFR-06) | Verde: 577 pruebas |
+| Python estilo y deriva | Verde |
+| Backend API y reglas | Verde: 1.530 pasan y 577 (las de RLS) quedan deseleccionadas |
+| Frontend calidad y build | Verde |
+| E2E Playwright | **Rojo**: de 347 pruebas, 345 pasan, 1 falla y 1 es inestable. Chromium (117) y Firefox (115) sin un fallo; los dos casos son de WebKit |
+
+**Los dos casos**, con el mismo mensaje (`pageerror: …/<ruta>?_rsc=… due to access control checks.`):
+
+- `roles.spec.ts` «adan no ve las portadas de alicia ni gina», `webkit-390`: falla en el primer intento (dos veces el mensaje, sobre `/admin`) y en el reintento.
+- `gastos-registro.spec.ts` «lista paginada», `webkit-1440`: falla una vez (sobre `/inicio`) y pasa en el reintento.
+
+**Causa.** No es un fallo de la aplicación. `?_rsc=` es la precarga de un `<Link>` de Next; si la prueba hace un `page.goto` (navegación dura) con esa petición en vuelo, el navegador la cancela. En local se comprobó con WebKit de Windows y una respuesta `_rsc=` retrasada: la misma petición del CI (`/admin?_rsc=qPZzjMbbkwVJZ1Df`, mismo identificador) sale como `requestfailed` con «Load request cancelled». Lo que no se pudo reproducir aquí es que además se convierta en excepción de página: el WebKit de Windows no lo hace (30 de 30 repeticiones sin retraso y una con retraso, sin `pageerror`) y el WebKit 27.2 de Linux del runner, sí. Por eso nunca se había visto en local.
+
+**Por qué `settle` no bastaba.** El bucle de `roles.spec.ts` navegaba de una portada ajena a otra sin esperar: la `/403` precarga la portada propia y la segunda navegación la cancelaba. En `gastos-registro.spec.ts` sí había `settle` antes del último `goto` y aun así falló una vez: `networkidle` son 500 ms sin red, una heurística, y Next puede lanzar una precarga después de esa ventana en un runner lento (2 vCPU, `next start`, 2 workers).
+
+**Decisiones:**
+
+| Tema | Decisión |
+|---|---|
+| El vigilante de errores | `watchBrowserErrors` (`helpers/fixtures.ts`) deja de devolver un array y devuelve una función que da los errores vistos. Descarta un `pageerror` cuyo texto termine en `?_rsc=<id> due to access control checks.`, **solo en WebKit** y solo como excepción de página: ni `console.error`, ni otro motivo («network error»…), ni una URL que no sea una precarga RSC, ni otro motor. Se filtra por el mensaje porque no hay otra señal fiable en el momento de la excepción; si una versión de WebKit cambia el texto, el CI volverá a mostrarlo y habrá que ajustar la expresión |
+| Fijar el filtro | `e2e/browser-errors.spec.ts` (2 pruebas por proyecto): una lanza ese mensaje y comprueba que WebKit no lo cuenta y los otros dos motores sí; otra, que `boom`, un fallo de red de una precarga, el mismo motivo sobre una URL que no es `_rsc` y el mismo texto como `console.error` siguen contando en WebKit. Usa el motor real, no un simulacro, así que también comprueba cómo convierte Playwright una excepción en `pageerror` |
+| `roles.spec.ts` | `settle` antes de cada navegación del bucle (la convención de `openGastos`) |
+| Lo que no cambia | La aplicación, `gastos-registro.spec.ts` (su `settle` se queda) y el resto de pruebas. No hay código de producción en este cambio |
+
+**Pruebas.** Cinco mutaciones del filtro (sin filtro; sin exigir `_rsc=`; en todos los motores; también para `console.error`; para cualquier motivo): las cinco hacen fallar la prueba prevista y el archivo queda idéntico por huella. `roles.spec.ts` ×10 en `webkit-390` y `webkit-1440` (180 ejecuciones) en verde. La batería completa (auth, roles, responsive, bundle, subida, registro y el vigilante) con la configuración real de Playwright, un motor por invocación y `--workers=1`, **dos veces seguidas**: Chromium 121, Firefox 119 y WebKit 119 pruebas, sin fallos ni pruebas inestables y con los mismos recuentos las dos veces (+2 por motor y ancho respecto a B.6). `lint` y `typecheck` limpios. La memoria libre al empezar las pasadas fue de unos 2,4 GB en la primera pasada y unos 2,6 GB en la segunda; la guarda del ejecutor se fijó en 2.000 MB, como en las del hito 5, y el sistema no cortó ningún proceso.
+
+**Lo que no se ha comprobado:**
+- **Que este fallo desaparece en el CI.** Solo el siguiente CI lo confirma: aquí se verificó el mecanismo (la cancelación) y el filtro, no el `pageerror` real de WebKit en Linux.
+- **El WebKit 27.2 de Linux del runner.** El de Playwright en Windows no es el mismo motor.
+- **Otras precargas cancelables.** Si Firefox o Chromium registraran algo parecido en otro momento, el vigilante lo seguirá contando.
+
+**Para lo que sigue:** con el siguiente `push` y un CI en verde, SPEC-W-001, W-002 y W-003 pasan a `hecha`. Si volviera a fallar, el artefacto `playwright-report` del trabajo (traza del primer reintento) dice qué navegación cancela la precarga.

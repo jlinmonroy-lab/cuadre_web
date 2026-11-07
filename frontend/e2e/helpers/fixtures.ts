@@ -6,20 +6,33 @@ import { API_URL, AUTH_DIR, type RoleKey } from "./env";
 import { Ledger } from "./ledger";
 import { signUpAndConfirm, uniqueEmail } from "./session";
 
-/** Falla la prueba si el navegador registra un `console.error` o una excepción de página (p. ej. un error de hidratación). */
-function watchBrowserErrors(page: Page): string[] {
+/**
+ * WebKit cuenta como excepción de página la precarga RSC (`?_rsc=`, la de un `<Link>`) que una navegación dura cancela a medias:
+ * «Fetch API cannot load …?_rsc=… due to access control checks.». No es un fallo de la aplicación: la misma petición sale como
+ * `requestfailed` con «Load request cancelled». En el primer CI (SPEC-W-003 B.7) ocurrió aunque la prueba esperase a `settle`, porque
+ * `networkidle` es una heurística y Next puede lanzar una precarga después de su ventana. Se descarta ese mensaje exacto, solo en WebKit y
+ * solo como excepción de página; cualquier otro error sigue contando (`browser-errors.spec.ts` fija los dos lados).
+ */
+const CANCELLED_PREFETCH = /^pageerror: .*[?&]_rsc=[\w-]+ due to access control checks\.$/;
+
+/**
+ * Vigila al navegador: devuelve una función que da los errores vistos hasta ahora, un `console.error` o una excepción de página (p. ej. un
+ * error de hidratación) salvo la precarga RSC cancelada de arriba. Las pruebas fallan si no está vacía.
+ */
+export function watchBrowserErrors(page: Page): () => string[] {
   const problems: string[] = [];
   page.on("console", (message) => {
     if (message.type() === "error") problems.push(`console.error: ${message.text()}`);
   });
   page.on("pageerror", (error) => problems.push(`pageerror: ${error.message}`));
-  return problems;
+  const webkit = page.context().browser()?.browserType().name() === "webkit";
+  return () => (webkit ? problems.filter((problem) => !CANCELLED_PREFETCH.test(problem)) : [...problems]);
 }
 
 /**
  * Espera, sin fallar, a que la página no tenga peticiones en vuelo. Navegar o cerrar una página con una petición RSC a medias (la
  * precarga de un enlace, un `router.refresh()`) hace que Firefox y WebKit registren un error de red, sin que haya ningún fallo: antes de
- * moverse o de cerrar, las pruebas dejan que la página se calme.
+ * moverse o de cerrar, las pruebas dejan que la página se calme. Reduce la carrera, no la cierra (ver `CANCELLED_PREFETCH`).
  */
 export async function settle(page: Page): Promise<void> {
   await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
@@ -72,10 +85,10 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
     const { baseURL, viewport, locale, timezoneId } = testInfo.project.use;
     const context = await browser.newContext({ baseURL, viewport, locale, timezoneId, storageState: gastosUser.storageState });
     const page = await context.newPage();
-    const problems = watchBrowserErrors(page);
+    const errors = watchBrowserErrors(page);
     await use(page);
     await settle(page);
-    const found = [...problems]; // lo que provoque el cierre no cuenta
+    const found = errors(); // lo que provoque el cierre no cuenta
     await closeQuietly(context);
     expect(found, "el navegador registró errores").toEqual([]);
   },
@@ -87,10 +100,10 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
   },
 
   page: async ({ page }, use) => {
-    const problems = watchBrowserErrors(page);
+    const errors = watchBrowserErrors(page);
     await use(page);
     await settle(page);
-    expect(problems, "el navegador registró errores").toEqual([]);
+    expect(errors(), "el navegador registró errores").toEqual([]);
   },
 
   pageAs: async ({ browser }, use, testInfo) => {
@@ -98,7 +111,7 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
     const { baseURL, viewport, locale, timezoneId } = testInfo.project.use;
     const contexts: BrowserContext[] = [];
     const pages: Page[] = [];
-    const watched: string[][] = [];
+    const watched: Array<() => string[]> = [];
 
     await use(async (role) => {
       const context = await browser.newContext({
@@ -116,7 +129,7 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
     });
 
     await Promise.all(pages.map(settle));
-    const found = watched.flat(); // lo que provoque el cierre no cuenta
+    const found = watched.flatMap((errors) => errors()); // lo que provoque el cierre no cuenta
     await Promise.all(contexts.map(closeQuietly));
     expect(found, "el navegador registró errores").toEqual([]);
   },

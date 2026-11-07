@@ -1,6 +1,6 @@
 // AC-02 · Cada rol aterriza en su portada, con su navegación; las portadas ajenas llevan a /403.
 import { PEOPLE, ROLE_KEYS, SEED_PASSWORD, type RoleKey } from "./helpers/env";
-import { expect, test } from "./helpers/fixtures";
+import { expect, settle, test } from "./helpers/fixtures";
 import { expectNavigation, login } from "./helpers/session";
 
 for (const role of ROLE_KEYS) {
@@ -27,6 +27,7 @@ for (const role of ROLE_KEYS) {
     const page = await pageAs(role);
     for (const other of foreign) {
       const target = PEOPLE[other as RoleKey].home;
+      await settle(page); // la /403 precarga la portada propia: no se navega con esa petición RSC a medias
       await page.goto(target);
       await expect(page).toHaveURL("/403");
       await expect(page.getByRole("heading", { level: 1 })).toHaveText("No tienes acceso a esta sección");

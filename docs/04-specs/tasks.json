@@ -6,7 +6,7 @@
     "name": "cuadre-agents",
     "spec_prefix": "SPEC-A"
   },
-  "updated": "2026-11-06",
+  "updated": "2026-11-07",
   "status_values": [
     "propuesta",
     "especificada",
@@ -216,8 +216,8 @@
     {
       "id": "SPEC-W-005",
       "title": "Perfil personal y del negocio y series de facturación",
-      "file": null,
-      "status": "propuesta",
+      "file": "docs/04-specs/SPEC-W-005-perfil-negocio-series.md",
+      "status": "especificada",
       "priority": "must",
       "risk": "bajo",
       "stories": [
@@ -226,11 +226,23 @@
       "requirements": [
         "RF-004"
       ],
-      "nfr": [],
-      "constraints": [
-        "RES-02"
+      "nfr": [
+        "NFR-06",
+        "NFR-10",
+        "NFR-11"
       ],
-      "adr": [],
+      "constraints": [
+        "RES-02",
+        "RES-07"
+      ],
+      "adr": [
+        "0003",
+        "0004",
+        "0006",
+        "0011",
+        "0015",
+        "0016"
+      ],
       "depends_on": [
         "SPEC-W-001"
       ],
@@ -241,7 +253,7 @@
         "pytest backend/tests/profile",
         "npm --prefix frontend exec -- playwright test e2e/perfil.spec.ts"
       ],
-      "notes": "API y pantalla sobre business_profiles (creada en W-001). Añade invoice_series. Perfil incompleto impide emitir y enumera los campos que faltan."
+      "notes": "API y pantalla /perfil sobre business_profiles (creada en W-001). Añade invoice_series (serie del año automática, series propias, predeterminada, archivar, número inicial mientras no se emita), el logo (bucket privado logos, subida directa firmada) y los CHECK de la tabla. Decidido por la persona el 2026-11-07: logo dentro, IBAN en texto bajo RLS sin cifrar (ADR futuro), series una por año más propias y retención elegida por la persona con sugerencia (7 % el año del alta y los dos siguientes). GET /api/profile devuelve missing_for_invoicing y can_issue; la regla de US-007 (perfil incompleto impide emitir) la aplica W-007. Con el NIF en el perfil, las simplificadas y tickets a ese NIF son deducibles en W-003 (AC-18). Spec escrita, pendiente de visto bueno; hitos 0 a 5 en el Anexo A."
     },
     {
       "id": "SPEC-W-006",

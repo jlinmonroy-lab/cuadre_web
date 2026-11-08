@@ -46,3 +46,27 @@ def test_anon_has_no_policy_on_storage_objects(admin: Connection[DictRow]) -> No
     ).fetchall()
     offenders = [r["policyname"] for r in rows if {"anon", "public"} & set(r["roles"])]
     assert offenders == []
+
+
+# --- El bucket `logos` (SPEC-W-005 hito 2, D-01) ---------------------------------------------------------------------------------------
+
+LOGO_MAX_BYTES = 1024 * 1024
+LOGO_MIME_TYPES = {"image/png", "image/jpeg", "image/webp"}
+
+
+def logos_bucket(admin: Connection[DictRow]) -> DictRow:
+    row = admin.execute(
+        "select id, public, file_size_limit, allowed_mime_types from storage.buckets where id = 'logos'"
+    ).fetchone()
+    assert row is not None, "falta el bucket «logos»: ¿se aplicó la migración?"
+    return row
+
+
+def test_the_logos_bucket_is_private(admin: Connection[DictRow]) -> None:
+    assert logos_bucket(admin)["public"] is False
+
+
+def test_the_logos_bucket_limits_are_the_ones_in_the_spec(admin: Connection[DictRow]) -> None:
+    bucket = logos_bucket(admin)
+    assert bucket["file_size_limit"] == LOGO_MAX_BYTES
+    assert set(bucket["allowed_mime_types"]) == LOGO_MIME_TYPES  # SVG no: puede llevar scripts (T5-06)

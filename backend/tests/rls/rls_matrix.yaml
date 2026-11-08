@@ -36,7 +36,8 @@ tables:
     grants:
       table: [SELECT]
       columns:
-        UPDATE: [legal_name, tax_id, fiscal_address, activity, iae_epigraph, activity_start_date, vat_regime, irpf_rate, logo_path, iban, home_pct]
+        # `logo_path` ya no se escribe directamente (SPEC-W-005 D-13): lo cambian app.set_business_logo y app.clear_business_logo.
+        UPDATE: [legal_name, tax_id, fiscal_address, activity, iae_epigraph, activity_start_date, vat_regime, irpf_rate, iban, home_pct]
     probe_insert: "insert into public.business_profiles (owner_id) values (%(owner)s)"
     probe_update: { column: legal_name, value: hacked }
     select:
@@ -105,5 +106,21 @@ tables:
     probe_update: { column: supplier_name, value: hacked }
     select:
       # El dueño ve el suyo; el gestor, solo el de quien le dio acceso activo; el administrador, ninguno (D3).
+      default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
+      active: { gina: [alicia] }
+
+  invoice_series:
+    kind: financial
+    owner_column: owner_id
+    grants:
+      table: [SELECT]       # toda escritura pasa por app.* (SPEC-W-005 §5.2)
+    # Una serie por usuario del reparto antes de comparar: con la tabla vacía la prueba no demostraría nada.
+    seed: >-
+      insert into public.invoice_series (owner_id, code, description, is_default)
+      values (%(owner)s, 'MTX', 'Matriz', true)
+    probe_insert: "insert into public.invoice_series (owner_id, code) values (%(owner)s, 'PRB')"
+    probe_update: { column: description, value: hacked }
+    select:
+      # El dueño ve las suyas; el gestor, solo las de quien le dio acceso activo; el administrador, ninguna (D3).
       default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
       active: { gina: [alicia] }

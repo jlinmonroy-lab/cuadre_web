@@ -38,13 +38,20 @@ where u.email like '%@example.test';
 update public.profiles set role = 'gestor' where email in ('gina@example.test', 'gus@example.test');
 update public.profiles set role = 'admin'  where email = 'adan@example.test';
 
--- 4 · Perfil de negocio de ejemplo (datos fiscales inventados y no válidos).
+-- 4 · Perfil de negocio de ejemplo. Datos sintéticos (RES-07) pero VÁLIDOS (SPEC-W-005 Anexo B.1): el NIF lleva su letra de control y
+-- el IBAN, entidad y oficina 0000 (no existen) con el módulo 97 y los dígitos de control de la cuenta bien. Se guardan compactos, como los
+-- guardará la API. Con ellos Alicia y Beto pueden emitir; y el NIF de Alicia es el destinatario de los ejemplos de `contracts/`.
 update public.business_profiles set
-  legal_name = 'Alicia Demo (sintético)', tax_id = 'TEST-0001', fiscal_address = 'Calle Ficticia 1, 00000 Ciudad de Pruebas',
-  activity = 'Diseño gráfico', activity_start_date = date '2025-01-15', irpf_rate = 7, iban = 'ES00 0000 0000 0000 0000 0001'
+  legal_name = 'Alicia Demo (sintético)', tax_id = '12345678Z', fiscal_address = 'Calle Ficticia 1, 00000 Ciudad de Pruebas',
+  activity = 'Diseño gráfico', activity_start_date = date '2025-01-15', irpf_rate = 7, iban = 'ES3600000000050000000001'
 where owner_id = 'a1000000-0000-4000-8000-000000000001';
 
 update public.business_profiles set
-  legal_name = 'Beto Demo (sintético)', tax_id = 'TEST-0002', fiscal_address = 'Avenida Inventada 2, 00000 Ciudad de Pruebas',
-  activity = 'Consultoría', activity_start_date = date '2023-06-01', irpf_rate = 15, iban = 'ES00 0000 0000 0000 0000 0002'
+  legal_name = 'Beto Demo (sintético)', tax_id = '01230956L', fiscal_address = 'Avenida Inventada 2, 00000 Ciudad de Pruebas',
+  activity = 'Consultoría', activity_start_date = date '2023-06-01', irpf_rate = 15, iban = 'ES6300000000010000000002'
 where owner_id = 'a1000000-0000-4000-8000-000000000002';
+
+-- 5 · Una serie de facturación por persona (SPEC-W-005 D-03): la del año, predeterminada.
+insert into public.invoice_series (owner_id, code, description, is_default) values
+  ('a1000000-0000-4000-8000-000000000001', '2026', 'Serie del año', true),
+  ('a1000000-0000-4000-8000-000000000002', '2026', 'Serie del año', true);

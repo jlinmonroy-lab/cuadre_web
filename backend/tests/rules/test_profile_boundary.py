@@ -12,7 +12,7 @@ from tests.rules.test_validators_boundary import clock_calls, forbidden_imports,
 
 PROFILE = SRC / "profile"
 PURE = {"__init__.py", "limits.py", "logo.py", "rules.py", "series.py", "types.py"}
-IMPURE: set[str] = set()  # SPEC-W-005 hito 3: service, repository, models, errors…
+IMPURE = {"errors.py", "models.py", "repository.py", "service.py"}  # SPEC-W-005 hito 3: API, base de datos y Storage
 
 
 def pure_files() -> list:

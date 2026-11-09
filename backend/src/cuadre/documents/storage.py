@@ -102,20 +102,29 @@ def _json_object(reply: _Reply) -> dict[str, Any]:
 
 
 class HttpStorage:
-    def __init__(self, supabase_url: str, *, clock_ns: Callable[[], int] = time.monotonic_ns) -> None:
+    def __init__(
+        self,
+        supabase_url: str,
+        *,
+        bucket: str = BUCKET,
+        path: re.Pattern[str] = PATH,
+        clock_ns: Callable[[], int] = time.monotonic_ns,
+    ) -> None:
         self._base = supabase_url.rstrip("/") + "/storage/v1"
+        self._bucket = bucket
+        self._path_re = path
         self._clock_ns = clock_ns
 
     # --- Operaciones -----------------------------------------------------------------------------------------------------
 
     def sign_upload(self, path: str, *, token: str) -> str:
-        reply = self._call("sign_upload", "POST", f"/object/upload/sign/{BUCKET}/{self._path(path)}", token)
+        reply = self._call("sign_upload", "POST", f"/object/upload/sign/{self._bucket}/{self._path(path)}", token)
         if reply.status == 403:
             raise StorageDenied
-        return self._relative_url(reply, "url", f"/object/upload/sign/{BUCKET}/")
+        return self._relative_url(reply, "url", f"/object/upload/sign/{self._bucket}/")
 
     def object_info(self, path: str, *, token: str) -> ObjectInfo | None:
-        reply = self._call("object_info", "GET", f"/object/info/authenticated/{BUCKET}/{self._path(path)}", token)
+        reply = self._call("object_info", "GET", f"/object/info/authenticated/{self._bucket}/{self._path(path)}", token)
         if reply.status == 404:
             return None
         if reply.status == 403:
@@ -130,7 +139,7 @@ class HttpStorage:
         reply = self._call(
             "read_head",
             "GET",
-            f"/object/authenticated/{BUCKET}/{self._path(path)}",
+            f"/object/authenticated/{self._bucket}/{self._path(path)}",
             token,
             extra_headers={"Range": f"bytes=0-{length - 1}"},
             max_bytes=length,
@@ -145,7 +154,7 @@ class HttpStorage:
         reply = self._call(
             "sign_read",
             "POST",
-            f"/object/sign/{BUCKET}/{self._path(path)}",
+            f"/object/sign/{self._bucket}/{self._path(path)}",
             token,
             json_body={"expiresIn": expires_in},
         )
@@ -153,10 +162,10 @@ class HttpStorage:
             raise StorageNotFound
         if reply.status == 403:
             raise StorageDenied
-        return self._relative_url(reply, "signedURL", f"/object/sign/{BUCKET}/")
+        return self._relative_url(reply, "signedURL", f"/object/sign/{self._bucket}/")
 
     def delete(self, path: str, *, token: str) -> None:
-        reply = self._call("delete", "DELETE", f"/object/{BUCKET}/{self._path(path)}", token)
+        reply = self._call("delete", "DELETE", f"/object/{self._bucket}/{self._path(path)}", token)
         if reply.status == 404:
             return
         if reply.status == 403:
@@ -165,10 +174,9 @@ class HttpStorage:
 
     # --- Internos --------------------------------------------------------------------------------------------------------
 
-    @staticmethod
-    def _path(path: str) -> str:
+    def _path(self, path: str) -> str:
         if (
-            PATH.fullmatch(path) is None
+            self._path_re.fullmatch(path) is None
         ):  # solo identificadores y extensión: si no, es un error nuestro, no de la persona
             raise ValueError("ruta de Storage con forma inesperada")
         return path

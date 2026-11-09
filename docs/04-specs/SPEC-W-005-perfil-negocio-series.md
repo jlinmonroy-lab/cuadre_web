@@ -469,6 +469,7 @@ npm --prefix frontend exec -- playwright test e2e/perfil.spec.ts       # AC-19 y
 2. **Base de datos**: CHECK de `business_profiles`, `invoice_series` con trigger y funciones, `app.*` del logo, bucket y políticas, seed, matriz y pruebas de RLS, con mutaciones.
    **Hecho el 2026-11-07** (cinco migraciones `20261107200000` a `…200400`, el seed y la matriz; decisiones, pruebas y mutaciones en el Anexo B.3).
 3. **API**: `cuadre.profile` (servicio y repositorio), `HttpStorage` por bucket, las diez rutas, `openapi.json` y `schema.d.ts` regenerados, con mutaciones.
+   **Hecho el 2026-11-09** (`cuadre/profile/{errors,models,repository,service}.py`, `api/routes_profile.py` y `HttpStorage` por bucket; decisiones, pruebas y mutaciones en el Anexo B.4).
 4. **Frontend**: `/perfil` (formulario, retención, logo, series), menú, avisos de `/inicio` y de la revisión; unitarias.
 5. **E2E y cierre**: `perfil.spec.ts` en tres motores y dos anchos, ajustes de `roles.spec.ts`, `responsive.spec.ts` y `env.ts`, mutaciones, Anexo B, `tasks.json` y commit.
 
@@ -634,3 +635,34 @@ Cinco migraciones nuevas (`supabase/migrations/20261107200000` a `…200400`) y 
 - **La API valida con `cuadre.profile` primero**, para devolver todos los errores a la vez con sus mensajes; las funciones son la red de seguridad, con un error por vez.
 - **Storage.** Los 413 y 415 llegan al navegador al hacer el `PUT`; `upload_logo` valida tipo y tamaño antes de firmar. La firma del archivo se lee con `Range` (12 bytes).
 - **Cuidado con la herramienta de escritura de archivos**: convierte los `\uXXXX` en caracteres literales y deja CRLF (B.2). En este hito se comprobó con un recuento de invisibles y de finales de línea sobre migraciones, pruebas y seed; en el hito 3 conviene repetirlo.
+
+### B.4 Hito 3 · API del perfil, el logo y las series · 2026-11-09
+
+**Qué hay.** Las diez rutas de §5.3 en `api/routes_profile.py` (solo `usuario`: `require_role_detached`, sin conexión retenida mientras se llama a Storage) y los módulos con base de datos o Storage de `cuadre.profile`: `errors`, `models`, `repository` y `service`, declarados como no puros en `test_profile_boundary.py`. `HttpStorage(supabase_url, *, bucket="documents", path=PATH)` guarda el bucket y la expresión de ruta en la instancia; `main.py` crea una segunda (`app.state.logo_storage`, bucket `logos`, `LOGO_PATH`) y los tests de documentos, que la construyen sin argumentos, no cambian. `LOGO_BUCKET` y `LOGO_PATH` viven en `profile/limits.py`. `backend/openapi.json` y `frontend/src/api/schema.d.ts` se regeneraron con sus scripts. No hay frontend ni migraciones nuevas.
+
+**Decisiones tomadas al implementar** (completan §5.3 y §5.4):
+
+| Tema | Decisión |
+|---|---|
+| El `upload_id` no se guarda | No hay tabla de subidas. `upload_logo` genera un `uuid4` y firma `{owner}/{uuid}.{ext}`; `complete_logo_upload` prueba las tres extensiones con `object_info` y se queda con la primera que existe (el `owner` sale del JWT, así que el `upload_id` de otra persona no encuentra nada). Si el tipo que Storage registró, el tamaño o la firma no cuadran con la extensión firmada, **borra el objeto subido** y responde `logo_invalid`: no queda ninguna referencia |
+| Forma frente a fiscalidad | `ProfileInput` valida solo la forma (`extra="forbid"`, longitudes holgadas, decimales como `str`); el contenido lo valida `cuadre.profile` y devuelve **todos** los errores a la vez en `fields`. Un número JSON en `irpf_rate` es el `validation_error` de siempre (no un `invalid_profile`) |
+| Enteros estrictos | `first_number` y `make_default`/`archived` son `StrictInt`/`StrictBool` en Pydantic: `"5"`, `true` y `5.5` no se coercionan |
+| `PATCH` de series | Solo se pasa a `app.update_invoice_series` lo que llegó (`model_fields_set`); `description: null` la borra; `archived` va a `app.set_invoice_series_archived` en la misma transacción. Se valida con `cuadre.profile` y se devuelve **el primer** error con su `field` (`invalid_series`) |
+| `updated_at` | No se escribe: `updated_at` no tiene `UPDATE` para `authenticated` y lo mantiene el trigger `business_profiles_touch_updated_at`. Una primera versión del `UPDATE` lo incluía y daba 403; lo encontró la primera prueba |
+| Errores de Storage | Los de la firma, `object_info`, `read_head` y `sign_read` salen como el `storage_unavailable` 503 de los documentos; el borrado del logo anterior es tolerante (aviso `logo_delete_failed` sin datos) |
+| `23505` | `invoice_series_owner_code_key` -> `series_code_taken`; `invoice_series_one_default`, `invalid_series` con `changes` o `archived`, `profile_not_found` y los del trigger no se traducen: son un 500 |
+
+**Pruebas.** **89 nuevas en `backend/tests/profile/`** (de 300 a **389**): `test_profile_api.py` (22: AC-01 a AC-08, normalización de NIF e IBAN, decimales, régimen, retención con reloj fijo), `test_series_api.py` (21: AC-09 a AC-13, la lectura que no escribe, dos guardados a la vez, los 409 y 404), `test_logo_api.py` (11: AC-14 a AC-16), `test_roles.py` (32, con las 10 rutas para gestor y administrador y sin sesión: AC-17), `test_no_sensitive_logs.py` (1: ni NIF, IBAN, nombre, domicilio, URL firmadas ni JWT en los registros ni los errores) y `test_expenses_integration.py` (2: AC-18, con el montaje de documentos). Suite sin RLS: **2.071** (con las 389 de perfil); RLS: **922**, sin cambios; `ruff check` y `ruff format --check` limpios; `export_openapi --check` y `gen:api --check` al día; `typecheck` del frontend verde.
+
+**Mutaciones.** **18**, con un ejecutor desechable fuera del repositorio (método de B.2): validar antes de guardar, `ensure_year_series`, borrado del logo anterior, firma, tipo registrado y tamaño en `complete`, URL de 60 s, borrado del objeto al quitar el logo, validación previa a la firma, `archived` ignorado, código sin mayúsculas, `UPDATE` con `logo_path`, orden de las series, traducción de `series_in_use`, una lectura que escribe, el rol y solo la extensión `png` en `complete`. **17 detectadas** y **1 equivalente por diseño**: `invoice_series_owner_code_key` sin traducir no se nota porque el cerrojo por persona impide ese `23505` (B.3); si se quitara el cerrojo, dejaría de ser equivalente. El ejecutor restaura cada archivo y comprueba su huella.
+
+**Un tropiezo de método.** Como avisaban B.2 y B.3, la herramienta de escritura dejó **CRLF** en los archivos nuevos (se pasaron a LF) y convirtió un `٣` de una prueba en el carácter literal, incluso al reescribirlo desde un guion; se resolvió construyéndolo en la prueba con `chr(0x663)`. Un recuento de invisibles y de finales de línea sobre todo lo escrito da cero.
+
+**Lo que no se ha comprobado:**
+- **Storage real con el JWT de la persona** para el logo: las pruebas de API usan el doble en memoria; la parte real (políticas del bucket) la cubren `test_logo_storage_live.py` del hito 2 y la prueba manual de abajo, no una prueba automática de `HttpStorage(bucket="logos")`.
+- **El navegador real subiendo un logo** (CORS, tipo declarado por `<input type="file">`): es del hito 4 y de los E2E.
+- **Dos `complete_logo_upload` a la vez** del mismo `upload_id`: el segundo vería el objeto ya registrado y lo volvería a guardar sin borrar nada (ruta igual a la guardada); no hay prueba.
+- **Que la suite entera pase en el CI** (las pruebas `live` necesitan `TEST_SUPABASE_ANON_KEY`).
+- **Mutaciones sobre los modelos Pydantic** (longitudes máximas y patrones): su comportamiento está probado, pero no se mutó.
+
+**Para el hito 4** (frontend): `get_profile` devuelve `completeness` y `retention` ya calculados, la pantalla solo los muestra; los errores de `update_profile` traen `fields: [{field, message}]` y los de series `field` (`code`, `description`, `first_number`); `upload_logo` devuelve `upload.url` y `upload.headers` (`Content-Type`) para el `PUT` directo, y la pantalla debe comprobar tipo y tamaño **antes** (Storage responde 413 y 415 al `PUT`). La URL de `get_logo` caduca a los 60 s.

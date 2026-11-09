@@ -194,6 +194,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/invoice-series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listar las series de facturación (la predeterminada primero; incluye las archivadas) */
+        get: operations["list_invoice_series"];
+        put?: never;
+        /** Crear una serie */
+        post: operations["create_invoice_series"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoice-series/{series_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Cambiar el código, la descripción o el número inicial de una serie, o archivarla y reactivarla */
+        patch: operations["update_invoice_series"];
+        trace?: never;
+    };
+    "/api/invoice-series/{series_id}/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Hacer predeterminada una serie */
+        put: operations["set_default_invoice_series"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -205,6 +257,60 @@ export interface paths {
         get: operations["get_me"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Leer el perfil, lo que falta para emitir y la sugerencia de retención (no escribe) */
+        get: operations["get_profile"];
+        /** Guardar el perfil (todo o nada) y crear la serie del año si falta */
+        put: operations["update_profile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/profile/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** URL firmada de 60 s para ver el logo */
+        get: operations["get_logo"];
+        put?: never;
+        /** Reservar una subida de logo y obtener la URL firmada */
+        post: operations["upload_logo"];
+        /** Quitar el logo y borrar su archivo (idempotente) */
+        delete: operations["delete_logo"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/profile/logo/{upload_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Comprobar el logo subido, guardarlo y borrar el anterior */
+        post: operations["complete_logo_upload"];
         delete?: never;
         options?: never;
         head?: never;
@@ -250,6 +356,13 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "failed";
+        };
+        /** Completeness */
+        Completeness: {
+            /** Can Issue */
+            can_issue: boolean;
+            /** Missing For Invoicing */
+            missing_for_invoicing: components["schemas"]["MissingField"][];
         };
         /**
          * ConfirmRequest
@@ -552,6 +665,69 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** InvoiceSeries */
+        InvoiceSeries: {
+            /** Archived */
+            archived: boolean;
+            /** Code */
+            code: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string | null;
+            /** First Number */
+            first_number: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** In Use */
+            in_use: boolean;
+            /** Is Default */
+            is_default: boolean;
+            /** Next Number */
+            next_number: number;
+        };
+        /** LogoUploadInstructions */
+        LogoUploadInstructions: {
+            /** Headers */
+            headers: {
+                [key: string]: string;
+            };
+            /** Url */
+            url: string;
+        };
+        /** LogoUploadRequest */
+        LogoUploadRequest: {
+            /** Mime Type */
+            mime_type: string;
+            /** Size Bytes */
+            size_bytes: number;
+        };
+        /** LogoUploadResponse */
+        LogoUploadResponse: {
+            upload: components["schemas"]["LogoUploadInstructions"];
+            /**
+             * Upload Id
+             * Format: uuid
+             */
+            upload_id: string;
+        };
+        /** LogoUrl */
+        LogoUrl: {
+            /**
+             * Expires In
+             * @default 60
+             * @constant
+             */
+            expires_in: 60;
+            /** Url */
+            url: string;
+        };
         /** MeResponse */
         MeResponse: {
             /** Display Name */
@@ -573,6 +749,16 @@ export interface components {
              * @constant
              */
             status: "active";
+        };
+        /** MissingField */
+        MissingField: {
+            /**
+             * Field
+             * @enum {string}
+             */
+            field: "legal_name" | "tax_id" | "fiscal_address";
+            /** Label */
+            label: string;
         };
         /** Preview */
         Preview: {
@@ -614,6 +800,77 @@ export interface components {
              */
             type: string;
         };
+        /** Profile */
+        Profile: {
+            /** Activity */
+            activity: string | null;
+            /** Activity Start Date */
+            activity_start_date: string | null;
+            completeness: components["schemas"]["Completeness"];
+            /** Fiscal Address */
+            fiscal_address: string | null;
+            /** Has Logo */
+            has_logo: boolean;
+            /** Home Pct */
+            home_pct: string | null;
+            /** Iae Epigraph */
+            iae_epigraph: string | null;
+            /** Iban */
+            iban: string | null;
+            /** Irpf Rate */
+            irpf_rate: ("7.00" | "15.00") | null;
+            /** Legal Name */
+            legal_name: string | null;
+            retention: components["schemas"]["Retention"];
+            /** Tax Id */
+            tax_id: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Vat Regime
+             * @constant
+             */
+            vat_regime: "general";
+        };
+        /**
+         * ProfileInput
+         * @description Los campos de §5.1. Los ausentes valen `null`. Los textos se validan en `cuadre.profile` (no aquí) para devolver todos los
+         *     errores juntos y con sus mensajes.
+         */
+        ProfileInput: {
+            /** Activity */
+            activity?: string | null;
+            /** Activity Start Date */
+            activity_start_date?: string | null;
+            /** Fiscal Address */
+            fiscal_address?: string | null;
+            /** Home Pct */
+            home_pct?: string | null;
+            /** Iae Epigraph */
+            iae_epigraph?: string | null;
+            /** Iban */
+            iban?: string | null;
+            /** Irpf Rate */
+            irpf_rate?: string | null;
+            /** Legal Name */
+            legal_name?: string | null;
+            /** Tax Id */
+            tax_id?: string | null;
+            /** Vat Regime */
+            vat_regime?: string | null;
+        };
+        /** Retention */
+        Retention: {
+            /** Reduced Until Year */
+            reduced_until_year: number | null;
+            /** Suggested Rate */
+            suggested_rate: ("7.00" | "15.00") | null;
+            /** Warning */
+            warning: string | null;
+        };
         /** Review */
         Review: {
             /** Currency */
@@ -651,6 +908,34 @@ export interface components {
             amount_cents?: number | null;
             /** Rate */
             rate?: string | null;
+        };
+        /** SeriesCreate */
+        SeriesCreate: {
+            /** Code */
+            code: string;
+            /** Description */
+            description?: string | null;
+            /** First Number */
+            first_number?: number | null;
+            /**
+             * Make Default
+             * @default false
+             */
+            make_default: boolean;
+        };
+        /**
+         * SeriesUpdate
+         * @description Solo lo que cambia: una clave ausente no se toca y `description: null` la borra.
+         */
+        SeriesUpdate: {
+            /** Archived */
+            archived?: boolean | null;
+            /** Code */
+            code?: string | null;
+            /** Description */
+            description?: string | null;
+            /** First Number */
+            first_number?: number | null;
         };
         /** SetCategory */
         SetCategory: {
@@ -1713,6 +1998,242 @@ export interface operations {
             };
         };
     };
+    list_invoice_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceSeries"][];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar el perfil (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    create_invoice_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceSeries"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar el perfil (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Código de serie en uso, serie en uso, predeterminada o archivada */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Datos no válidos (con `fields` o `field` según el caso) o logo que no es del tipo indicado */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    update_invoice_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SeriesUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceSeries"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar el perfil (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description La serie no existe (también si es de otra persona) o no hay logo */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Código de serie en uso, serie en uso, predeterminada o archivada */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Datos no válidos (con `fields` o `field` según el caso) o logo que no es del tipo indicado */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    set_default_invoice_series: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                series_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceSeries"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar el perfil (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description La serie no existe (también si es de otra persona) o no hay logo */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Código de serie en uso, serie en uso, predeterminada o archivada */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_me: {
         parameters: {
             query?: never;
@@ -1750,6 +2271,323 @@ export interface operations {
                 };
             };
             /** @description No se puede comprobar la sesión ahora mismo */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Profile"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar el perfil (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    update_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Profile"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar el perfil (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Datos no válidos (con `fields` o `field` según el caso) o logo que no es del tipo indicado */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_logo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogoUrl"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar el perfil (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description La serie no existe (también si es de otra persona) o no hay logo */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Almacenamiento no disponible */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    upload_logo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LogoUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogoUploadResponse"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar el perfil (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El logo supera 1 MiB */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El logo no es PNG, JPEG ni WebP */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Datos no válidos (con `fields` o `field` según el caso) o logo que no es del tipo indicado */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Almacenamiento no disponible */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    delete_logo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar el perfil (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    complete_logo_upload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Profile"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar el perfil (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Datos no válidos (con `fields` o `field` según el caso) o logo que no es del tipo indicado */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Almacenamiento no disponible */
             503: {
                 headers: {
                     [name: string]: unknown;

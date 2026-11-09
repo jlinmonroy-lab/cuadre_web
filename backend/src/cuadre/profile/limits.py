@@ -46,3 +46,5 @@ LOGO_MAX_BYTES = 1_048_576  # 1 MiB, igual que el bucket
 LOGO_HEAD_BYTES = 12  # lo que se lee con `Range` para comprobar la firma
 PNG_SIGNATURE = bytes.fromhex("89504e470d0a1a0a")
 JPEG_SIGNATURE = bytes.fromhex("ffd8ff")
+LOGO_BUCKET = "logos"
+LOGO_PATH = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[0-9a-f-]{36}\.(png|jpg|webp)")

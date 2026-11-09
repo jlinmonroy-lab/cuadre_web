@@ -34,7 +34,7 @@ function readEnvFile(file: string): Record<string, string> {
  * Dónde está GoTrue y su clave pública: `E2E_SUPABASE_URL` y `E2E_SUPABASE_ANON_KEY`, o lo que `npm run env:local` dejó en
  * `frontend/.env.local` (también en el CI). La clave pública no es un secreto, pero tampoco se imprime.
  */
-function supabaseConfig(): SupabaseConfig {
+export function supabaseConfig(): SupabaseConfig {
   const file = readEnvFile(path.join(__dirname, "..", "..", ".env.local"));
   const url = process.env.E2E_SUPABASE_URL ?? file["NEXT_PUBLIC_SUPABASE_URL"];
   const anonKey = process.env.E2E_SUPABASE_ANON_KEY ?? file["NEXT_PUBLIC_SUPABASE_ANON_KEY"];

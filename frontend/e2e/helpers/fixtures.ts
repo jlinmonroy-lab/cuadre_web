@@ -4,6 +4,7 @@ import { test as base, expect, type BrowserContext, type Page } from "@playwrigh
 
 import { API_URL, AUTH_DIR, type RoleKey } from "./env";
 import { Ledger } from "./ledger";
+import { ProfileApi } from "./profile";
 import { signUpAndConfirm, uniqueEmail } from "./session";
 
 /**
@@ -56,6 +57,11 @@ type Fixtures = {
    * vivo (o una prueba que falla a mitad) haría fallar «No está registrada ya» en la siguiente.
    */
   ledger: Ledger;
+  /**
+   * El perfil de `gastosUser` por la API: se **restaura al empezar y al terminar** (vacío, sin logo y solo la serie del año). Las pruebas de
+   * Gastos esperan un perfil vacío y la cuenta es la del worker, así que toda prueba que escriba el perfil debe usar este fixture (T5-11).
+   */
+  profile: ProfileApi;
 };
 
 type WorkerFixtures = {
@@ -97,6 +103,13 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
     const ledger = new Ledger(request, gastosUser.email, API_URL);
     await use(ledger);
     await ledger.voidAll();
+  },
+
+  profile: async ({ request, gastosUser }, use) => {
+    const profile = new ProfileApi(request, gastosUser.email, API_URL);
+    await profile.restore();
+    await use(profile);
+    await profile.restore();
   },
 
   page: async ({ page }, use) => {

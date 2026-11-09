@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-005
 titulo: Perfil personal y del negocio y series de facturación
-estado: en-progreso
+estado: en-revision
 prioridad: must
 riesgo: bajo
 historias: [US-007]
@@ -453,12 +453,12 @@ npm --prefix frontend exec -- playwright test e2e/perfil.spec.ts       # AC-19 y
 
 ### 8.4 Definición de hecho
 
-- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001, SPEC-W-002 y SPEC-W-003 §8.2 siguen en verde.
-- [ ] `pytest backend/tests/rls -m rls` incluye `invoice_series`, los CHECK de `business_profiles` y las políticas del bucket `logos`.
-- [ ] «Perfil» está activo en el menú del autónomo y el aviso «Completa tu perfil» sale en `/inicio` y en la revisión de una simplificada sin NIF.
-- [ ] El seed lleva NIF e IBAN válidos y sintéticos, y las pruebas de SPEC-W-003 que dependían del NIF de Alicia se han revisado.
-- [ ] `docs/04-specs/tasks.json` actualizado; los ADR 0003, 0004, 0006, 0011, 0015 y 0016 enlazados.
-- [ ] Sin secretos, NIF, IBAN ni imágenes reales en el cambio; `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
+- [x] La secuencia de §8.2 termina con código 0 **en local** y las de SPEC-W-001, SPEC-W-002 y SPEC-W-003 §8.2 siguen en verde (el CI no se ha podido ver: repositorio privado, B.6).
+- [x] `pytest backend/tests/rls -m rls` incluye `invoice_series`, los CHECK de `business_profiles` y las políticas del bucket `logos`.
+- [x] «Perfil» está activo en el menú del autónomo y el aviso «Completa tu perfil» sale en `/inicio` y en la revisión de una simplificada sin NIF.
+- [x] El seed lleva NIF e IBAN válidos y sintéticos, y las pruebas de SPEC-W-003 que dependían del NIF de Alicia se han revisado.
+- [x] `docs/04-specs/tasks.json` actualizado; los ADR 0003, 0004, 0006, 0011, 0015 y 0016 enlazados.
+- [x] Sin secretos, NIF, IBAN ni imágenes reales en el cambio; `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
 
 ## Anexo A · Orden de implementación sugerido (un plan y un commit por hito)
 
@@ -473,6 +473,7 @@ npm --prefix frontend exec -- playwright test e2e/perfil.spec.ts       # AC-19 y
 4. **Frontend**: `/perfil` (formulario, retención, logo, series), menú, avisos de `/inicio` y de la revisión; unitarias.
    **Hecho el 2026-11-09** (`/perfil`, menú, avisos y unitarias; decisiones y comprobación visual en el Anexo B.5).
 5. **E2E y cierre**: `perfil.spec.ts` en tres motores y dos anchos, ajustes de `roles.spec.ts`, `responsive.spec.ts` y `env.ts`, mutaciones, Anexo B, `tasks.json` y commit.
+   **Hecho el 2026-11-09** (`perfil.spec.ts`, fixture `profile`, `roles.spec.ts` y `responsive.spec.ts`; batería completa en los tres motores y 21 mutaciones de la interfaz: Anexo B.6). El commit queda a petición de la persona.
 
 ## Anexo B · Decisiones que esta spec dejó a la implementación
 
@@ -697,3 +698,26 @@ Cinco migraciones nuevas (`supabase/migrations/20261107200000` a `…200400`) y 
 - **Restauración**: la comprobación añadió tres series archivadas (`T1440`, `T90GEWP`, `T90GHAO`) a la cuenta local de Alicia y no se pueden borrar (solo archivar); el siguiente `db reset` las quita.
 
 **Para el hito 5:** `perfil.spec.ts` con una cuenta propia del worker que restaure su perfil (T5-11), los seis proyectos (3 motores x 2 anchos), `roles.spec.ts` y `responsive.spec.ts` con `/perfil`, y la mutación de la interfaz.
+
+### B.6 Hito 5 · E2E del perfil y cierre · 2026-11-09
+
+**Qué hay.** `e2e/perfil.spec.ts` (13 pruebas por proyecto: perfil vacío, completar, NIF e IBAN inválidos, NIF de la UE, IBAN y vivienda, retención, logo, series, código inválido, el NIF del perfil y los gastos, interfaz, ancho 1.279/1.280 solo en Chromium y teclado); `e2e/helpers/profile.ts` (`ProfileApi`: `save` y `restore`, que deja la cuenta vacía, sin logo y con solo la serie del año activa, con el mismo inicio de sesión contra GoTrue que `Ledger`, que ahora exporta `supabaseConfig`) y el fixture `profile` (restaura al empezar y al terminar, T5-11: las pruebas de Gastos esperan un perfil vacío y comparten la cuenta del worker). `roles.spec.ts` (AC-20: «Perfil» activo para el autónomo; gestor y administrador no lo ven y `/perfil` los lleva a `/403`) y `responsive.spec.ts` (`/perfil`).
+
+**Lo que encontraron los E2E: dos fallos reales de la interfaz** (el hito 4 los dejó pasar, también la comprobación visual de entonces):
+- **El selector de retención perdía su valor al guardar.** React solo aplica el `defaultValue` de un `<select>` al montarlo y, al terminar la acción, reinicia el formulario a ese valor inicial: tras guardar «7 %» el selector volvía a «Sin elegir» y un segundo guardado **borraba la retención**. Arreglo: `key` con el valor en el selector (también repuebla lo tecleado si hubo errores). Lo cubre la prueba de retención y la mutación E01.
+- **El mensaje de «Archivar» quedaba tapado por el de «Hacer predeterminada».** Con dos `useActionState` separados, el éxito de la primera acción ocultaba el error posterior de la segunda (el 409 al archivar la predeterminada). Arreglo: un único estado por serie con las dos acciones en un formulario.
+Y uno de las pruebas, no de la aplicación: el texto de una fila de la tabla no lleva espacios entre celdas, así que un localizador con `\s` no la encontraba; ahora se localiza por su `<th>` o su `<h3>`.
+
+**Verificación.** Con `E2E_WEB_PORT=3100`, `E2E_AGENTS_PORT=8790` y `--workers=1`, un motor por invocación: **Chromium 155 pruebas en verde**, **WebKit 151** y **Firefox 150 + 1 repetida**: una prueba de `perfil.spec.ts` agotó los 60 s en el *setup* del fixture (el `POST` de inicio de sesión a GoTrue no respondió en una tanda de 36 minutos) y pasó al repetirla sola en los dos anchos. Las pruebas de `perfil.spec.ts` suman 74 en verde y 4 omitidas a propósito (la de 1.279/1.280 px solo corre en Chromium); la batería incluye `auth`, `gastos-*`, `roles`, `responsive`, `browser-errors` y `bundle`, así que SPEC-W-001, 002 y 003 §8.2 siguen en verde con el perfil nuevo. `lint`, `typecheck`, `test:unit` (186), `build`, `check:bundle`, `gen:api --check`, `ruff`, `export_openapi --check` y `pytest backend/tests/profile` y `rules` (479) verdes; las suites sin RLS (2.071) y RLS (922) del hito 3 no cambian.
+
+**Mutaciones de la interfaz.** **21**, con un ejecutor desechable fuera del repositorio (método de B.2): nueve contra las unitarias (el menú, la protección de la ruta, el límite de tamaño y el tipo SVG del logo, el vacío que no es `null`, la fecha imposible, el IBAN sin agrupar, un campo del perfil fuera de la lista y el número inicial no entero) y doce contra `perfil.spec.ts` o `roles.spec.ts` en `chromium-1440` (el selector sin `key`, el foco del resumen, el aviso de Inicio siempre oculto o que no desaparece, el enlace de la revisión ausente o sin condición de tipo, la marca «Predeterminada», «Editar» sin descripción, el estado «listo» fijo, el `aria-describedby` del campo, el logo sin comprobar antes de subir y `/perfil` abierto a otro rol). **Las 21 detectadas**; el ejecutor restaura cada archivo y compara su huella (sin avisos). Una (E09) no se aplicó a la primera por un patrón ambiguo y se repitió con uno único.
+
+**Lo que no se ha comprobado:**
+- **El CI.** El repositorio es privado y no veo el resultado; lo que queda en verde es lo local.
+- **Lector de pantalla.** Se prueban etiquetas, `aria-describedby`, `aria-live`, el foco del resumen y el recorrido con teclado, no NVDA ni VoiceOver.
+- **Mutaciones sobre el backend de este hito** más allá de las 18 del hito 3, y sobre `perfil.spec.ts` en Firefox y WebKit (solo Chromium).
+- **Dos ejecuciones simultáneas** de la batería sobre la misma pila de Supabase: la cuenta del worker es nueva por ejecución, pero no se probó en paralelo.
+- **Tiempos con la máquina cargada:** Firefox tardó 36 minutos frente a 5 de Chromium y WebKit; el fallo por tiempo de GoTrue podría repetirse en un equipo justo de memoria.
+- **El puerto 8765 de los agentes:** en esta máquina dejó de poder abrirse sin que hubiera ningún proceso escuchando (`WinError 10048`); se usó `E2E_AGENTS_PORT=8790`.
+
+**Estado de la spec.** Todos los hitos hechos y la verificación en local en verde: la spec pasa a `en-revision` (pasa a `hecha` cuando la revisión la acepte, como dice el flujo de `tasks.json`). Falta, para cerrarla del todo, un commit por hito a petición de la persona y que el CI la valide.

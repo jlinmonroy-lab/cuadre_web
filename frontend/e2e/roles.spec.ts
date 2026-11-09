@@ -37,3 +37,25 @@ for (const role of ROLE_KEYS) {
     await expect(page).toHaveURL(person.home);
   });
 }
+
+// SPEC-W-005 AC-20 · «Perfil» es solo del autónomo: el gestor y el administrador no lo ven y /perfil los lleva a /403.
+test("Perfil · el autónomo lo ve activo en el menú y llega a su pantalla", async ({ pageAs }) => {
+  const page = await pageAs("alicia");
+  await page.goto(PEOPLE.alicia.home);
+  await page.getByRole("navigation", { name: "Apartados" }).getByRole("link", { name: "Perfil" }).click();
+  await expect(page).toHaveURL("/perfil");
+  await expect(page.getByRole("heading", { level: 1, name: "Perfil" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Apartados" }).getByRole("link", { name: "Perfil" })).toHaveAttribute("aria-current", "page");
+});
+
+for (const role of ["gina", "adan"] as const) {
+  test(`Perfil · ${role} no lo ve en el menú y /perfil lo lleva a /403`, async ({ pageAs }) => {
+    const page = await pageAs(role);
+    await page.goto(PEOPLE[role].home);
+    await expect(page.getByRole("navigation", { name: "Apartados" }).getByText("Perfil", { exact: true })).toHaveCount(0);
+    await settle(page);
+    await page.goto("/perfil");
+    await expect(page).toHaveURL("/403");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("No tienes acceso a esta sección");
+  });
+}

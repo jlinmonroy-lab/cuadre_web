@@ -17,6 +17,8 @@ test("AC-04 · sin sesión, una portada lleva a /login?next=<ruta>", () => {
 
 test("Gastos exige sesión, también sus subrutas y los Route Handlers de lectura", () => {
   assert.deepEqual(anon("/gastos"), { redirect: "/login?next=/gastos" });
+  assert.deepEqual(anon("/perfil"), { redirect: "/login?next=/perfil" });
+  assert.equal(authed("/perfil"), null);
   assert.deepEqual(anon("/gastos/3f2a-1"), { redirect: "/login?next=/gastos/3f2a-1" });
   assert.deepEqual(anon("/gastos/3f2a-1/leer"), { redirect: "/login?next=/gastos/3f2a-1/leer" });
   assert.deepEqual(anon("/gastos", "?aviso=descartado"), { redirect: "/login?next=/gastos%3Faviso%3Ddescartado" });

@@ -1,6 +1,7 @@
 "use client";
 
 import { CircleCheck, CircleX, TriangleAlert } from "lucide-react";
+import Link from "next/link";
 import { useActionState, useState } from "react";
 
 import { useDirty } from "@/components/expenses/dirty-context";
@@ -23,7 +24,7 @@ import { initialFormState } from "@/lib/form-state";
  * enseña lo que devuelve la API y `registerGate` decide solo cuándo se puede pulsar (nada sin guardar, todo en verde y, si hay sospecha de
  * instrucciones ocultas, la casilla marcada). El servidor y la base lo vuelven a decidir.
  */
-export function RegisterPanel({ documentId, validation }: { documentId: string; validation: Validation | null }) {
+export function RegisterPanel({ documentId, validation, profileNifMissing = false }: { documentId: string; validation: Validation | null; profileNifMissing?: boolean }) {
   const { dirty } = useDirty();
   const [state, action, pending] = useActionState(confirmDocument.bind(null, documentId), initialFormState);
   const [chosen, setChosen] = useState<ExpenseCategory | null>(null);
@@ -82,6 +83,14 @@ export function RegisterPanel({ documentId, validation }: { documentId: string; 
               <strong>Se deducirá el IVA: {validation.preview.deductible_vat ? "sí" : "no"}.</strong>
               {validation.preview.deductible_note ? <> {validation.preview.deductible_note}</> : null}
             </p>
+            {profileNifMissing ? (
+              <p className="text-sm">
+                Para deducir el IVA de un ticket o una simplificada tu NIF tiene que estar en el perfil.{" "}
+                <Link href="/perfil" className="font-semibold text-action underline underline-offset-2 hover:text-action-hover">
+                  Completa tu perfil
+                </Link>
+              </p>
+            ) : null}
           </div>
         ) : (
           <p className="text-sm text-ink-soft">Todavía no hay datos guardados que comprobar. Rellena el formulario y pulsa «Guardar cambios».</p>

@@ -16,6 +16,8 @@ export type Problem = {
   failedChecks?: string[];
   /** `validation_error`: los campos de un cuerpo mal formado (los mismos nombres que `field`). */
   invalidFields?: string[];
+  /** `invalid_profile`: TODOS los campos del perfil que fallan, cada uno con su texto (el servidor no repite lo escrito). */
+  profileFields?: { field: string; message: string }[];
 };
 
 const BY_STATUS: Record<number, string> = {
@@ -28,7 +30,21 @@ const GENERIC = "No hemos podido completar la operación. Inténtalo de nuevo.";
 
 const CODE = /^[a-z][a-z0-9_]{0,63}$/;
 // Los campos y las ubicaciones que se aceptan de un error de la API vienen de listas cerradas: nunca se refleja texto libre del cuerpo.
-const FIELDS = new Set(["expense_date", "concept", "category", "amount_cents"]);
+const FIELDS = new Set(["expense_date", "concept", "category", "amount_cents", "code", "description", "first_number"]);
+// SPEC-W-005: los campos del perfil que puede señalar `invalid_profile`.
+export const PROFILE_FIELDS = [
+  "legal_name",
+  "tax_id",
+  "fiscal_address",
+  "activity",
+  "iae_epigraph",
+  "activity_start_date",
+  "vat_regime",
+  "irpf_rate",
+  "home_pct",
+  "iban",
+] as const;
+const PROFILE_FIELD_SET: ReadonlySet<string> = new Set(PROFILE_FIELDS);
 const FIELD_LOCS = new Map([
   ["body.expense_date", "expense_date"],
   ["body.concept", "concept"],
@@ -70,6 +86,18 @@ export function describeProblem(input: { status: number; body: unknown; retryAft
         ]
       : [];
 
+  const rawProfileFields = body["fields"];
+  const profileFields =
+    client && code === "invalid_profile" && Array.isArray(rawProfileFields)
+      ? rawProfileFields.flatMap((entry: unknown) => {
+          if (typeof entry !== "object" || entry === null) return [];
+          const { field: name, message: text } = entry as Record<string, unknown>;
+          if (typeof name !== "string" || !PROFILE_FIELD_SET.has(name)) return [];
+          if (typeof text !== "string" || text.length === 0 || text.length > MAX_DETAIL || UNSAFE_TEXT.test(text)) return [];
+          return [{ field: name, message: text }];
+        })
+      : [];
+
   return {
     status: input.status,
     code,
@@ -78,6 +106,7 @@ export function describeProblem(input: { status: number; body: unknown; retryAft
     ...(field ? { field } : {}),
     ...(failedChecks.length > 0 ? { failedChecks } : {}),
     ...(invalidFields.length > 0 ? { invalidFields } : {}),
+    ...(profileFields.length > 0 ? { profileFields } : {}),
   };
 }
 

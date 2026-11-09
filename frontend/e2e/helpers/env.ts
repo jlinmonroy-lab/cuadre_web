@@ -42,8 +42,8 @@ export const PEOPLE: Record<RoleKey, Person> = {
     name: "Alicia",
     home: "/inicio",
     roleLabel: "Autónomo",
-    nav: ["Inicio", "Clientes", "Facturas", "Gastos", "Contabilidad mensual", "Trimestres"],
-    enabledNav: ["Inicio", "Gastos"],
+    nav: ["Inicio", "Clientes", "Facturas", "Gastos", "Contabilidad mensual", "Trimestres", "Perfil"],
+    enabledNav: ["Inicio", "Gastos", "Perfil"],
   },
   gina: {
     email: "gina@example.test",

@@ -15,6 +15,7 @@ import { RegisterPanel } from "@/components/expenses/register-panel";
 import { getDocument } from "@/lib/documents-api";
 import { failureHint, formatMoment } from "@/lib/documents";
 import { noticeFor } from "@/lib/notices";
+import { getProfileForNotice } from "@/lib/profile-api";
 import { initialValues } from "@/lib/review";
 import { requireRole } from "@/lib/session";
 
@@ -37,6 +38,12 @@ export default async function DocumentPage(props: PageProps<"/gastos/[id]">) {
   const hasFile = document.status !== "uploading";
   // Si la lectura termina o se vuelve a pedir, el formulario se vuelve a montar con los datos nuevos; guardar correcciones no lo cambia.
   const formKey = `${document.status}-${document.extracted_at ?? "sin-lectura"}`;
+  // SPEC-W-005 D-11: el IVA de una simplificada o un ticket solo es deducible con el NIF de la persona en su perfil. Se mira solo en esos
+  // dos tipos (lo guardado, no lo que se está tecleando) y, si el perfil no se puede leer, la pantalla sigue sin el enlace.
+  const docType = initialValues({ extraction: document.extraction, review: document.review })["doc_type"];
+  const needsProfileNif = reviewable && (docType === "simplified_invoice" || docType === "ticket");
+  const profile = needsProfileNif ? await getProfileForNotice() : null;
+  const profileNifMissing = profile !== null && profile.completeness.missing_for_invoicing.some((item) => item.field === "tax_id");
 
   return (
     <>
@@ -147,7 +154,7 @@ export default async function DocumentPage(props: PageProps<"/gastos/[id]">) {
                     }
                   />
                 </section>
-                <RegisterPanel documentId={document.id} validation={document.validation} />
+                <RegisterPanel documentId={document.id} validation={document.validation} profileNifMissing={profileNifMissing} />
               </div>
             </DirtyProvider>
           ) : null}

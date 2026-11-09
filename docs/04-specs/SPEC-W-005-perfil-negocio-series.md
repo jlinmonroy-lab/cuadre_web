@@ -471,6 +471,7 @@ npm --prefix frontend exec -- playwright test e2e/perfil.spec.ts       # AC-19 y
 3. **API**: `cuadre.profile` (servicio y repositorio), `HttpStorage` por bucket, las diez rutas, `openapi.json` y `schema.d.ts` regenerados, con mutaciones.
    **Hecho el 2026-11-09** (`cuadre/profile/{errors,models,repository,service}.py`, `api/routes_profile.py` y `HttpStorage` por bucket; decisiones, pruebas y mutaciones en el Anexo B.4).
 4. **Frontend**: `/perfil` (formulario, retención, logo, series), menú, avisos de `/inicio` y de la revisión; unitarias.
+   **Hecho el 2026-11-09** (`/perfil`, menú, avisos y unitarias; decisiones y comprobación visual en el Anexo B.5).
 5. **E2E y cierre**: `perfil.spec.ts` en tres motores y dos anchos, ajustes de `roles.spec.ts`, `responsive.spec.ts` y `env.ts`, mutaciones, Anexo B, `tasks.json` y commit.
 
 ## Anexo B · Decisiones que esta spec dejó a la implementación
@@ -666,3 +667,33 @@ Cinco migraciones nuevas (`supabase/migrations/20261107200000` a `…200400`) y 
 - **Mutaciones sobre los modelos Pydantic** (longitudes máximas y patrones): su comportamiento está probado, pero no se mutó.
 
 **Para el hito 4** (frontend): `get_profile` devuelve `completeness` y `retention` ya calculados, la pantalla solo los muestra; los errores de `update_profile` traen `fields: [{field, message}]` y los de series `field` (`code`, `description`, `first_number`); `upload_logo` devuelve `upload.url` y `upload.headers` (`Content-Type`) para el `PUT` directo, y la pantalla debe comprobar tipo y tamaño **antes** (Storage responde 413 y 415 al `PUT`). La URL de `get_logo` caduca a los 60 s.
+
+### B.5 Hito 4 · pantalla `/perfil`, menú y avisos · 2026-11-09
+
+**Qué hay.** `app/(app)/perfil/page.tsx` y `components/profile/` (`profile-form`, `logo-panel`, `series-section`, `series-actions`, `complete-profile-notice`); `lib/profile-api.ts` (lecturas de servidor), `lib/profile-actions.ts` (Server Actions) y `lib/profile-form.ts` (puro); `components/form-row.tsx` (el `Row` de Gastos, extraído y compartido). «Perfil» activo en el menú del autónomo y en `SECTIONS.usuario`. Aviso «Completa tu perfil» en `/inicio` y enlace a `/perfil` en la revisión de una simplificada o ticket sin NIF. `lib/problems.ts` entiende `fields` (`invalid_profile`) y los campos de `invalid_series`, de listas cerradas. No hay cambios en el backend, las migraciones ni el esquema generado.
+
+**Decisiones tomadas al implementar:**
+
+| Tema | Decisión |
+|---|---|
+| La interfaz no valida nada fiscal | Solo cruza texto con el cuerpo (vacío = `null`) y señala lo que no se puede ni enviar: una fecha que no existe y un número inicial que no es entero. El NIF, el IBAN, los rangos y la retención los decide el servidor, que devuelve todos los errores a la vez; cada uno sale junto a su campo y en el resumen que recibe el foco |
+| Guardar repuebla con lo guardado | Tras un guardado bueno el formulario se rellena con lo que devuelve la API (NIF en mayúsculas, IBAN sin separadores y agrupado de cuatro en cuatro al mostrarlo) y dice «Cambios guardados.» en una región `aria-live` |
+| Avisos sin romper la pantalla | `getProfileForNotice` devuelve `null` si el perfil no se puede leer: `/inicio` y la revisión siguen sin el aviso en lugar de caerse por algo secundario. 401 y 403 sí redirigen. En la revisión solo se lee el perfil si el tipo guardado del documento es `simplified_invoice` o `ticket`, y «falta el NIF» se toma de `completeness` (también cuenta un NIF guardado que ya no vale) |
+| Logo | Se comprueba tipo y tamaño **antes** de subir (lo repite la Server Action `reserveLogo`); `putToStorage` (el de documentos) sube directo con solo `Content-Type`; después `completeLogo` y la vista previa con `<img>` y una URL de 60 s, que se pide al montar, tras cada cambio y una vez más si falla al cargar |
+| Series en dos vistas | Tarjetas hasta 1.279 px y tabla desde 1.280, las dos en el DOM como en Gastos. Las marcas «Predeterminada», «Archivada» y «En uso» son texto. En una serie en uso, el código y el número inicial salen desactivados con su motivo y no se envían. «Añadir serie» es un `<details>` nativo |
+| «Perfil» tras «Trimestres» | Como pedía §5.5; gestor y administrador no lo ven y `/perfil` les lleva a `/403` (`requireRole`) |
+| `use server` | Un archivo `"use server"` solo exporta funciones asíncronas: las constantes y las funciones puras viven en `lib/profile-form.ts` |
+
+**Pruebas.** Unitarias nuevas: `profile-form.test.ts` (8) y 2 en `problems.test.ts`, más los ajustes de `roles.test.ts` y `route-guard.test.ts`; **186** en total, todas verdes. `lint`, `typecheck`, `build`, `check:bundle` y `gen:api --check` verdes; `pytest backend/tests/profile backend/tests/rules` (479) sin cambios. `e2e/helpers/env.ts`: `alicia.nav` y `enabledNav` llevan «Perfil» (los E2E nuevos son del hito 5).
+
+**Comprobación visual** (Chromium contra localhost, cuenta sintética del seed, 1.440 y 390 px, un guion desechable): el estado «listo para emitir» con texto; guardar con NIF e IBAN malos da el resumen con foco y un error junto a cada campo que no repite lo escrito, y no guarda nada; guardar bien normaliza NIF e IBAN; logo PNG subido, visible y quitado; un SVG se rechaza antes de subir; serie añadida, archivada y código repetido (409) junto a su campo; sin scroll horizontal; **sin errores de consola**. Esto responde a la duda de B.1 sobre el CORS de Storage desde el navegador: el `PUT` directo funciona desde `localhost:3100`.
+
+**Lo que no se ha comprobado:**
+- **Firefox y WebKit**: solo Chromium; es del hito 5.
+- **El perfil vacío y el aviso de `/inicio` y de la revisión en pantalla**: la cuenta del seed ya está completa. Los cubrirá `perfil.spec.ts` con una cuenta propia.
+- **Teclado y lector de pantalla**: se probó el foco del resumen y las etiquetas, no un recorrido completo ni NVDA.
+- **«Editar» una serie en pantalla**: el formulario compila y la acción está cubierta por la API, pero no lo ejercité en el navegador.
+- **La caducidad de la URL de 60 s** con la pestaña abierta (el reintento de `<img onError>`).
+- **Restauración**: la comprobación añadió tres series archivadas (`T1440`, `T90GEWP`, `T90GHAO`) a la cuenta local de Alicia y no se pueden borrar (solo archivar); el siguiente `db reset` las quita.
+
+**Para el hito 5:** `perfil.spec.ts` con una cuenta propia del worker que restaure su perfil (T5-11), los seis proyectos (3 motores x 2 anchos), `roles.spec.ts` y `responsive.spec.ts` con `/perfil`, y la mutación de la interfaz.

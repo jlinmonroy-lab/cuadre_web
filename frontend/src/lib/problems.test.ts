@@ -97,3 +97,32 @@ test("un 5xx no devuelve ninguno de los campos del cuerpo", () => {
   });
   assert.deepEqual(problem, { status: 500, code: "validation_error", message: "El servicio no está disponible ahora mismo. Inténtalo de nuevo en unos segundos." });
 });
+
+test("invalid_profile devuelve todos los campos con su texto, de una lista cerrada y sin reflejar texto libre", () => {
+  const body = {
+    code: "invalid_profile",
+    detail: "Revisa los campos marcados: no se ha guardado nada.",
+    fields: [
+      { field: "tax_id", message: "El NIF no es válido: revisa el dígito o la letra de control." },
+      { field: "iban", message: "El IBAN no es válido: revisa los dígitos de control." },
+      { field: "logo_path", message: "no es un campo del perfil" },
+      { field: "home_pct", message: "con <marca>" },
+      { field: "activity", message: "x".repeat(301) },
+      { field: "legal_name", message: 5 },
+      "texto",
+    ],
+  };
+  assert.deepEqual(describeProblem({ status: 422, body }).profileFields, [
+    { field: "tax_id", message: "El NIF no es válido: revisa el dígito o la letra de control." },
+    { field: "iban", message: "El IBAN no es válido: revisa los dígitos de control." },
+  ]);
+  assert.equal(describeProblem({ status: 500, body }).profileFields, undefined);
+  assert.equal(describeProblem({ status: 422, body: { ...body, code: "otra_cosa" } }).profileFields, undefined);
+});
+
+test("invalid_series señala su campo de una lista cerrada", () => {
+  for (const field of ["code", "description", "first_number"]) {
+    assert.equal(describeProblem({ status: 422, body: { code: "invalid_series", detail: "Mal.", field } }).field, field);
+  }
+  assert.equal(describeProblem({ status: 422, body: { code: "invalid_series", detail: "Mal.", field: "owner_id" } }).field, undefined);
+});

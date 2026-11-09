@@ -23,16 +23,17 @@ test("las etiquetas están en español", () => {
   assert.equal(roleLabel("admin"), "Administrador");
 });
 
-test("navegación del autónomo: Inicio y Gastos están activos; el resto, próximamente", () => {
+test("navegación del autónomo: Inicio, Gastos y Perfil están activos; el resto, próximamente", () => {
   const nav = navFor("usuario");
   assert.deepEqual(
     nav.map((item) => item.label),
-    ["Inicio", "Clientes", "Facturas", "Gastos", "Contabilidad mensual", "Trimestres"],
+    ["Inicio", "Clientes", "Facturas", "Gastos", "Contabilidad mensual", "Trimestres", "Perfil"],
   );
   const active = nav.filter((item) => item.href !== null);
   assert.deepEqual(active, [
     { label: "Inicio", href: "/inicio" },
     { label: "Gastos", href: "/gastos" },
+    { label: "Perfil", href: "/perfil" },
   ]);
   for (const future of nav.filter((item) => item.href === null)) assert.deepEqual(future, { label: future.label, href: null });
 });
@@ -61,11 +62,13 @@ test("los apartados con pantalla propia pertenecen a un solo rol, respetando el 
   assert.equal(sectionOwner("/gastos"), "usuario");
   assert.equal(sectionOwner("/gastos/3f2a"), "usuario");
   assert.equal(sectionOwner("/gastos/3f2a/leer"), "usuario");
+  assert.equal(sectionOwner("/perfil"), "usuario");
+  assert.equal(sectionOwner("/perfil/logo"), "usuario");
   // Las portadas siguen siendo suyas.
   assert.equal(sectionOwner("/inicio"), "usuario");
   assert.equal(sectionOwner("/cartera/ana"), "gestor");
   assert.equal(sectionOwner("/admin"), "admin");
-  for (const none of ["/", "/403", "/login", "/gastosx", "/gastos-x", "/x/gastos", "/mis-gastos", "/Gastos"]) {
+  for (const none of ["/", "/403", "/login", "/gastosx", "/gastos-x", "/x/gastos", "/mis-gastos", "/Gastos", "/perfilx", "/perfil-x", "/Perfil"]) {
     assert.equal(sectionOwner(none), null, none);
   }
 });

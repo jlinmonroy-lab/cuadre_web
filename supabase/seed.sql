@@ -55,3 +55,14 @@ where owner_id = 'a1000000-0000-4000-8000-000000000002';
 insert into public.invoice_series (owner_id, code, description, is_default) values
   ('a1000000-0000-4000-8000-000000000001', '2026', 'Serie del año', true),
   ('a1000000-0000-4000-8000-000000000002', '2026', 'Serie del año', true);
+
+-- 6 · Clientes de ejemplo (SPEC-W-006): uno de cada ámbito por persona. Sintéticos y ya NORMALIZADOS, como los guardará la API: los CIF de
+-- la familia B000000NN pasan el control; los NIF-IVA alemán y francés son números fabricados con dígito de control válido (Anexo B.1-A);
+-- el de México es texto libre. El VIES simulado marca solo a las empresas de la UE.
+insert into public.clients (owner_id, name, kind, country, scope, tax_id, address, vies_status) values
+  ('a1000000-0000-4000-8000-000000000001', 'Estudio Norte S.L.', 'business', 'ES', 'national', 'B00000018', 'Avenida Inventada 4, 28000 Madrid', 'not_applicable'),
+  ('a1000000-0000-4000-8000-000000000001', 'Kreativ GmbH', 'business', 'DE', 'eu', 'DE446120774', 'Beispielstrasse 7, 10115 Berlin', 'valid_simulated'),
+  ('a1000000-0000-4000-8000-000000000001', 'Taller Zócalo', 'business', 'MX', 'non_eu', 'MXTEST0001', 'Calle Ficticia 12, Ciudad de México', 'not_applicable'),
+  ('a1000000-0000-4000-8000-000000000002', 'Café Liebre S.L.', 'business', 'ES', 'national', 'B00000026', 'Plaza Ejemplo 1, 46000 Valencia', 'not_applicable'),
+  ('a1000000-0000-4000-8000-000000000002', 'Atelier Lune SARL', 'business', 'FR', 'eu', 'FRZM842411902', '12 rue Imaginaire, 75001 Paris', 'valid_simulated'),
+  ('a1000000-0000-4000-8000-000000000002', 'Sam Rivers', 'individual', 'US', 'non_eu', null, '1 Main Street, Springfield', 'not_applicable');

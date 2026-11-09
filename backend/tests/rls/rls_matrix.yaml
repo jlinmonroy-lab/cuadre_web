@@ -124,3 +124,19 @@ tables:
       # El dueño ve las suyas; el gestor, solo las de quien le dio acceso activo; el administrador, ninguna (D3).
       default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
       active: { gina: [alicia] }
+
+  clients:
+    kind: financial
+    owner_column: owner_id
+    grants:
+      table: [SELECT]       # toda escritura pasa por app.* (SPEC-W-006 §5.2)
+    # Un cliente por usuario del reparto antes de comparar: con la tabla vacía la prueba no demostraría nada.
+    seed: >-
+      insert into public.clients (owner_id, name, kind, country, scope)
+      values (%(owner)s, 'Matriz S.L.', 'business', 'ES', 'national')
+    probe_insert: "insert into public.clients (owner_id, name, kind, country, scope) values (%(owner)s, 'Probe S.L.', 'business', 'ES', 'national')"
+    probe_update: { column: name, value: hacked }
+    select:
+      # El dueño ve los suyos; el gestor, solo los de quien le dio acceso activo; el administrador, ninguno (D3).
+      default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
+      active: { gina: [alicia] }

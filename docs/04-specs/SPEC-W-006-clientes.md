@@ -41,7 +41,7 @@ fecha: 2026-11-09
 | D-07 | **Un NIF por persona entre los clientes activos**: dos con la misma clave fiscal son el error `client_tax_id_taken` (409); los archivados no cuentan. Reactivar uno cuyo NIF ya usa un activo da el mismo error | Permitir repetidos: dos fichas del mismo cliente con series de facturas separadas |
 | D-08 | **Todo es editable** (mientras esté activo): la factura (W-007) congela una **copia** de los datos del cliente al emitirse, así que cambiar país o tipo solo afecta a las facturas futuras; no hay noción de «en uso» | Bloquear país y tipo si hay facturas: obliga a duplicar fichas ante un error de alta |
 | D-09 | Las escrituras van **solo por funciones `app.*`** (`SECURITY DEFINER`, `search_path = ''`, rol `usuario`, cerrojo asesor por persona); `authenticated` solo `SELECT` | Escritura directa con política `owner_id = auth.uid()`: sin cerrojo, dos altas a la vez con el mismo NIF dan un 23505 sin código útil |
-| D-10 | **La validación fiscal vive en Python** (`cuadre.clients`); la base defiende solo lo barato (longitudes, `country ~ '^[A-Z]{2}$'`, `scope = 'national'` ⇔ `country = 'ES'`, tipos enumerados). **No** valida el NIF en SQL; un test de **paridad** compara las constantes | Validar también en SQL: dos fuentes de una regla (como en SPEC-W-005, D-14) |
+| D-10 | **La validación fiscal vive en Python** (`cuadre.clients`); la base defiende solo lo barato (longitudes, `country ~ '^[A-Z]{2}$'`, `scope = 'national'` ⇔ `country = 'ES'`, que el VIES simulado solo marque a una empresa de la UE, tipos enumerados). **No** valida el NIF en SQL; un test de **paridad** compara las constantes | Validar también en SQL: dos fuentes de una regla (como en SPEC-W-005, D-14) |
 | D-11 | **Fuera de esta spec:** la columna «Facturado en {año}», el texto de condiciones de la factura (`invoice_terms`: IVA, retención y mención) y los **territorios especiales** de España (Canarias, Ceuta, Melilla: `ES` se trata como nacional; pregunta abierta para W-007 y W-008) | Incluirlos aquí: necesita facturas que todavía no existen |
 | D-12 | **Gestor y administrador no tienen pantalla de clientes.** El gestor lee por RLS con vínculo activo (su pantalla es SPEC-W-010); el administrador, nada (D3) | Pantalla de solo lectura del gestor aquí: W-010 la diseña con el resto de su cartera |
 
@@ -141,11 +141,12 @@ clients
   archived_at timestamptz
   created_at, updated_at timestamptz NOT NULL DEFAULT now()
   CHECK ((scope = 'national') = (country = 'ES'))
+  CHECK (vies_status = 'not_applicable' OR (scope = 'eu' AND kind = 'business'))   -- el simulado solo marca a una empresa de la UE
 UNIQUE INDEX clients_owner_tax_id_active ON clients (owner_id, tax_id) WHERE tax_id IS NOT NULL AND archived_at IS NULL
 INDEX clients_owner ON clients (owner_id)
 ```
 
-Las restricciones llevan nombre propio para que la API las traduzca por nombre: `clients_name_length`, `clients_country_format`, `clients_tax_id_length`, `clients_address_length`, `clients_scope_matches_country` y el índice `clients_owner_tax_id_active` (B.1). El CHECK de ámbito solo sabe que `national` ⇔ `ES`: qué países son de la UE lo decide `cuadre.clients` (D-10). Trigger `clients_guard` (`BEFORE UPDATE`): `owner_id` y `created_at` no cambian (`client_immutable_column`); `updated_at` lo mantiene `private.touch_updated_at`.
+Las restricciones llevan nombre propio para que la API las traduzca por nombre: `clients_name_length`, `clients_country_format`, `clients_tax_id_length`, `clients_address_length`, `clients_scope_matches_country`, `clients_vies_matches_scope` y el índice `clients_owner_tax_id_active` (B.1 y B.3). El CHECK de ámbito solo sabe que `national` ⇔ `ES`: qué países son de la UE lo decide `cuadre.clients` (D-10). Trigger `clients_guard` (`BEFORE UPDATE`): `owner_id` y `created_at` no cambian (`client_immutable_column`); `updated_at` lo mantiene `private.touch_updated_at`.
 
 **Privilegios.** `authenticated`: `SELECT` y nada más; toda escritura por funciones.
 
@@ -158,7 +159,7 @@ Las restricciones llevan nombre propio para que la API las traduzca por nombre: 
 
 | Función | Efecto |
 |---|---|
-| `app.create_client(p_name, p_kind, p_country, p_scope, p_tax_id, p_address, p_vies_status)` | Comprueba lo barato (`invalid_client`, campo en el `DETAIL`) y que `p_scope` es coherente con el país; `client_tax_id_taken` si ya hay un activo con esa clave. Devuelve el id |
+| `app.create_client(p_name, p_kind, p_country, p_scope, p_tax_id, p_address, p_vies_status)` | Recibe `kind`, `scope` y `vies_status` como **texto** y los valida antes de convertirlos (B.3). Comprueba lo barato (`invalid_client`, campo en el `DETAIL`) y que `p_scope` es coherente con el país; `client_tax_id_taken` si ya hay un activo con esa clave. Devuelve el id |
 | `app.update_client(p_id, …)` | Sustituye todos los campos de un cliente **activo** (`client_not_found` si no existe o es ajeno; `client_archived` si está archivado; `client_tax_id_taken`, comprobado **antes** de escribir) |
 | `app.set_client_archived(p_id, p_archived)` | Archiva o reactiva. Reactivar uno cuyo NIF ya usa un activo da `client_tax_id_taken`: la función lo comprueba **antes**, porque el índice daría un `23505` sin código útil (B.1) |
 
@@ -383,6 +384,7 @@ npm --prefix frontend exec -- playwright test e2e/clientes.spec.ts     # AC-15 a
 1. **Dominio puro** (`cuadre.clients`): campos, ámbito, regla del NIF, VIES simulado, mapeo del MCP, `limits`, `test_clients_boundary`, con tablas de pruebas y mutaciones.
    **Hecho el 2026-11-09** (`backend/src/cuadre/clients/`; decisiones, pruebas y mutaciones en el Anexo B.2).
 2. **Base de datos**: tipos, tabla con trigger y funciones, matriz de RLS, seed y pruebas de RLS, con mutaciones.
+   **Hecho el 2026-11-09** (dos migraciones, el seed y la matriz; decisiones, pruebas y mutaciones en el Anexo B.3).
 3. **API**: `cuadre.clients` (servicio y repositorio), las cinco rutas, `openapi.json` y `schema.d.ts` regenerados, con mutaciones.
 4. **Frontend**: `/clientes` (lista, formulario, archivar), menú, nombres de país; unitarias.
 5. **E2E y cierre**: `clientes.spec.ts` en tres motores y dos anchos, ajustes de `roles.spec.ts`, `responsive.spec.ts` y `env.ts`, fixture que archiva los clientes del worker, mutaciones, Anexo B, `tasks.json`.
@@ -492,3 +494,36 @@ Entorno: Windows 11, Python 3.12, `python-stdnum` 2.2 (ya fijado; no se ha insta
 - `limits.py` fija lo que la base repite: nombre 2–200, domicilio ≤ 300, país `^[A-Z]{2}$`, identificador 1–32, `scope = 'national'` ⇔ `country = 'ES'`, tipos `business | individual` y `valid_simulated | unchecked | not_applicable`; `test_limits_parity.py` los compara con la base.
 - El dominio entrega `tax_id` ya en clave compacta y `vies_status` calculado: las funciones `app.*` los reciben tal cual y solo comprueban lo barato y `client_tax_id_taken` **antes** de escribir (B.1-C).
 - `scope_of(country)` y el CHECK de la base deben coincidir para `ES`; qué países son de la UE lo decide solo `EU_COUNTRIES` (D-10).
+
+### B.3 Hito 2 · base de datos de los clientes · 2026-11-09
+
+Dos migraciones nuevas (`supabase/migrations/20261109100000` y `…100100`), el seed y la matriz: `…_clients.sql` (los tres tipos, la tabla con sus seis restricciones con nombre y el índice único parcial, RLS forzada, las dos políticas de lectura, `grant select` y los triggers `clients_guard` y `clients_touch_updated_at`) y `…_clients_functions.sql` (los ayudantes `private.clients_enter`, `clients_lock_own`, `clients_tax_id_taken` y `clients_validate`, y `app.create_client`, `app.update_client` y `app.set_client_archived`). `supabase/seed.sql` gana una sección 6 con seis clientes sintéticos, uno de cada ámbito por persona (los propuestos en B.1). `rls_matrix.yaml` gana `clients`. No cambia ninguna ruta: `openapi.json`, `schema.d.ts` y `contracts/` siguen igual.
+
+**Decisiones tomadas al implementar** (completan §5.2, que ya las recoge):
+
+| Tema | Decisión |
+|---|---|
+| Las funciones reciben texto | `kind`, `scope` y `vies_status` entran como `text` y se validan **antes** de convertirlos: con el tipo enumerado, un valor desconocido sería un `22P02` sin código útil. Cada fallo es `invalid_client` con el campo en el `DETAIL` (`name`, `kind`, `country`, `scope`, `tax_id`, `address`, `vies_status`, `archived`). El orden es el de la pantalla |
+| Un CHECK que no estaba | `clients_vies_matches_scope`: `vies_status = 'not_applicable'` **o** (`scope = 'eu'` y `kind = 'business'`). El dominio ya lo cumple; la base lo repite porque es barato y deja fuera un estado absurdo escrito a mano. Se añade a §5.2 y D-10. Admite `unchecked` en una empresa de la UE (lo reserva la consulta real) |
+| `client_tax_id_taken` antes de escribir | Lo comprueban `create`, `update` (sin contar la propia fila) y `set_client_archived` al reactivar, con un ayudante (`clients_tax_id_taken`) que mira solo los clientes **activos de la misma persona** y trata el `NULL` como «nada que comparar». El índice parcial queda como red de seguridad (`23505` en `clients_owner_tax_id_active`) |
+| Orden de las comprobaciones | `update`: no existe o es ajeno → archivado (`client_archived`, antes de mirar la forma) → forma de los campos → identificador repetido. `set_client_archived`: no existe → indicador nulo → colisión al reactivar |
+| Archivar es idempotente | Archivar uno archivado no cambia `archived_at`; reactivar uno activo no hace nada |
+| Un solo cerrojo por persona | `private.clients_enter` (rol `usuario` o `42501`, también con la cuenta suspendida) toma `pg_advisory_xact_lock(hashtextextended('clients:' \|\| owner, 0))`; lo toman las tres funciones, también las que no crean (una prueba lo demuestra con un archivado frente a una edición) |
+| Trigger | Solo la identidad: `id`, `owner_id` y `created_at` no cambian (`client_immutable_column`). No hay noción de «en uso» (D-08). `updated_at` lo mueve `private.touch_updated_at` |
+| Una huella antes y después | **`migration up` y `db reset` dan la misma huella** del esquema (funciones con sus privilegios, políticas, restricciones, triggers, índices, privilegios de tabla, RLS, enums y columnas de `public`, `app` y `private`): lo que en SPEC-W-005 B.3 no pudo comprobarse. El `reset` borra la base local: se pararon antes mi API y mi web |
+
+**Pruebas.** **173 nuevas en `backend/tests/rls/`** (RLS pasa de 922 a **1.095**; el resto del backend, 2.746, no cambia): `test_clients.py` (134: nadie escribe directo —dueño, gestor, administrador y los demás—, los privilegios y las dos únicas políticas, cada CHECK por el nombre de su restricción con los valores de B.1, el índice parcial en todas sus formas incluida la reactivación que choca, el trigger, cada función con sus errores y su campo, los roles y la cuenta suspendida, ajeno = no existe, la visibilidad por rol y por **los cinco estados del vínculo**, que no escriben en `activity_log`, que las funciones son `SECURITY DEFINER` con `search_path` vacío y solo las de `app` llegan a `authenticated`, y **cuatro pruebas de concurrencia con hilos**: dos altas con el mismo NIF, un alta frente a una reactivación, que el cerrojo es por persona y que lo toman también las funciones que no crean), `test_clients_limits_parity.py` (20: las fronteras salen de `cuadre.clients.limits` y se comprueban contra los CHECK, **los 249 países se aceptan con el ámbito que deduce el dominio**, `ES` es el único `national`, la base no sabe qué países son de la UE y los tres enums son exactamente los tipos del dominio), `test_clients_seed.py` (5: el seed pasa `validate_client` y guardarlo por el dominio no cambia nada) y 14 que la matriz añade sola para la tabla nueva. `ruff check` y `ruff format --check` limpios.
+
+**Mutaciones.** **70**, con un ejecutor desechable fuera del repositorio (método de B.3 de SPEC-W-005: funciones reescritas desde `pg_get_functiondef`, políticas, restricciones, índices, triggers y privilegios rotos a propósito, y una **huella** del esquema comparada tras restaurar cada una): ayudantes y cerrojo (F01 a F08, incluida la retirada del cerrojo y su clave global), validación (F09 a F18), `create` (F19 a F24), `update` (F25 a F32), `set_client_archived` (F33 a F37), trigger (T01 a T05), privilegios de las funciones (G01 a G04), políticas, privilegios y RLS (P01 a P06, R01 a R08) y las seis CHECK, el índice, su variante con archivados, su variante sin el dueño y la cascada (C01 a C10). **68 detectadas y 2 equivalentes por diseño.** La primera pasada dejó **4 supervivientes**; dos eran huecos de mis pruebas y se cerraron: **F14 y F18** (un ámbito o un estado de VIES desconocido solo lo frenaba por casualidad otra comprobación cuando los demás campos no encajaban; ahora una prueba los manda con todo lo demás correcto). Los equivalentes: **F08** (`tax_id_taken` sin el `is not null`: con `NULL`, `c.tax_id = NULL` ya no es verdadero y el `exists` da falso) y **F36** (reactivar sin mirar que estaba archivado: un cliente activo no puede chocar consigo mismo porque el ayudante excluye su fila, y el índice impide que haya otro activo con ese NIF). No se mutó el enum con una etiqueta de más: PostgreSQL no permite quitar una etiqueta una vez añadida; una prueba compara las etiquetas exactas.
+
+**Lo que no se ha comprobado:**
+- **El `COLLATE "es-x-icu"` de la lista** en el Supabase de producción (B.1): la consulta de listado es del hito 3.
+- **El borrado real de una cuenta** con clientes: se comprueba que la clave a `profiles` es `ON DELETE CASCADE`, no se borra una cuenta (el borrado y la exportación son de SPEC-W-017, CONF-004).
+- **El tiempo de espera del cerrojo** con muchas peticiones a la vez, ni el **rendimiento** de las políticas con volumen: las pruebas usan dos hilos y un segundo de espera, y hay decenas de clientes por persona.
+- **La suite completa corriendo en el CI**: no se ve desde aquí.
+
+**Para el hito 3** (API):
+- **Funciones → rutas.** Las tres reciben texto, en este orden: `create_client(p_name, p_kind, p_country, p_scope, p_tax_id, p_address, p_vies_status)` devuelve el id; `update_client(p_id, …los mismos siete)` y `set_client_archived(p_id, p_archived)` no devuelven nada y la ruta relee la fila. La API calcula antes el ámbito, la clave del NIF y el VIES con `cuadre.clients` y pasa los valores ya normalizados.
+- **Traducción de errores.** `P0001` por el mensaje: `client_not_found` → 404 (también si es ajeno), `client_archived` y `client_tax_id_taken` → 409, `invalid_client` → error **interno** (la API valida antes con el dominio; llegar aquí es un fallo de construcción), `client_immutable_column` → error interno. `42501` → 403. `23505` con `constraint_name = clients_owner_tax_id_active` → `client_tax_id_taken` (red de seguridad). `23514` y `22P02` solo aparecen si la validación falló antes: error interno.
+- **Lecturas.** `list_clients` lee `public.clients where owner_id = (select auth.uid())`, sin los archivados salvo `include_archived`, `ORDER BY name COLLATE "es-x-icu", id`; `archived` es `archived_at IS NOT NULL`. Una lectura no escribe.
+- **Seed y E2E.** Las cuentas del seed (Alicia y Beto) ya tienen clientes: las pruebas de E2E del hito 5 usan una cuenta propia del worker y la **archivan** al empezar y al terminar (T6-10).

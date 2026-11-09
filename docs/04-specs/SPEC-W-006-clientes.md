@@ -32,7 +32,7 @@ fecha: 2026-11-09
 
 | ID | Decisión | Alternativa y coste de cambiarla |
 |---|---|---|
-| D-01 | **Decidida.** País en **ISO 3166-1 alfa-2 completo** (~250 códigos); el ámbito se deduce: `national` si `ES`, `eu` si es otro Estado miembro, `non_eu` el resto. La constante (`COUNTRIES`, `EU_COUNTRIES`) vive en `cuadre.clients.limits`, sin `pycountry`; los **nombres en español los pone el frontend** con `Intl.DisplayNames('es')` | Catálogo corto (UE y media docena de países): menos superficie, pero deja fuera a quien factura a otro país. Pasar de corto a completo es ampliar una constante y su CHECK |
+| D-01 | **Decidida.** País en **ISO 3166-1 alfa-2 completo** (~250 códigos); el ámbito se deduce: `national` si `ES`, `eu` si es otro Estado miembro, `non_eu` el resto. La constante (`COUNTRIES`, `EU_COUNTRIES`) vive en `cuadre.clients.countries`, sin `pycountry`; los **nombres en español los pone el frontend** con `Intl.DisplayNames('es')` | Catálogo corto (UE y media docena de países): menos superficie, pero deja fuera a quien factura a otro país. Pasar de corto a completo es ampliar una constante y su CHECK |
 | D-02 | **Enum del ámbito** `national \| eu \| non_eu` (tipo `public.client_scope`). El MCP de SPEC-W-011 usa `nacional \| ue \| fuera_ue`: un **solo módulo de mapeo** (`cuadre.clients.scope`). `public.supplier_scope` (`national \| eu`, de los gastos) **no se toca** | Reutilizar `supplier_scope` añadiéndole un valor: toca una tabla con datos y dos specs ya hechas |
 | D-03 | **Tipo** `business` (empresa o profesional) o `individual` (particular). Los valores van en inglés; la pantalla los llama «Empresa o profesional» y «Particular» | Más tipos (administración pública, asociación): no hay regla fiscal que los distinga en la v1 |
 | D-04 | **El NIF depende del ámbito y del tipo** (§5.1): nacional y empresa → NIF, NIE o CIF español **obligatorio y válido**; nacional y particular → opcional, pero si se escribe, válido; UE y empresa → NIF-IVA **obligatorio, válido y del país elegido** (Grecia: país `GR`, prefijo `EL`); UE y particular, y fuera de la UE y particular → opcional, texto libre; fuera de la UE y empresa → identificador fiscal **obligatorio**, texto libre. Se guarda **normalizado** (clave compacta) | Exigirlo siempre: bloquea facturar a un particular sin NIF. No validarlo: un NIF-IVA mal escrito pasa a la factura y a la declaración de operaciones intracomunitarias |
@@ -381,6 +381,7 @@ npm --prefix frontend exec -- playwright test e2e/clientes.spec.ts     # AC-15 a
 0. **Spike**: con valores **sintéticos**, qué acepta `normalize_tax_id` para el NIF-IVA de cada uno de los 27 Estados miembros (incluidos `EL`/`GR`, y que `XI` y `EU` no valen); que `Intl.DisplayNames('es')` da nombre a los 249 códigos en Node, Chromium, Firefox y WebKit; la lista de países UE contra una fuente oficial; el DDL de §5.2 en seco, incluido el índice parcial y el CHECK `scope`/`country`; y los NIF y NIF-IVA del seed. Resultado al Anexo B.
    **Hecho el 2026-11-09** (resultado en el Anexo B.1; corrigió §5.1, §5.2, §5.3, §5.4, AC-07 y AC-17, y fijó el catálogo a mano, el orden `es-x-icu`, la entrada suelta y el seed).
 1. **Dominio puro** (`cuadre.clients`): campos, ámbito, regla del NIF, VIES simulado, mapeo del MCP, `limits`, `test_clients_boundary`, con tablas de pruebas y mutaciones.
+   **Hecho el 2026-11-09** (`backend/src/cuadre/clients/`; decisiones, pruebas y mutaciones en el Anexo B.2).
 2. **Base de datos**: tipos, tabla con trigger y funciones, matriz de RLS, seed y pruebas de RLS, con mutaciones.
 3. **API**: `cuadre.clients` (servicio y repositorio), las cinco rutas, `openapi.json` y `schema.d.ts` regenerados, con mutaciones.
 4. **Frontend**: `/clientes` (lista, formulario, archivar), menú, nombres de país; unitarias.
@@ -458,3 +459,36 @@ Entorno: Windows 11, Python 3.12, `python-stdnum` 2.2 (ya fijado; no se ha insta
 - **Hito 4.** Nombres de país con `Intl.DisplayNames('es')`; el selector se ordena con `localeCompare('es')`; las pruebas no comparan nombres entre motores.
 
 **Seed (sintético) propuesto:** Alicia, «Estudio Norte S.L.» (ES, empresa, `B00000018`), «Kreativ GmbH» (DE, empresa, el NIF-IVA alemán de A) y «Taller Zócalo» (MX, empresa, `MXTEST0001`); Beto, «Café Liebre S.L.» (ES, empresa, `B00000026`), «Atelier Lune SARL» (FR, empresa, el NIF-IVA francés de A) y «Sam Rivers» (US, particular, sin identificador).
+
+### B.2 Hito 1 · dominio puro de clientes · 2026-11-09
+
+**Qué hay.** El paquete `backend/src/cuadre/clients/` (siete módulos, 389 líneas): `limits` (longitudes, patrones, tipos y separadores de la clave libre), `countries` (`COUNTRIES`, 249 códigos, y `EU_COUNTRIES`, 27), `types` (`RawClient`, `ClientValues`, `FieldError`, `ClientResult` y los literales `Scope`, `McpScope`, `Kind`, `ViesStatus`), `scope` (`scope_of`, `to_mcp_scope`, `from_mcp_scope`), `vies` (`ViesChecker` y `FakeViesChecker`), `rules` (`validate_client`, `tax_id_rule`, `vat_prefix`, `MESSAGES`) y `__init__`. Nada de base de datos, red, FastAPI, Pydantic, `stdnum` ni reloj. No cambian migraciones, API, frontend, `contracts/`, `openapi.json` ni `schema.d.ts`.
+
+**Decisiones tomadas al escribirlo** (ya reflejadas en D-01, §5.1 y §5.4):
+
+| Tema | Decisión |
+|---|---|
+| Dónde viven los países | D-01 decía `cuadre.clients.limits`; son una constante de 249 códigos y van en `countries.py`, que es la única fuente (`limits` guarda lo que repetirá el CHECK). D-01 se corrige |
+| El prefijo del NIF-IVA | Un solo hecho en dos sitios: `vat_prefix` usa `PREFIX_ALIASES` de `cuadre.validators.limits` (`GR → EL`) y una prueba cruza `EU_COUNTRIES` (menos España) con `EU_VAT_PREFIXES`, así que si alguien cambia uno sin el otro, falla |
+| El identificador no se juzga sin tipo ni país | La regla depende de los dos: si fallan, no se añade un error sobre `tax_id` (coincide con AC-05, que lista nombre, tipo, país y domicilio) |
+| Un tipo no texto | Como en el perfil, un número, `bytes`, una lista o un `bool` donde se espera texto es un error **de campo**, nunca una excepción; una prueba recorre 118.800 combinaciones hostiles y nada lanza |
+| Clave libre | `[0-9A-Za-z .,/-]` hasta 32; se guarda en mayúsculas y **sin espacios, puntos ni guiones**; la coma y la barra se conservan (como dice §5.1). Una clave que queda vacía al compactar (`"..."`) es el error de formato, no «falta» |
+| UE y particular | El identificador libre **no** necesita el prefijo del país: nadie lo valida (se prueba con un NIF-IVA francés en un particular alemán) |
+| `validate_client(raw, checker=None)` | El verificador entra por parámetro (por defecto el simulado): es la costura para enchufar el real sin tocar la regla, y una prueba comprueba que solo se le pregunta por una empresa de la UE con NIF-IVA válido y que recibe el país y la clave |
+| Un NIF-IVA corto | `RO9573` (el de Rumanía del corpus de SPEC-W-003, 6 caracteres) es válido: la clave de la UE mide de 6 a 14, dentro del CHECK de 1 a 32 |
+
+**Pruebas.** **675 nuevas**: `test_rules.py` (508: los campos y sus fronteras, los 249 países, las seis celdas de la tabla de D-04, los **26 NIF-IVA del corpus de SPEC-W-003 en cada variante** y rechazados con el prefijo de cada uno de los otros 25, Grecia con `GR` y con `EL`, texto libre, todos los errores a la vez y su orden, que los mensajes no repiten lo escrito, idempotencia y la batería hostil), `test_countries.py` (90: 249 distintos, los 43 códigos que ICU nombra pero no son ISO fuera, los 27 de la UE y el cruce con `cuadre.validators`), `test_scope.py` (54), `test_vies.py` (10), `test_limits.py` (5) y `backend/tests/rules/test_clients_boundary.py` (8: el dominio no importa base de datos, red, FastAPI, Pydantic ni `stdnum`, no lee el reloj y cada módulo está declarado). Suite sin RLS: **2.746** (2.071 antes), `ruff check` y `ruff format --check` limpios.
+
+**Mutaciones.** **49**, con un ejecutor desechable fuera del repositorio (método de SPEC-W-005 B.2): longitudes y categorías de texto (M01 a M06), país (sin prefiltro, sin mayúsculas, fuera del catálogo), tipo, cada celda de obligatoriedad de D-04 (M12 a M16), prefijo del NIF-IVA y Grecia, el NIF-IVA que vale como nacional, la clave libre (mayúsculas, separadores, vacía, 33, coma), tipo sin juzgar, orden y solo el primer error, VIES (particular, nacional, verificador ignorado, `unchecked`), ámbito y catálogo (España en la UE, Grecia fuera, Reino Unido dentro, Kosovo, un país menos), el mapeo del MCP y las guardas (`stdnum`, reloj, Pydantic, red y un módulo sin declarar). **48 detectadas y 1 equivalente por diseño**: M19 (quitar la comprobación de que el NIF-IVA es de la UE) no cambia nada porque una clave española empieza por **una** letra como mucho y la comprobación del prefijo de dos letras ya la rechaza; si algún día `normalize_tax_id` devolviera una clave nacional que empieza por un prefijo de la UE, dejaría de ser equivalente. El ejecutor restaura cada archivo y compara su huella (sin avisos).
+
+**Lo que no se ha comprobado:**
+- **Paridad con SQL.** Que las longitudes, el patrón del país, el `scope` ⇔ `ES` y el límite de 32 de `limits.py` coincidan con los CHECK de la base es del hito 2 (`test_limits_parity.py`); aquí solo se fijan los valores.
+- **La API.** Que la entrada suelta (`str` con `max_length`, `StrictBool` en `archived`) produzca `invalid_client` con estos mensajes es del hito 3.
+- **El catálogo frente a ISO.** Los 249 códigos se escribieron a mano y se cruzaron con `Intl.DisplayNames` en el spike y con la lista de ICU de las pruebas; no hay una segunda fuente ISO independiente (no hay paquete instalado).
+- **Los textos con una persona.** Se escribieron siguiendo §5.1 y el prototipo, no se han revisado en pantalla.
+- **La batería hostil** no entra en las mutaciones (tarda unos 12 s): se ejecutó completa en la suite, no en cada mutante.
+
+**Para el hito 2:**
+- `limits.py` fija lo que la base repite: nombre 2–200, domicilio ≤ 300, país `^[A-Z]{2}$`, identificador 1–32, `scope = 'national'` ⇔ `country = 'ES'`, tipos `business | individual` y `valid_simulated | unchecked | not_applicable`; `test_limits_parity.py` los compara con la base.
+- El dominio entrega `tax_id` ya en clave compacta y `vies_status` calculado: las funciones `app.*` los reciben tal cual y solo comprueban lo barato y `client_tax_id_taken` **antes** de escribir (B.1-C).
+- `scope_of(country)` y el CHECK de la base deben coincidir para `ES`; qué países son de la UE lo decide solo `EU_COUNTRIES` (D-10).

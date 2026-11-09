@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-005
 titulo: Perfil personal y del negocio y series de facturación
-estado: en-revision
+estado: hecha
 prioridad: must
 riesgo: bajo
 historias: [US-007]
@@ -453,7 +453,7 @@ npm --prefix frontend exec -- playwright test e2e/perfil.spec.ts       # AC-19 y
 
 ### 8.4 Definición de hecho
 
-- [x] La secuencia de §8.2 termina con código 0 **en local** y las de SPEC-W-001, SPEC-W-002 y SPEC-W-003 §8.2 siguen en verde (el CI no se ha podido ver: repositorio privado, B.6).
+- [x] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001, SPEC-W-002 y SPEC-W-003 §8.2 siguen en verde (el CI del commit del hito 5 pasó en verde: B.6).
 - [x] `pytest backend/tests/rls -m rls` incluye `invoice_series`, los CHECK de `business_profiles` y las políticas del bucket `logos`.
 - [x] «Perfil» está activo en el menú del autónomo y el aviso «Completa tu perfil» sale en `/inicio` y en la revisión de una simplificada sin NIF.
 - [x] El seed lleva NIF e IBAN válidos y sintéticos, y las pruebas de SPEC-W-003 que dependían del NIF de Alicia se han revisado.
@@ -713,11 +713,11 @@ Y uno de las pruebas, no de la aplicación: el texto de una fila de la tabla no 
 **Mutaciones de la interfaz.** **21**, con un ejecutor desechable fuera del repositorio (método de B.2): nueve contra las unitarias (el menú, la protección de la ruta, el límite de tamaño y el tipo SVG del logo, el vacío que no es `null`, la fecha imposible, el IBAN sin agrupar, un campo del perfil fuera de la lista y el número inicial no entero) y doce contra `perfil.spec.ts` o `roles.spec.ts` en `chromium-1440` (el selector sin `key`, el foco del resumen, el aviso de Inicio siempre oculto o que no desaparece, el enlace de la revisión ausente o sin condición de tipo, la marca «Predeterminada», «Editar» sin descripción, el estado «listo» fijo, el `aria-describedby` del campo, el logo sin comprobar antes de subir y `/perfil` abierto a otro rol). **Las 21 detectadas**; el ejecutor restaura cada archivo y compara su huella (sin avisos). Una (E09) no se aplicó a la primera por un patrón ambiguo y se repitió con uno único.
 
 **Lo que no se ha comprobado:**
-- **El CI.** El repositorio es privado y no veo el resultado; lo que queda en verde es lo local.
+- **El CI** se comprobó después (ver «Estado de la spec»): el repositorio es privado y el resultado me lo confirmó la persona, no lo vi yo.
 - **Lector de pantalla.** Se prueban etiquetas, `aria-describedby`, `aria-live`, el foco del resumen y el recorrido con teclado, no NVDA ni VoiceOver.
 - **Mutaciones sobre el backend de este hito** más allá de las 18 del hito 3, y sobre `perfil.spec.ts` en Firefox y WebKit (solo Chromium).
 - **Dos ejecuciones simultáneas** de la batería sobre la misma pila de Supabase: la cuenta del worker es nueva por ejecución, pero no se probó en paralelo.
 - **Tiempos con la máquina cargada:** Firefox tardó 36 minutos frente a 5 de Chromium y WebKit; el fallo por tiempo de GoTrue podría repetirse en un equipo justo de memoria.
 - **El puerto 8765 de los agentes:** en esta máquina dejó de poder abrirse sin que hubiera ningún proceso escuchando (`WinError 10048`); se usó `E2E_AGENTS_PORT=8790`.
 
-**Estado de la spec.** Todos los hitos hechos y la verificación en local en verde: la spec pasa a `en-revision` (pasa a `hecha` cuando la revisión la acepte, como dice el flujo de `tasks.json`). Falta, para cerrarla del todo, un commit por hito a petición de la persona y que el CI la valide.
+**Estado de la spec.** Todos los hitos hechos, la verificación en local en verde y el **CI en verde** con el commit del hito 5 (`1dd8ff9`, 2026-11-09, confirmado por la persona): la spec pasa a `hecha`.

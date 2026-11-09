@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-006
 titulo: Clientes: NIF, ámbito y VIES simulado
-estado: propuesta
+estado: en-progreso
 prioridad: must
 riesgo: bajo
 historias: [US-006]
@@ -45,7 +45,7 @@ fecha: 2026-11-09
 | D-11 | **Fuera de esta spec:** la columna «Facturado en {año}», el texto de condiciones de la factura (`invoice_terms`: IVA, retención y mención) y los **territorios especiales** de España (Canarias, Ceuta, Melilla: `ES` se trata como nacional; pregunta abierta para W-007 y W-008) | Incluirlos aquí: necesita facturas que todavía no existen |
 | D-12 | **Gestor y administrador no tienen pantalla de clientes.** El gestor lee por RLS con vínculo activo (su pantalla es SPEC-W-010); el administrador, nada (D3) | Pantalla de solo lectura del gestor aquí: W-010 la diseña con el resto de su cartera |
 
-*Pendiente del visto bueno de la persona: D-02 a D-04 y D-06 a D-12. Con él, la spec pasa a `en-progreso` y se prepara el hito 0.*
+*Visto bueno del 2026-11-09: la persona pidió el plan del hito 0 sin cambios a D-02 a D-12 (D-01 y D-05 ya estaban decididas); se tratan como aprobadas y la spec pasa a `en-progreso`. El spike del hito 0 comprobó los NIF-IVA de los 27 Estados miembros, el catálogo de países, el DDL de §5.2 y la forma de la API, y corrigió §5.1, §5.2, §5.3, §5.4, AC-07, AC-17 y la propuesta de seed (Anexo B.1).*
 
 ## 2. Objetivo
 
@@ -103,7 +103,7 @@ Los textos de error van en español, **no repiten el valor escrito** y salen del
 | `tax_id` | `tax_id` | **según D-04**, ver abajo. Se guarda normalizado | ver abajo |
 | `address` | `address` | texto de 0 a 300, recortado, sin caracteres de control | «El domicilio admite hasta 300 caracteres.» · «No puede llevar saltos de línea ni caracteres de control.» |
 
-**Ámbito** (`scope`, **no lo envía la persona**): `national` si `country = "ES"`; `eu` si `country` está en `EU_COUNTRIES` y no es `ES`; `non_eu` en cualquier otro caso. `EU_COUNTRIES` son los 27 Estados miembros (`AT BE BG CY CZ DE DK EE ES FI FR GR HR HU IE IT LT LU LV MT NL PL PT RO SE SI SK`); `GB`, `CH`, `XI` y el resto son `non_eu`.
+**Ámbito** (`scope`, **no lo envía la persona**): `national` si `country = "ES"`; `eu` si `country` está en `EU_COUNTRIES` y no es `ES`; `non_eu` en cualquier otro caso. `EU_COUNTRIES` son los 27 Estados miembros (`AT BE BG CY CZ DE DK EE ES FI FR GR HR HU IE IT LT LU LV MT NL PL PT RO SE SI SK`); `GB`, `CH` y el resto del catálogo son `non_eu`. `XI` (Irlanda del Norte), `XK` (Kosovo) y `EU` **no son códigos ISO asignados**: no están en `COUNTRIES` y dan el error «Elige un país de la lista.» (B.1).
 
 **Identificador fiscal** (`tax_id`), por ámbito y tipo:
 
@@ -142,10 +142,10 @@ clients
   created_at, updated_at timestamptz NOT NULL DEFAULT now()
   CHECK ((scope = 'national') = (country = 'ES'))
 UNIQUE INDEX clients_owner_tax_id_active ON clients (owner_id, tax_id) WHERE tax_id IS NOT NULL AND archived_at IS NULL
-INDEX clients_owner_name ON clients (owner_id, lower(name))
+INDEX clients_owner ON clients (owner_id)
 ```
 
-Las restricciones llevan nombre propio para que la API las traduzca por nombre. Trigger `clients_guard` (`BEFORE UPDATE`): `owner_id` y `created_at` no cambian (`client_immutable_column`); `updated_at` lo mantiene `private.touch_updated_at`.
+Las restricciones llevan nombre propio para que la API las traduzca por nombre: `clients_name_length`, `clients_country_format`, `clients_tax_id_length`, `clients_address_length`, `clients_scope_matches_country` y el índice `clients_owner_tax_id_active` (B.1). El CHECK de ámbito solo sabe que `national` ⇔ `ES`: qué países son de la UE lo decide `cuadre.clients` (D-10). Trigger `clients_guard` (`BEFORE UPDATE`): `owner_id` y `created_at` no cambian (`client_immutable_column`); `updated_at` lo mantiene `private.touch_updated_at`.
 
 **Privilegios.** `authenticated`: `SELECT` y nada más; toda escritura por funciones.
 
@@ -159,10 +159,10 @@ Las restricciones llevan nombre propio para que la API las traduzca por nombre. 
 | Función | Efecto |
 |---|---|
 | `app.create_client(p_name, p_kind, p_country, p_scope, p_tax_id, p_address, p_vies_status)` | Comprueba lo barato (`invalid_client`, campo en el `DETAIL`) y que `p_scope` es coherente con el país; `client_tax_id_taken` si ya hay un activo con esa clave. Devuelve el id |
-| `app.update_client(p_id, …)` | Sustituye todos los campos de un cliente **activo** (`client_not_found` si no existe o es ajeno; `client_archived` si está archivado; `client_tax_id_taken`) |
-| `app.set_client_archived(p_id, p_archived)` | Archiva o reactiva. Reactivar uno cuyo NIF ya usa un activo da `client_tax_id_taken` |
+| `app.update_client(p_id, …)` | Sustituye todos los campos de un cliente **activo** (`client_not_found` si no existe o es ajeno; `client_archived` si está archivado; `client_tax_id_taken`, comprobado **antes** de escribir) |
+| `app.set_client_archived(p_id, p_archived)` | Archiva o reactiva. Reactivar uno cuyo NIF ya usa un activo da `client_tax_id_taken`: la función lo comprueba **antes**, porque el índice daría un `23505` sin código útil (B.1) |
 
-Ninguna escribe `activity_log`. Los errores `P0001` son `client_not_found`, `client_archived`, `client_tax_id_taken` e `invalid_client`.
+Ninguna escribe `activity_log`. La API traduce además el `23505` de `clients_owner_tax_id_active` como `client_tax_id_taken` (red de seguridad; con el cerrojo no debería darse). Los errores `P0001` son `client_not_found`, `client_archived`, `client_tax_id_taken` e `invalid_client`.
 
 **Matriz de RLS.** `clients`: `kind: financial`, `owner_column: owner_id`, privilegios `SELECT`, y un `seed` con clientes de los tres ámbitos por persona.
 
@@ -174,7 +174,7 @@ Todas exigen `Authorization: Bearer` y rol `usuario` (`forbidden` 403 para gesto
 
 | `operation_id` | Método y ruta | Cuerpo / respuesta |
 |---|---|---|
-| `list_clients` | `GET /api/clients` | Query `include_archived` (bool, por defecto `false`). **200** `[Client]` por nombre (sin distinguir mayúsculas ni acentos) |
+| `list_clients` | `GET /api/clients` | Query `include_archived` (bool, por defecto `false`). **200** `[Client]` por nombre, en el orden alfabético del español (`ORDER BY name COLLATE "es-x-icu", id`: la ñ va después de la n; B.1) |
 | `get_client` | `GET /api/clients/{client_id}` | **200** `Client`; **404** `client_not_found` |
 | `create_client` | `POST /api/clients` | Cuerpo `ClientInput`. Valida todo y guarda; **201** `Client`; **422** `invalid_client`; **409** `client_tax_id_taken` |
 | `update_client` | `PUT /api/clients/{client_id}` | Cuerpo `ClientInput`. **200** `Client`; **404**, **409** `client_archived` o `client_tax_id_taken`, **422** |
@@ -192,6 +192,7 @@ Client { id, name, kind, country, scope: "national"|"eu"|"non_eu", tax_id: strin
 
 - **Paquetes.** `cuadre.clients` (puros: `limits`, `types`, `countries`, `scope`, `rules`, `vies`; con base de datos, a partir del hito 3: `service`, `repository`, `models`, `errors`) y `api/routes_clients.py`. `rules` importa de `cuadre.validators` solo `normalize_tax_id` y **no importa `stdnum`**, ni base de datos, red, FastAPI ni reloj; lo vigila `backend/tests/rules/test_clients_boundary.py`, como `test_profile_boundary.py`.
 - **Flujo de `create_client` y `update_client`.** Una transacción corta: validar todo con `cuadre.clients` → llamar a `app.create_client` o `app.update_client` con el ámbito y el estado de VIES ya calculados → leer la fila → confirmar. Nunca una conexión retenida mientras se espera a algo externo (no hay nada externo).
+- **Modelos.** La **entrada es suelta**: `ClientInput` con `str` y `max_length` y `extra="forbid"`, sin `Literal` ni patrón, para que `tipo`, `país` y los demás campos pasen por el dominio y se devuelvan **todos los errores a la vez** como `invalid_client` (con `Literal`, Pydantic respondería un `validation_error` por separado: B.1). `archived` va con `StrictBool` (un `"yes"` no es `true`). La salida (`Client`) sí lleva uniones de literales para el cliente generado.
 - **VIES.** `ViesChecker` (puerto) y `FakeViesChecker`; el servicio usa el simulado salvo que el despliegue configure otro; esta spec no añade ninguno.
 - **Sin dependencias nuevas:** `python-stdnum` ya está fijado. Sin `pycountry`.
 
@@ -257,11 +258,11 @@ AC-06  Particular sin NIF o con NIF malo
   Then el primero se crea y el segundo da 422 con field "tax_id"
 
 AC-07  Ámbito deducido
-  Given los códigos "ES", "DE", "GR", "GB", "CH", "XI" y "MX"
+  Given los códigos "ES", "DE", "GR", "GB", "CH" y "MX"
   When se crea un cliente en cada país
-  Then el ámbito es "national", "eu", "eu", "non_eu", "non_eu", "non_eu" y "non_eu"
+  Then el ámbito es "national", "eu", "eu", "non_eu", "non_eu" y "non_eu"
     And un cliente de Grecia exige un NIF-IVA con prefijo "EL"
-    And un país que no es un código alfa-2 de la lista da 422
+    And "XI", "XK", "EU", "ZZ", "es" sin mayúsculas válidas o un código de tres letras dan 422 "invalid_client" con field "country"
 
 AC-08  Un NIF por persona
   Given un cliente activo con un NIF
@@ -320,7 +321,8 @@ AC-16  Menú y portadas
 AC-17  Nombres de país
   Given los 249 códigos de COUNTRIES
   When la interfaz los traduce con Intl.DisplayNames("es")
-  Then todos tienen nombre en español en los tres motores, y el selector se ordena por nombre
+  Then todos tienen un nombre en español distinto del código en Node, Chromium, Firefox y WebKit, y el selector se ordena por nombre
+    And las pruebas no comparan nombres exactos entre motores (Chromium nombra distinto cuatro códigos: B.1)
 
 AC-18  Guardas (T6-01, T6-02, T6-07)
   Given el repositorio entero
@@ -377,6 +379,7 @@ npm --prefix frontend exec -- playwright test e2e/clientes.spec.ts     # AC-15 a
 ## Anexo A · Orden de implementación sugerido (un plan y un commit por hito)
 
 0. **Spike**: con valores **sintéticos**, qué acepta `normalize_tax_id` para el NIF-IVA de cada uno de los 27 Estados miembros (incluidos `EL`/`GR`, y que `XI` y `EU` no valen); que `Intl.DisplayNames('es')` da nombre a los 249 códigos en Node, Chromium, Firefox y WebKit; la lista de países UE contra una fuente oficial; el DDL de §5.2 en seco, incluido el índice parcial y el CHECK `scope`/`country`; y los NIF y NIF-IVA del seed. Resultado al Anexo B.
+   **Hecho el 2026-11-09** (resultado en el Anexo B.1; corrigió §5.1, §5.2, §5.3, §5.4, AC-07 y AC-17, y fijó el catálogo a mano, el orden `es-x-icu`, la entrada suelta y el seed).
 1. **Dominio puro** (`cuadre.clients`): campos, ámbito, regla del NIF, VIES simulado, mapeo del MCP, `limits`, `test_clients_boundary`, con tablas de pruebas y mutaciones.
 2. **Base de datos**: tipos, tabla con trigger y funciones, matriz de RLS, seed y pruebas de RLS, con mutaciones.
 3. **API**: `cuadre.clients` (servicio y repositorio), las cinco rutas, `openapi.json` y `schema.d.ts` regenerados, con mutaciones.
@@ -394,3 +397,64 @@ npm --prefix frontend exec -- playwright test e2e/clientes.spec.ts     # AC-15 a
 - **SPEC-W-010 (gestor).** La política de lectura de `clients` para el gestor ya existe; faltan la pantalla y el registro de cada lectura.
 - **SPEC-W-011 (MCP).** Usa `cuadre.clients.scope` para el mapeo `non_eu ↔ fuera_ue`; no lo duplica.
 - **SPEC-W-017 (cierre de cuenta).** Los clientes son datos personales de terceros (CONF-004): la exportación y el borrado de la cuenta deben incluirlos. `clients` se borra en cascada con la cuenta; las facturas, no.
+
+### B.1 Spike · hito 0 · 2026-11-09
+
+Entorno: Windows 11, Python 3.12, `python-stdnum` 2.2 (ya fijado; no se ha instalado nada), FastAPI 0.162.0, Pydantic 2.14.2, `openapi-typescript` 7.13.0 (el del repositorio), PostgreSQL 17.11 del Supabase local (collation de la base `en_US.UTF-8`), Node 24.16.0 (ICU 78.3, CLDR 48.0) y, con Playwright, Chromium 156.0.8078.4, Firefox 157.0 y WebKit 27.2. Cuatro guiones desechables fuera del repositorio (A, B, C y D); los valores son sintéticos y el esquema de pruebas `spike_w006` se creó y se borró (la base queda con las mismas 7 tablas de `public` y sin `public.clients`).
+
+**A · NIF y NIF-IVA con `normalize_tax_id`**
+
+| Pregunta | Resultado |
+|---|---|
+| ¿`normalize_tax_id` valida un NIF-IVA de cada Estado miembro? | **Sí, los 26 distintos de España**: se fabricó uno sintético con dígito de control válido por país (probando candidatos con `stdnum`) y todos entran **compactos, con separadores y en minúsculas**, con la misma clave y `scope = "eu"`. Con un guion inicial no pasan (el prefiltro de `tax_id.py` lo impide) |
+| ¿Cabe la clave en las columnas? | Sí: de **10 a 14** caracteres, dentro de `TAX_ID_KEY` (5 a 20) y de `char_length(tax_id) BETWEEN 1 AND 32` |
+| Grecia (D-04) | País `GR`, prefijo `EL`: la clave es `EL…` tanto si se escribe `GR…` como `EL…`. El dominio compara el prefijo con `{"GR": "EL"}` y con el propio código en los demás |
+| ¿Qué no vale? | `XI`, `EU`, `GB`, `CH`, `NO`, `US` y `MX` dan `None` con un cuerpo de NIF-IVA alemán. `stdnum` lista `xi` entre sus Estados miembros y `EU_VAT_PREFIXES` del repositorio **no** lo incluye: así sigue |
+| ¿Rechaza la librería un NIF-IVA de otro país? | **No**: un NIF-IVA francés para un cliente alemán lo da por bueno (`scope = "eu"`). **La regla del prefijo la pone `cuadre.clients`**, como pide D-04 |
+| NIF españoles del seed | `B00000018`, `B00000026` (CIF) y la familia `B000000NN` del prototipo pasan; también `X1234567L`, `Y1234567X` (NIE), `00000000T` y `99999999R` (DNI). `es b00000018` y ` b-0000 0018 ` se normalizan a `B00000018` |
+
+**B · Catálogo de países**
+
+| Pregunta | Resultado |
+|---|---|
+| ¿De dónde sale la lista de 249 códigos? | **De ningún paquete ya instalado**: no hay `pycountry`, `babel` ni `iso3166` y `stdnum` no trae la lista. Se escribe **a mano** en `cuadre.clients.limits` (249 únicos, ISO 3166-1 alfa-2, contados a mano) y un test la cruza con `Intl.DisplayNames` en el frontend |
+| ¿`Intl.DisplayNames('es', { type: 'region' })` nombra los 249? | **Sí en los cuatro**: Node, Chromium, Firefox y WebKit dan un nombre distinto del código a los 249, y los 27 de la UE están en el catálogo |
+| ¿Devuelve ICU códigos que no son del catálogo? | Sí: 31 en Node y Chromium, 42 en Firefox y 30 en WebKit (`AC`, `EU`, `UK`, `UN`, `ZZ`, `XK` Kosovo, códigos históricos como `YU` o `SU`…). **El catálogo lo define la constante, no ICU**; `XK` y `EU` no entran (no son ISO asignados) |
+| ¿Dan los motores el mismo nombre? | **No siempre**: Chromium difiere de Node, Firefox y WebKit en cuatro (`FK` «Islas Malvinas (Islas Falkland)», `HK` «Hong Kong», `MO` «Macao», `PS` «Palestina»). Las pruebas **no comparan nombres exactos entre motores**: comprueban que cada código tiene un nombre y que no es el código |
+| Longitud y orden | El nombre más largo mide 40 caracteres (`GS` «Islas Georgia del Sur y Sandwich del Sur»; luego `IO` con 38 y `UM` con 33). Con `localeCompare('es')` el orden sale igual en los tres motores (Afganistán, Albania, Alemania, Andorra, Angola…) |
+| ¿Los 27 de la UE coinciden con `stdnum`? | Sí, salvo que `stdnum` añade `xi`: los 27 de la spec equivalen a sus Estados miembros con `GR` ↔ `EL` y sin `XI` |
+
+**C · Base de datos (DDL en seco, esquema desechable)**
+
+| Pregunta | Resultado |
+|---|---|
+| ¿Compila el DDL de §5.2? | Sí: los tres tipos, la tabla y los índices, con las restricciones **con nombre**: `clients_name_length`, `clients_country_format`, `clients_tax_id_length`, `clients_address_length`, `clients_scope_matches_country` y el índice `clients_owner_tax_id_active` |
+| Índice único parcial | Dos clientes sin NIF del mismo dueño: bien (los `NULL` no chocan). Mismo NIF, mismo dueño y ambos activos: **`23505` `clients_owner_tax_id_active`**. Mismo NIF en otro dueño: bien. **Archivar libera el NIF**. **Reactivar uno cuyo NIF ya usa un activo también da `23505`**, no un código útil: las funciones tienen que comprobarlo **antes** (como `series_is_default` en W-005) |
+| CHECK `scope` ⇔ `country = 'ES'` | Rechaza `national` con `DE`, `eu` con `ES` y `non_eu` con `ES` (`23514` con su nombre) y admite `eu`/`DE`, `non_eu`/`MX` y `national`/`ES`. **No sabe qué países son de la UE**: `eu` con `XX` pasa (de eso se ocupa `cuadre.clients`, D-10). `country` en minúsculas y un nombre de un carácter dan `23514` con su nombre |
+| Carrera: dos altas a la vez con el mismo NIF | **Sin cerrojo**, una gana y la otra recibe `23505` en el índice. **Con `pg_advisory_xact_lock(hashtextextended('clients:' \|\| owner, 0))`** la segunda espera y recibe el código estable `client_tax_id_taken` (`P0001`): justifica el cerrojo de D-09 |
+| Orden de la lista | `ORDER BY lower(name)` con la collation `en_US.UTF-8` ya deja los acentos y las mayúsculas como desempate, pero **coloca «Ñandú» entre «Éxito» y «nube»** (trata la ñ como n con tilde). `COLLATE "es-x-icu"` lo coloca **después de «nube»**, que es el orden del español, y `und-x-icu` repite el de `en_US`. Hay 29 collations ICU `es-*`. **`unaccent` está disponible pero no instalada y no hace falta.** Python con `casefold` y sin acentos da otro desempate («Árbol SL» antes de «arbol sl») |
+| Ayudantes para políticas y funciones | Existen `private.app_role`, `private.gestor_has_access`, `private.touch_updated_at`, `private.today_madrid` y `private.series_enter` (el modelo de `private.clients_enter`) |
+
+**D · Forma de la API**
+
+| Pregunta | Resultado |
+|---|---|
+| Entrada con `Literal` y patrón | Un tipo desconocido o un país en minúsculas dan el **`validation_error` 422 de Pydantic**, con una sola ubicación cada uno y **sin pasar por el dominio**: AC-05 («todos los errores a la vez») no se cumpliría. La entrada es **suelta**: `str` con `max_length` y `extra="forbid"`; el contenido lo valida `cuadre.clients` y responde `invalid_client` |
+| Campo de más | `extra="forbid"` lo rechaza con 422 |
+| Booleanos | **Pydantic acepta `"yes"` como `true`** en un `bool` normal: `archived` va con `StrictBool`, como en SPEC-W-005 |
+| Cliente TypeScript | `Client` sale con las uniones de literales `"business" \| "individual"`, `"national" \| "eu" \| "non_eu"` y `"valid_simulated" \| "unchecked" \| "not_applicable"`, `tax_id: string \| null` y fechas como cadenas; **sin `number` ni `any`**. La entrada suelta sale como `kind: string`, que es lo que se quiere |
+
+**Lo que no se ha comprobado:**
+- **`COLLATE "es-x-icu"` en el Supabase de producción** (UE): en el local hay 29 collations ICU; si el despliegue no tuviera `es-x-icu`, la lista se ordena en Python o en la interfaz con `Intl.Collator('es')`.
+- **El NIF-IVA fabricado frente a un registro real**: son números sintéticos con dígito de control válido; podrían coincidir por azar con uno real (el seed usa solo nombres inventados).
+- **Países con un NIF-IVA especial** (Irlanda con letras finales, Países Bajos con `B`, Suecia con `01`): los valores sintéticos de cada país pasan, pero no se ha probado cada forma distinta que admite la ley de cada Estado.
+- **WebKit y Firefox en un ICU más antiguo o más nuevo** que los de esta máquina: los cuatro entornos de aquí nombran los 249, pero otros ICU podrían dejar un código sin nombre; AC-17 lo vigila en el CI.
+- **Territorios especiales** (Canarias, Ceuta, Melilla) y **Kosovo**: no se tratan (D-11; `XK` fuera del catálogo).
+
+**Consecuencias para los hitos siguientes** (ya reflejadas en §5.1, §5.2, §5.3, §5.4, AC-07 y el seed):
+- **Hito 1.** `COUNTRIES` (249, a mano) y `EU_COUNTRIES` (27) en `limits`; la regla del prefijo con `GR → EL`; `XI`, `XK` y `EU` fuera del catálogo; el texto libre con su clave compacta; tablas de pruebas con los 26 NIF-IVA sintéticos de A.
+- **Hito 2.** Restricciones con los nombres de C; `app.update_client` y `app.set_client_archived` comprueban `client_tax_id_taken` **antes** de escribir y la API traduce también el `23505` de `clients_owner_tax_id_active` como red de seguridad; cerrojo por persona; `clients_owner_name` pasa a `(owner_id)` (el orden lo da la consulta); seed con los NIF de A.
+- **Hito 3.** Entrada suelta con `StrictBool` en `archived`; salida con literales; lista con `ORDER BY name COLLATE "es-x-icu", id`.
+- **Hito 4.** Nombres de país con `Intl.DisplayNames('es')`; el selector se ordena con `localeCompare('es')`; las pruebas no comparan nombres entre motores.
+
+**Seed (sintético) propuesto:** Alicia, «Estudio Norte S.L.» (ES, empresa, `B00000018`), «Kreativ GmbH» (DE, empresa, el NIF-IVA alemán de A) y «Taller Zócalo» (MX, empresa, `MXTEST0001`); Beto, «Café Liebre S.L.» (ES, empresa, `B00000026`), «Atelier Lune SARL» (FR, empresa, el NIF-IVA francés de A) y «Sam Rivers» (US, particular, sin identificador).

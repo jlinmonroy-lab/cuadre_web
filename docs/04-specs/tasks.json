@@ -259,7 +259,7 @@
       "id": "SPEC-W-006",
       "title": "Clientes: NIF, ámbito y VIES simulado",
       "file": "docs/04-specs/SPEC-W-006-clientes.md",
-      "status": "propuesta",
+      "status": "en-progreso",
       "priority": "must",
       "risk": "bajo",
       "stories": [
@@ -295,7 +295,7 @@
         "pytest backend/tests/clients",
         "npm --prefix frontend exec -- playwright test e2e/clientes.spec.ts"
       ],
-      "notes": "Ficha del cliente (nombre, tipo business/individual, país ISO alfa-2 completo, NIF o NIF-IVA, domicilio) con ámbito deducido del país (national/eu/non_eu; mapeo a nacional/ue/fuera_ue del MCP en un solo módulo), NIF validado según ámbito y tipo, VIES simulado sin red (calculado al guardar; consulta real = Should, fuera de la v1), un NIF por persona entre los activos, archivar sin borrar y escrituras solo por funciones app.*. Decididas por la persona el 2026-11-09: país ISO completo y VIES simulado calculado. Spec escrita, pendiente del visto bueno de D-02 a D-04 y D-06 a D-12. Fuera: facturación por ámbito (invoice_terms, W-007), columna Facturado en el año, territorios especiales de España y pantalla del gestor (W-010)."
+      "notes": "Ficha del cliente (nombre, tipo business/individual, país ISO alfa-2 completo, NIF o NIF-IVA, domicilio) con ámbito deducido del país (national/eu/non_eu; mapeo a nacional/ue/fuera_ue del MCP en un solo módulo), NIF validado según ámbito y tipo, VIES simulado sin red (calculado al guardar; consulta real = Should, fuera de la v1), un NIF por persona entre los activos, archivar sin borrar y escrituras solo por funciones app.*. Decididas por la persona el 2026-11-09: país ISO completo y VIES simulado calculado. Visto bueno de D-02 a D-12 el 2026-11-09. Hito 0 hecho (spike de los NIF-IVA de los 27 Estados miembros con normalize_tax_id, del catálogo ISO de 249 países con Intl.DisplayNames en Node y los tres motores, del DDL con índice único parcial y carrera con y sin cerrojo, del orden de la lista con la collation es-x-icu y de la forma de la API; corrigió el catálogo sin XI ni XK, la entrada suelta con StrictBool, la comprobación previa de client_tax_id_taken al reactivar y el seed; Anexo B.1). Hitos 1 a 5 en el Anexo A. Fuera: facturación por ámbito (invoice_terms, W-007), columna Facturado en el año, territorios especiales de España y pantalla del gestor (W-010)."
     },
     {
       "id": "SPEC-W-007",

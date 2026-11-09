@@ -9,7 +9,8 @@ from starlette.middleware.cors import CORSMiddleware
 
 from cuadre import __version__
 from cuadre.agents import get_agents_client
-from cuadre.api import routes_documents, routes_expenses, routes_health, routes_me, routes_profile
+from cuadre.api import routes_clients, routes_documents, routes_expenses, routes_health, routes_me, routes_profile
+from cuadre.clients import FakeViesChecker
 from cuadre.config import Settings, get_settings
 from cuadre.core.auth import JwksTokenVerifier
 from cuadre.core.clock import SystemClock
@@ -56,6 +57,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )  # bucket privado `logos`
     # «hoy» en Europe/Madrid para los validadores; los tests inyectan uno fijo (SPEC-W-003 §5.4)
     app.state.clock = SystemClock()
+    # VIES simulado (SPEC-W-006 D-05, RES-04): el estado se calcula, no se consulta. La costura para el real (Should) es este atributo.
+    app.state.vies_checker = FakeViesChecker()
 
     register_error_handlers(app)
     # Orden: lo último que se añade es lo más externo. CORS envuelve a RequestContext para que hasta los 500 lleven sus cabeceras.
@@ -75,6 +78,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(routes_documents.router)
     app.include_router(routes_expenses.router)
     app.include_router(routes_profile.router)
+    app.include_router(routes_clients.router)
     return app
 
 

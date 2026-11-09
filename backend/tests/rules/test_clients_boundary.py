@@ -13,7 +13,7 @@ from tests.rules.test_validators_boundary import clock_calls, forbidden_imports,
 
 CLIENTS = SRC / "clients"
 PURE = {"__init__.py", "countries.py", "limits.py", "rules.py", "scope.py", "types.py", "vies.py"}
-IMPURE: set[str] = set()  # SPEC-W-006 hito 3: service, repository, models, errors…
+IMPURE = {"errors.py", "models.py", "repository.py", "service.py"}  # SPEC-W-006 hito 3: API y base de datos
 
 NETWORK = ("httpx", "httpx2", "requests", "urllib", "urllib3", "socket", "aiohttp", "zeep", "http")
 
@@ -91,3 +91,11 @@ def test_the_domain_imports_the_validators_only_through_their_public_names() -> 
         "cuadre.validators.limits",
         "cuadre.validators.limits.PREFIX_ALIASES",
     }
+
+
+def test_no_module_of_the_package_touches_the_network_not_even_the_ones_with_a_database() -> None:
+    """Hueco que encontró la mutación S28: la guarda de red solo miraba los módulos puros. Las conexiones las abre `cuadre.db`, no aquí."""
+    offenders = {
+        rel(p): hits for p in python_files(CLIENTS) if (hits := network_imports(p.read_text(encoding="utf-8")))
+    }
+    assert offenders == {}

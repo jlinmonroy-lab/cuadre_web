@@ -386,6 +386,7 @@ npm --prefix frontend exec -- playwright test e2e/clientes.spec.ts     # AC-15 a
 2. **Base de datos**: tipos, tabla con trigger y funciones, matriz de RLS, seed y pruebas de RLS, con mutaciones.
    **Hecho el 2026-11-09** (dos migraciones, el seed y la matriz; decisiones, pruebas y mutaciones en el Anexo B.3).
 3. **API**: `cuadre.clients` (servicio y repositorio), las cinco rutas, `openapi.json` y `schema.d.ts` regenerados, con mutaciones.
+   **Hecho el 2026-11-09** (`cuadre/clients/{errors,models,repository,service}.py` y `api/routes_clients.py`; decisiones, pruebas y mutaciones en el Anexo B.4).
 4. **Frontend**: `/clientes` (lista, formulario, archivar), menú, nombres de país; unitarias.
 5. **E2E y cierre**: `clientes.spec.ts` en tres motores y dos anchos, ajustes de `roles.spec.ts`, `responsive.spec.ts` y `env.ts`, fixture que archiva los clientes del worker, mutaciones, Anexo B, `tasks.json`.
 
@@ -527,3 +528,38 @@ Dos migraciones nuevas (`supabase/migrations/20261109100000` y `…100100`), el 
 - **Traducción de errores.** `P0001` por el mensaje: `client_not_found` → 404 (también si es ajeno), `client_archived` y `client_tax_id_taken` → 409, `invalid_client` → error **interno** (la API valida antes con el dominio; llegar aquí es un fallo de construcción), `client_immutable_column` → error interno. `42501` → 403. `23505` con `constraint_name = clients_owner_tax_id_active` → `client_tax_id_taken` (red de seguridad). `23514` y `22P02` solo aparecen si la validación falló antes: error interno.
 - **Lecturas.** `list_clients` lee `public.clients where owner_id = (select auth.uid())`, sin los archivados salvo `include_archived`, `ORDER BY name COLLATE "es-x-icu", id`; `archived` es `archived_at IS NOT NULL`. Una lectura no escribe.
 - **Seed y E2E.** Las cuentas del seed (Alicia y Beto) ya tienen clientes: las pruebas de E2E del hito 5 usan una cuenta propia del worker y la **archivan** al empezar y al terminar (T6-10).
+
+### B.4 Hito 3 · API de los clientes · 2026-11-09
+
+**Qué hay.** Las cinco rutas de §5.3 en `api/routes_clients.py` (solo `usuario`: `require_role_detached`) y los módulos con base de datos de `cuadre.clients`: `errors`, `models`, `repository` y `service`, declarados como no puros en `test_clients_boundary.py`. `main.py` guarda el verificador de VIES en `app.state.vies_checker` (el simulado) y monta el router. `backend/openapi.json` y `frontend/src/api/schema.d.ts` se regeneraron con sus scripts. No hay frontend ni migraciones nuevas.
+
+**Decisiones tomadas al implementar** (completan §5.3 y §5.4):
+
+| Tema | Decisión |
+|---|---|
+| El dominio valida, la base repite | `create` y `update` validan con `validate_client` **antes** de tocar la base y devuelven todos los errores a la vez en `fields` (`invalid_client`); la función `app.*` solo recibe valores ya normalizados y, si aun así respondiera `invalid_client`, sería un fallo de construcción: **500 sin detalles**, no un 422 |
+| El ámbito y el VIES no se envían | `ClientInput` no tiene `scope`, `vies_status`, `id` ni `archived`: con `extra="forbid"` enviarlos es un `validation_error`. Los calcula el dominio |
+| Entrada suelta, salida tipada | Todos los campos de `ClientInput` son opcionales (`str \| None` con `max_length`): una petición vacía da los tres errores de campo (`name`, `kind`, `country`) y no un error de forma. `Client` lleva las uniones de literales y el cliente TypeScript no tiene `number` ni `any` |
+| `archived` es booleano de verdad | `StrictBool`: `"yes"`, `"true"`, `1`, `0`, `null`, `[]` y `{}` son un `validation_error` y no cambian nada |
+| Traducción de errores | `P0001` por el mensaje: `client_not_found` 404 (también si es ajeno), `client_archived` y `client_tax_id_taken` 409; `42501` → 403 `forbidden`; `23505` de `clients_owner_tax_id_active` → `client_tax_id_taken` (red de seguridad); `invalid_client`, `client_immutable_column`, `23514` y `22P02` se propagan |
+| Orden de la lista | `ORDER BY name COLLATE "es-x-icu", id`: la ñ después de la n y los acentos como desempate (B.1-C) |
+| Una lectura no escribe | `list_clients` y `get_client` solo leen (una prueba compara `updated_at` y las filas antes y después) |
+| El servicio usa el verificador de la app | `ClientService(pool, checker)` lo recibe de `app.state`; una prueba lo sustituye por un espía y comprueba que solo se le pregunta por una empresa de la UE con NIF-IVA válido, que se le vuelve a preguntar al editar, que archivar no lo llama y que lo que devuelve (`unchecked`) es lo que se guarda |
+
+**Pruebas.** **117 nuevas** (el dominio, 675, no cambia): `test_clients_api.py` (69: un cliente de cada ámbito, normalización, Grecia con `GR` y con `EL`, la tabla de países, cada error de NIF, todos los errores a la vez y su orden, los campos que no se pueden enviar, el NIF único entre activos y no entre archivados ni personas, editar con cambio de ámbito, editar archivado o ajeno, archivar y reactivar con colisión, `archived` estricto, que no hay `DELETE`, que una lectura no escribe y la forma del cliente), `test_listing.py` (6), `test_roles.py` (19: gestor y administrador `403` en las cinco rutas, sin sesión `401`, ajeno = no existe, cuenta suspendida), `test_concurrency.py` (4: cinco altas a la vez con el mismo NIF dan un `201` y cuatro `409`, nunca un 500; alta frente a reactivación), `test_vies_wiring.py` (5), `test_no_sensitive_logs.py` (1: ni nombre, ni NIF, ni domicilio de un cliente en los registros ni en el cuerpo de ningún error, con el flujo completo), `test_error_mapping.py` (13: la traducción con errores reales de PostgreSQL) y una guarda más en `test_clients_boundary.py`. Suite sin RLS: **2.864**; RLS, 1.095 sin cambios; `ruff`, `export_openapi --check`, `gen:api --check` y el `typecheck` del frontend verdes.
+
+**Mutaciones.** **30**, con un ejecutor desechable fuera del repositorio (método de B.4 de SPEC-W-005): validación (errores sin devolver, solo el primero, al revés), el verificador ignorado, el listado (archivados invertidos, sin la collation, sin filtrar por dueño), `archived` al revés, cada traducción de error (cinco), el orden de los campos al guardar, el indicador de archivar invertido, la ruta abierta a otros roles, `extra="allow"`, `bool` normal, el alta con 200, el verificador de la app, una lectura que escribe, los errores sin traducir, el nombre en los registros, editar sin releer, el ámbito tomado de otro sitio, el borrado, y las guardas (`stdnum`, red y un módulo sin declarar). **28 detectadas y 2 equivalentes por diseño**: **S07** y **S08** (`get_client` y el listado sin filtrar por dueño): la RLS ya limita las filas al dueño y los filtros del SQL son defensa en profundidad. La primera pasada dejó **5 supervivientes**; dos eran huecos de mis pruebas y se cerraron: **S25** (con un solo cliente, devolver «el primero» pasaba por el editado: ahora hay dos y se edita el segundo) y **S28** (la guarda de red solo miraba los módulos puros: ahora mira todo el paquete); S27 fue un mutante mal escrito por mí (no cambiaba nada) y, reescrito, se detecta.
+
+**Comprobación a mano** con la API real y los tokens de GoTrue de Alicia y Gina (cuentas del seed): la lista trae sus tres clientes sintéticos con su ámbito y su VIES; un NIF malo da `422` con `fields` en `tax_id`; un cuerpo con todo mal enumera `name`, `kind` y `country`; un alta en Grecia con `gr` y `EL…` da `eu` y `valid_simulated`; repetir el NIF con el prefijo `GR` da `409`; archivar libera el NIF y reactivar con colisión da `409`; la gestora recibe `403`. La comprobación dejó dos clientes de prueba en la cuenta local de Alicia (el siguiente `db reset` los quita).
+
+**Lo que no se ha comprobado:**
+- **`COLLATE "es-x-icu"` en el Supabase de producción** (B.1): si el despliegue no tuviera esa collation, el listado fallaría con un 500. Habría que ordenar en Python o en la interfaz con `Intl.Collator('es')`.
+- **El navegador**: ni CORS ni la pantalla; son del hito 4.
+- **Los tiempos de espera del cerrojo** con muchas peticiones a la vez: la prueba usa cinco hilos.
+- **El CI**: no se ve desde aquí.
+
+**Para el hito 4** (frontend):
+- **Lecturas y escrituras.** `list_clients` (con `include_archived`), `get_client`, `create_client`, `update_client` y `set_client_archived`; la lista llega ya ordenada.
+- **Errores de campo.** `invalid_client` trae `fields: [{ field, message }]` con `name`, `kind`, `country`, `tax_id` o `address`, **todos a la vez y en el orden de la pantalla**: se pintan junto a cada campo y en el resumen que recibe el foco. `409 client_tax_id_taken` se pinta junto al NIF; `409 client_archived` y `404` son errores generales.
+- **Lo que muestra la pantalla.** `scope` (`national`, `eu`, `non_eu`) y `vies_status` (`valid_simulated`, `unchecked`, `not_applicable`) vienen calculados: la interfaz los muestra con texto y no valida nada fiscal. El rótulo del identificador cambia según el país (NIF, NIF-IVA, identificador fiscal) y el nombre del país sale de `Intl.DisplayNames('es')`.
+- **`describeProblem`** (`lib/problems.ts`) debe aceptar `fields` de `invalid_client` con los campos del cliente de una lista cerrada, como hizo con `invalid_profile`.

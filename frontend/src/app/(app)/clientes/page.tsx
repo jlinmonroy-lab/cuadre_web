@@ -3,7 +3,9 @@ import Link from "next/link";
 
 import { AddClient } from "@/components/clients/client-form";
 import { ClientList } from "@/components/clients/client-list";
+import { CountriesProvider } from "@/components/clients/countries-context";
 import { listClients } from "@/lib/clients-api";
+import { sortedCountries } from "@/lib/countries";
 import { requireRole } from "@/lib/session";
 
 // Depende de la sesión en cada navegación (ver el layout de (app)): no es «instantánea» y no se valida como tal.
@@ -35,11 +37,15 @@ export default async function ClientesPage(props: PageProps<"/clientes">) {
           {showArchived ? "Ocultar archivados" : "Mostrar archivados"}
         </Link>
       </header>
-      <div className="grid gap-6">
-        <AddClient />
-        <ClientList clients={clients} showArchived={showArchived} />
-        <p className="max-w-[70ch] text-[13px] text-ink-soft">Los NIF-IVA de la UE se comprueban en VIES (simulado en esta versión).</p>
-      </div>
+      {/* Los nombres de país se calculan AQUÍ, en el servidor, y viajan hasta el selector y la lista: cada motor nombra y ordena distinto algunos
+          códigos, y si se calcularan en el navegador la hidratación no coincidiría con el HTML (React #418). */}
+      <CountriesProvider countries={sortedCountries()}>
+        <div className="grid gap-6">
+          <AddClient />
+          <ClientList clients={clients} showArchived={showArchived} />
+          <p className="max-w-[70ch] text-[13px] text-ink-soft">Los NIF-IVA de la UE se comprueban en VIES (simulado en esta versión).</p>
+        </div>
+      </CountriesProvider>
     </>
   );
 }

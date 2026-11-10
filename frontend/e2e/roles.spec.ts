@@ -38,6 +38,28 @@ for (const role of ROLE_KEYS) {
   });
 }
 
+// SPEC-W-006 AC-16 · «Clientes» es solo del autónomo: el gestor y el administrador no lo ven y /clientes los lleva a /403.
+test("Clientes · el autónomo lo ve activo en el menú y llega a su pantalla", async ({ pageAs }) => {
+  const page = await pageAs("alicia");
+  await page.goto(PEOPLE.alicia.home);
+  await page.getByRole("navigation", { name: "Apartados" }).getByRole("link", { name: "Clientes" }).click();
+  await expect(page).toHaveURL("/clientes");
+  await expect(page.getByRole("heading", { level: 1, name: "Clientes" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Apartados" }).getByRole("link", { name: "Clientes" })).toHaveAttribute("aria-current", "page");
+});
+
+for (const role of ["gina", "adan"] as const) {
+  test(`Clientes · ${role} no lo ve en el menú y /clientes lo lleva a /403`, async ({ pageAs }) => {
+    const page = await pageAs(role);
+    await page.goto(PEOPLE[role].home);
+    await expect(page.getByRole("navigation", { name: "Apartados" }).getByText("Clientes", { exact: true })).toHaveCount(0);
+    await settle(page);
+    await page.goto("/clientes");
+    await expect(page).toHaveURL("/403");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("No tienes acceso a esta sección");
+  });
+}
+
 // SPEC-W-005 AC-20 · «Perfil» es solo del autónomo: el gestor y el administrador no lo ven y /perfil los lleva a /403.
 test("Perfil · el autónomo lo ve activo en el menú y llega a su pantalla", async ({ pageAs }) => {
   const page = await pageAs("alicia");

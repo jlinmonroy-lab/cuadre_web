@@ -2,6 +2,7 @@ import path from "node:path";
 
 import { test as base, expect, type BrowserContext, type Page } from "@playwright/test";
 
+import { ClientsApi } from "./clients";
 import { API_URL, AUTH_DIR, type RoleKey } from "./env";
 import { Ledger } from "./ledger";
 import { ProfileApi } from "./profile";
@@ -62,6 +63,11 @@ type Fixtures = {
    * Gastos esperan un perfil vacío y la cuenta es la del worker, así que toda prueba que escriba el perfil debe usar este fixture (T5-11).
    */
   profile: ProfileApi;
+  /**
+   * Los clientes de `gastosUser` por la API: se **archivan todos al empezar y al terminar** (T6-10). Un cliente no se borra y el NIF es único
+   * entre los activos de cada persona, así que ninguna prueba puede depender de lo que dejó otra en la cuenta del worker.
+   */
+  clients: ClientsApi;
 };
 
 type WorkerFixtures = {
@@ -110,6 +116,13 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
     await profile.restore();
     await use(profile);
     await profile.restore();
+  },
+
+  clients: async ({ request, gastosUser }, use) => {
+    const clients = new ClientsApi(request, gastosUser.email, API_URL);
+    await clients.archiveAll();
+    await use(clients);
+    await clients.archiveAll();
   },
 
   page: async ({ page }, use) => {

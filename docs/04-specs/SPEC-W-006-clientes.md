@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-006
 titulo: Clientes: NIF, ámbito y VIES simulado
-estado: en-progreso
+estado: en-revision
 prioridad: must
 riesgo: bajo
 historias: [US-006]
@@ -370,12 +370,12 @@ npm --prefix frontend exec -- playwright test e2e/clientes.spec.ts     # AC-15 a
 
 ### 8.4 Definición de hecho
 
-- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001, 002, 003 y 005 §8.2 siguen en verde.
-- [ ] `pytest backend/tests/rls -m rls` incluye `clients` y sus funciones.
-- [ ] «Clientes» está activo en el menú del autónomo y `/clientes` hace todo lo de AC-15.
-- [ ] El seed lleva clientes sintéticos de los tres ámbitos y las pruebas que dependían del menú se han revisado.
-- [ ] `docs/04-specs/tasks.json` actualizado; los ADR 0003, 0004, 0006, 0011, 0015 y 0016 enlazados.
-- [ ] Sin secretos, NIF reales ni datos de terceros en el cambio; `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
+- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001, 002, 003 y 005 §8.2 siguen en verde. *(en local, sí: B.6; en el CI, a la espera de su resultado)*
+- [x] `pytest backend/tests/rls -m rls` incluye `clients` y sus funciones.
+- [x] «Clientes» está activo en el menú del autónomo y `/clientes` hace todo lo de AC-15.
+- [x] El seed lleva clientes sintéticos de los tres ámbitos y las pruebas que dependían del menú se han revisado.
+- [x] `docs/04-specs/tasks.json` actualizado; los ADR 0003, 0004, 0006, 0011, 0015 y 0016 enlazados.
+- [x] Sin secretos, NIF reales ni datos de terceros en el cambio; `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
 
 ## Anexo A · Orden de implementación sugerido (un plan y un commit por hito)
 
@@ -390,6 +390,7 @@ npm --prefix frontend exec -- playwright test e2e/clientes.spec.ts     # AC-15 a
 4. **Frontend**: `/clientes` (lista, formulario, archivar), menú, nombres de país; unitarias.
    **Hecho el 2026-11-10** (`app/(app)/clientes`, `components/clients/`, `lib/{countries,clients-form,clients-api,clients-actions}.ts`, menú y `/inicio`; decisiones, pruebas, mutaciones y comprobación visual en el Anexo B.5).
 5. **E2E y cierre**: `clientes.spec.ts` en tres motores y dos anchos, ajustes de `roles.spec.ts`, `responsive.spec.ts` y `env.ts`, fixture que archiva los clientes del worker, mutaciones, Anexo B, `tasks.json`.
+   **Hecho el 2026-11-10** (`e2e/clientes.spec.ts`, `helpers/clients.ts`, el fixture `clients`, `roles.spec.ts` y `responsive.spec.ts`; la hidratación entre motores, el `maxLength` del domicilio, 20 mutaciones, resultados y balance de la spec en el Anexo B.6).
 
 ## Anexo B · Decisiones que esta spec dejó a la implementación
 
@@ -599,8 +600,8 @@ Dos migraciones nuevas (`supabase/migrations/20261109100000` y `…100100`), el 
 **Comprobación visual** con Chromium contra localhost y la cuenta sintética de Alicia (mi API en el 8000 y la web de producción en el 3100, sin tocar el `next dev` del 3000), a **1.440 y 390 px**: **84 comprobaciones** correctas. La lista trae los tres clientes del seed en orden alfabético con sus insignias y el pie de VIES; el rótulo pasa por NIF, NIF-IVA e «Identificador fiscal» al cambiar país y tipo; el selector tiene los 249 países ordenados; con errores, el resumen recibe el foco, cada error está junto a su campo, **no repite lo escrito** y **el país y el tipo conservan lo elegido**; un NIF mal escrito y uno repetido (409) salen junto al NIF; las altas de los tres ámbitos dejan el formulario vacío y aparecen en la lista; editar la fila del medio cambia solo esa fila (nombre y ámbito) y el selector de país **conserva su valor tras guardar**; archivar avisa en la lista, «Mostrar archivados» enseña la fila marcada con «Reactivar» y sin «Editar», y reactivar con el NIF ya tomado da el error en la fila. **Sin scroll horizontal** y **sin un solo error ni aviso en la consola** en ninguno de los dos anchos. Las capturas están en el directorio temporal de la sesión; no se versionan.
 
 **Lo que no se ha comprobado:**
-- **Firefox y WebKit**: solo Chromium. Es lo primero del hito 5 (en especial los 249 nombres: si el motor y el servidor devolvieran un nombre distinto, React avisaría de hidratación en el selector).
-- **La hidratación del selector entre Node y el navegador**: en Chromium no hubo avisos; el motor de Node 24 y el del navegador coinciden en los nombres en español, pero no es una garantía entre versiones de ICU.
+- **Firefox y WebKit**: solo Chromium. Es lo primero del hito 5 (en especial los 249 nombres).
+- **La hidratación del selector entre Node y el navegador**: *(corregido en B.6)* se creyó que no había avisos y que Node y Chromium coincidían en los nombres; la comprobación visual entraba por navegación blanda y no hidrataba. Con carga dura hay un React #418 por cuatro países (`FK`, `HK`, `MO`, `PS`) y el orden: resuelto en B.6 calculando los nombres en el servidor.
 - **Lector de pantalla real** (el aviso de archivar y el resumen de errores solo se comprobaron por DOM y foco).
 - **El CI de los hitos 3 y 4**: no se ve desde aquí.
 - **«Añadir serie» tiene el mismo `open={error ? true : undefined}`** que arregló este hito (SPEC-W-005): tras un error y un éxito se cierra y esconde «Serie añadida.». No se ha tocado (es otra spec); conviene corregirlo en una pasada de W-005.
@@ -611,3 +612,57 @@ Dos migraciones nuevas (`supabase/migrations/20261109100000` y `…100100`), el 
 - **Fixture** que **archiva los clientes de la cuenta del worker** al empezar y al terminar (T6-10): un cliente no se borra. Los clientes del seed (`Estudio Norte S.L.`, `Kreativ GmbH`, `Taller Zócalo`) no se editan.
 - **Selectores**: pedir lo visible (`getByRole('main')`, `details:visible`), y **esperar el texto concreto** y no «Cliente añadido.», que sigue en pantalla de la alta anterior (la primera versión de la comprobación visual falló por eso).
 - **`roles.spec.ts` y `responsive.spec.ts`**: ya leen `enabledNav` de Alicia, que incluye «Clientes»; falta el caso «el gestor y el administrador no lo ven y `/clientes` los lleva a `/403`», como `Perfil`.
+
+### B.6 Hito 5 · E2E y cierre · 2026-11-10
+
+**Qué hay.** `e2e/clientes.spec.ts` (16 pruebas, en los seis proyectos: Chromium, Firefox y WebKit × 390 y 1.440 px), el ayudante `e2e/helpers/clients.ts` (`ClientsApi`) y el fixture `clients` en `e2e/helpers/fixtures.ts`, los casos de «Clientes» en `roles.spec.ts` (AC-16) y `/clientes` en `responsive.spec.ts`. Cambios de producto, **dos hallazgos del propio E2E**: los nombres de país pasan a calcularse en el servidor (`countries-context.tsx`) y el `maxLength` de «Domicilio» baja de 500 a 300. Sin cambios de backend.
+
+**Corrección a B.5 (el E2E la desmintió).** B.5 decía que «el motor de Node 24 y el del navegador coinciden en los nombres en español» y que en Chromium «no hubo avisos de hidratación». **Era falso y se vio en el primer E2E**: en la comprobación visual se entraba a `/clientes` por navegación blanda (clic en el menú), que no hidrata la página; con una **carga dura** (`page.goto`) los 28 tests de Chromium fallaron con **React #418**. Causa: `Intl.DisplayNames('es')` de Node 24 y el de Chromium 156 nombran distinto **cuatro códigos** (`FK` «Islas Malvinas» / «Islas Malvinas (Islas Falkland)», `HK` «RAE de Hong Kong (China)» / «Hong Kong», `MO` «RAE de Macao (China)» / «Macao», `PS` «Territorios Palestinos» / «Palestina»), y **ordenan distinto** (es lo que ya avisaba AC-17: «Chromium nombra distinto cuatro códigos»). El selector y la lista calculaban los nombres en el navegador al hidratar y no coincidían con el HTML del servidor.
+
+| Tema | Decisión |
+|---|---|
+| Una sola fuente para los nombres | `page.tsx` calcula `sortedCountries()` **en el servidor** y lo reparte con `CountriesProvider` (contexto de cliente); `ClientFields` (selector) y `ClientList` (columna País) leen de ahí con `useCountries()` (`countries`, `nameOf`). El HTML y la hidratación pintan las mismas cadenas en cualquier motor. Los nombres siguen saliendo de `Intl.DisplayNames('es')`, solo que de **un** motor |
+| La prueba que lo fija | «hidratación (AC-17)»: clientes en `FK`, `HK`, `MO` y `PS`, **carga dura**, y la fila nombra cada país igual que el selector; el fixture convierte cualquier error de página en fallo. La mutación **E12** (calcular los nombres en el navegador) la detecta |
+| AC-17 por motor | En cada motor: los 249 códigos tienen nombre distinto del código (`Intl.DisplayNames` del propio motor y el texto de cada `<option>`), el selector tiene 249 + «Elige un país», sin repetidos, y va ordenado con el `Intl.Collator('es')` del motor; **no se comparan nombres exactos entre motores** |
+| `maxLength` de «Domicilio» | 300, el `ADDRESS_MAX` del servidor (la interfaz dejaba escribir hasta 500 y el servidor lo rechazaba). El nombre ya era 200 y el identificador se queda en 64: lo decide el servidor |
+| T6-10 | El fixture `clients` **archiva todo lo activo de la cuenta del worker al empezar y al terminar**. Un cliente no se borra y el NIF es único entre los activos: ninguna prueba depende de lo que dejó otra. Siembra por la API con el token de GoTrue de la cuenta (nunca la service key; ni el token ni el nombre o el NIF van a un mensaje de error) |
+| Qué cuentan las pruebas | Solo lo **activo** (`clients.list()`): los archivados de pruebas anteriores siguen en la cuenta, y la primera versión de dos pruebas contaba también archivados |
+| Insignias | Las filas se leen por `ul[aria-label="Ámbito y comprobación de VIES"] > li`: en móvil el editor vive dentro de la tarjeta con sus propios `li` de error, y la primera versión (`getByRole("listitem")` sobre la fila) los contaba |
+| Esperas | Por un efecto concreto (la fila con ese nombre, un texto nuevo), no por «Cliente añadido.», que sigue en pantalla de la alta anterior; `shown(...)` en todos los localizadores (Next conserva oculta la pantalla anterior); `openAdd` abre el desplegable solo si está cerrado |
+
+**Lo que cubren las 16 pruebas** (AC-01 a AC-10, AC-15 y AC-17; AC-16 en `roles.spec.ts`): un cliente de cada ámbito (nacional escrito en minúscula y con espacios, UE, Grecia escrita `GR…` y guardada `EL…`, México con identificador libre y un particular de EE. UU. sin él), con ninguna petición del navegador fuera de localhost (AC-02) y lo guardado comprobado por la API; tres NIF inválidos (letra de control, NIF-IVA de la UE en un cliente nacional y NIF-IVA francés para uno alemán) con el error junto al NIF, el resumen con foco, `aria-invalid` y `aria-describedby`, sin repetir lo escrito y sin guardar nada; particulares con y sin NIF; **error y después éxito** (el desplegable no se cierra y «Cliente añadido.» se ve); todos los errores a la vez, en el orden de la pantalla y conservando el tipo; NIF repetido al crear, editar y reactivar; editar la fila del medio (país Francia + NIF-IVA francés → «UE»; selector y rótulo conservados tras guardar; las demás filas no cambian), editar con NIF malo, archivar con aviso en la lista, «Mostrar archivados» (marcado, «Reactivar», sin «Editar» ni botón de borrar) y reactivar; lista vacía; rótulo del identificador en seis combinaciones; nombres de país; hidratación; sin scroll horizontal ni campos sin etiqueta (lista, errores y editor abierto), tabla desde 1.280 px y tarjetas hasta 1.279 (solo Chromium); teclado hasta «Añadir cliente», foco visible y archivar con Enter.
+
+**Resultados.**
+
+| Ejecución | Resultado |
+|---|---|
+| `clientes.spec.ts`, los seis proyectos | **101 correctas** (92 pruebas más 9 de sesión, 3 por motor; las 4 omitidas son la del ancho límite en Firefox y WebKit, que solo corre en Chromium) |
+| `clientes`, `roles` y `responsive` por motor (antes de la última prueba añadida) | Chromium: `clientes` 33 de 33 (la tanda de los tres archivos dio 83 correctas y 6 fallos, todos de `clientes` y ya corregidos); Firefox **87**; WebKit **87** |
+| Batería completa, `--workers=1` (W-001, 002, 003, 005 y 006, `bundle.spec.ts` incluido) | **567 correctas** en 23 min, antes de añadir la prueba de «error y éxito» (que sí se ejecutó después en los seis proyectos) |
+| `lint`, `typecheck`, `test:unit` (206), `build`, `check:bundle`, `gen:api --check`, `export_openapi --check`, `ruff` | verdes |
+| `pytest backend/tests -m "not rls"` | **2.864** correctas |
+| `pytest backend/tests/rls -m rls` | **1.095** correctas |
+
+La primera vuelta de Chromium dio 28 fallos y 3 correctas (los 3 de sesión) por la hidratación; después, varias vueltas más fueron arreglando errores **de las propias pruebas** (contar archivados, el `aria-label` de las insignias, el selector de `li`) hasta 33/33 en Chromium. En ningún momento se tocó un umbral ni se saltó una prueba.
+
+**Mutaciones.** **20** sobre la interfaz con un ejecutor desechable fuera del repositorio (`next build` y `clientes.spec.ts` en `chromium-390` y `chromium-1440` por mutante, restaurando por hash): selector de país y de tipo sin `key`, rótulo fijo en «NIF», insignia del ámbito sin texto, «Editar» en un archivado, aviso sin `role="status"`, NIF sin `aria-describedby`, desplegable abierto solo en error, selector ordenado por código, «Mostrar archivados» sin pedirlos, resumen de errores sin foco, nombre del cliente a la consola, **nombres de país calculados en el navegador**, archivar sin refrescar, reactivar con error callado, 409 del NIF repetido en el resumen, lista vacía con otro texto, tabla desde 1.200 px, «Archivar» sin nombre accesible y el estado de VIES sin su texto para el lector. **Primera pasada: 18 detectadas y 2 supervivientes**, las dos **huecos de mis pruebas**: **E07** (nada comprobaba que tras un error y un éxito el aviso siguiera visible: ahora hay una prueba) y **E20** (la regex `/Válido/` no exigía el «VIES:» para el lector de pantalla: ahora la fila alemana compara el texto exacto). Reejecutados, **20 de 20 detectadas**, sin equivalentes.
+
+**Hallazgos del hito que no cambian la spec.** `describeProblem` y `taxIdLabel` eran correctos; los dos defectos de producto (hidratación y `maxLength`) los encontró el E2E y no lo habían visto ni las pruebas unitarias ni la comprobación visual, que entraba por navegación blanda y en un solo motor. `Añadir serie` (SPEC-W-005) conserva el mismo `open={error ? true : undefined}` que cerraba el desplegable tras un error y un éxito: no se ha tocado (es de otra spec).
+
+**Lo que no se ha comprobado:**
+- **El CI**: no se ve desde aquí. Es lo único que falta para pasar la spec de `en-revision` a `hecha`.
+- **Lector de pantalla real**: los avisos y el resumen de errores se comprobaron por DOM, roles y foco, no con NVDA, VoiceOver o TalkBack.
+- **Otras versiones de ICU**: la solución no depende de que coincidan (hay una sola fuente), pero el **orden** del selector lo fija el `Intl.Collator('es')` de Node; el E2E lo comprueba contra el de cada motor y pasó en los tres, sin garantía para versiones futuras.
+- **`COLLATE "es-x-icu"` en el Supabase de producción** (B.1): sin verificar; si faltara, el listado fallaría con un 500.
+- **La base local**: la comprobación visual del hito 4 dejó 21 clientes de prueba en la cuenta de Alicia y `test_clients_seed` falló hasta restaurarla con `supabase db reset`. Nada de eso llega al repositorio.
+
+**Balance de la spec.**
+
+| Hito | Pruebas nuevas | Mutaciones | Hallazgos que cambiaron la spec o el código |
+|---|---|---|---|
+| 0 · spike | — | — | catálogo sin `XI` ni `XK`, entrada suelta con `StrictBool`, comprobación previa de `client_tax_id_taken`, seed |
+| 1 · dominio | 675 | 49 (48 + 1 equivalente) | — |
+| 2 · base de datos | 173 | 70 (68 + 2 equivalentes) | huecos de los CHECK de `scope` y VIES |
+| 3 · API | 117 | 30 (28 + 2 equivalentes) | editar o archivar devolviendo «el primero»; guarda de red solo en los módulos puros |
+| 4 · pantalla | 20 | 28 (26 + 2 equivalentes) | `details` cerrado tras error y éxito |
+| 5 · E2E | 16 (× 6 proyectos) + 3 de `roles` + 1 de `responsive` | 20 (todas detectadas) | **hidratación entre motores**, `maxLength` del domicilio, error y éxito |

@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { CLIENT_FORM_FIELDS } from "@/lib/clients-form";
 import { createClient } from "@/lib/clients-actions";
-import { CLIENT_KINDS, sortedCountries, taxIdLabel, type ClientKind } from "@/lib/countries";
+import { useCountries } from "@/components/clients/countries-context";
+import { CLIENT_KINDS, taxIdLabel, type ClientKind } from "@/lib/countries";
 import { initialFormState, type FormState } from "@/lib/form-state";
 
 /** Los ids de los campos de un formulario (el del resumen de errores enlaza a ellos). */
@@ -17,9 +18,6 @@ export const clientFieldIds = (prefix: string): Record<string, string> => Object
 
 /** Lo que se ve en un cliente nuevo: una empresa en España (lo más habitual); la persona lo cambia con los selectores. */
 const NEW_CLIENT: Record<string, string> = { kind: "business", country: "ES" };
-
-// Los países en español, por nombre. Se calcula una vez; el nombre lo pone `Intl.DisplayNames`, el código es el de la API.
-const COUNTRY_OPTIONS = sortedCountries();
 
 export function Feedback({ state }: { state: FormState }) {
   return (
@@ -35,6 +33,7 @@ export function Feedback({ state }: { state: FormState }) {
  * resultado de la acción: cuando cambia (se guardó, o hubo errores y vuelven los valores tecleados), el país y el tipo se resincronizan.
  */
 export function ClientFields({ prefix, values, errors, source }: { prefix: string; values: Record<string, string>; errors: Record<string, string | undefined>; source: unknown }) {
+  const { countries } = useCountries(); // nombres del servidor: ver `countries-context.tsx`
   const [picked, setPicked] = useState({ source, country: values["country"] ?? "", kind: values["kind"] ?? "business" });
   let current = picked;
   if (picked.source !== source) {
@@ -79,7 +78,7 @@ export function ClientFields({ prefix, values, errors, source }: { prefix: strin
             onChange={(event) => setPicked({ ...current, country: event.target.value })}
           >
             <option value="">Elige un país</option>
-            {COUNTRY_OPTIONS.map((country) => (
+            {countries.map((country) => (
               <option key={country.code} value={country.code}>
                 {country.name}
               </option>
@@ -91,7 +90,7 @@ export function ClientFields({ prefix, values, errors, source }: { prefix: strin
         {(control) => <Input {...control} name="tax_id" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={64} defaultValue={values["tax_id"] ?? ""} />}
       </FormRow>
       <FormRow idPrefix={prefix} name="address" label="Domicilio" error={errors["address"]}>
-        {(control) => <Input {...control} name="address" autoComplete="off" maxLength={500} defaultValue={values["address"] ?? ""} />}
+        {(control) => <Input {...control} name="address" autoComplete="off" maxLength={300} defaultValue={values["address"] ?? ""} />}
       </FormRow>
     </div>
   );

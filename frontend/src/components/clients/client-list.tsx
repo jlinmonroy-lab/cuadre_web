@@ -3,7 +3,8 @@
 import { Fragment, useState } from "react";
 
 import { ClientActions, ClientEditor, type ClientRow } from "@/components/clients/client-actions";
-import { CLIENT_KINDS, countryName, taxIdLabel } from "@/lib/countries";
+import { useCountries } from "@/components/clients/countries-context";
+import { CLIENT_KINDS, taxIdLabel } from "@/lib/countries";
 
 const TAG = "inline-block rounded-full px-2.5 py-0.5 text-[13px] font-semibold";
 
@@ -38,13 +39,14 @@ function Identifier({ client }: { client: ClientRow }) {
 }
 
 function ClientCard({ client, onNotice }: { client: ClientRow; onNotice: (message: string) => void }) {
+  const { nameOf } = useCountries();
   const [editing, setEditing] = useState(false);
   return (
     <article className="grid gap-3 rounded-panel border border-rule bg-sheet p-4">
       <div className="grid gap-1.5">
         <h3 className="text-[15px] leading-snug [overflow-wrap:anywhere]">{client.name}</h3>
         <p className="text-[13px] text-ink-soft">
-          {kindLabel(client.kind)} · {countryName(client.country)}
+          {kindLabel(client.kind)} · {nameOf(client.country)}
         </p>
         <p className="text-[13px] text-ink-soft">
           {taxIdLabel(client.country, client.kind).label}: <span className="font-semibold text-ink">{client.tax_id ?? "—"}</span>
@@ -59,6 +61,7 @@ function ClientCard({ client, onNotice }: { client: ClientRow; onNotice: (messag
 }
 
 function ClientTableRow({ client, onNotice }: { client: ClientRow; onNotice: (message: string) => void }) {
+  const { nameOf } = useCountries();
   const [editing, setEditing] = useState(false);
   return (
     <Fragment>
@@ -73,7 +76,7 @@ function ClientTableRow({ client, onNotice }: { client: ClientRow; onNotice: (me
         <td className="py-3 pr-4">
           <Identifier client={client} />
         </td>
-        <td className="py-3 pr-4">{countryName(client.country)}</td>
+        <td className="py-3 pr-4">{nameOf(client.country)}</td>
         <td className="py-3 pr-4">
           <Badges client={client} />
         </td>

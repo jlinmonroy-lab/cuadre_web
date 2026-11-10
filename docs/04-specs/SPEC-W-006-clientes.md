@@ -388,6 +388,7 @@ npm --prefix frontend exec -- playwright test e2e/clientes.spec.ts     # AC-15 a
 3. **API**: `cuadre.clients` (servicio y repositorio), las cinco rutas, `openapi.json` y `schema.d.ts` regenerados, con mutaciones.
    **Hecho el 2026-11-09** (`cuadre/clients/{errors,models,repository,service}.py` y `api/routes_clients.py`; decisiones, pruebas y mutaciones en el Anexo B.4).
 4. **Frontend**: `/clientes` (lista, formulario, archivar), menú, nombres de país; unitarias.
+   **Hecho el 2026-11-10** (`app/(app)/clientes`, `components/clients/`, `lib/{countries,clients-form,clients-api,clients-actions}.ts`, menú y `/inicio`; decisiones, pruebas, mutaciones y comprobación visual en el Anexo B.5).
 5. **E2E y cierre**: `clientes.spec.ts` en tres motores y dos anchos, ajustes de `roles.spec.ts`, `responsive.spec.ts` y `env.ts`, fixture que archiva los clientes del worker, mutaciones, Anexo B, `tasks.json`.
 
 ## Anexo B · Decisiones que esta spec dejó a la implementación
@@ -563,3 +564,50 @@ Dos migraciones nuevas (`supabase/migrations/20261109100000` y `…100100`), el 
 - **Errores de campo.** `invalid_client` trae `fields: [{ field, message }]` con `name`, `kind`, `country`, `tax_id` o `address`, **todos a la vez y en el orden de la pantalla**: se pintan junto a cada campo y en el resumen que recibe el foco. `409 client_tax_id_taken` se pinta junto al NIF; `409 client_archived` y `404` son errores generales.
 - **Lo que muestra la pantalla.** `scope` (`national`, `eu`, `non_eu`) y `vies_status` (`valid_simulated`, `unchecked`, `not_applicable`) vienen calculados: la interfaz los muestra con texto y no valida nada fiscal. El rótulo del identificador cambia según el país (NIF, NIF-IVA, identificador fiscal) y el nombre del país sale de `Intl.DisplayNames('es')`.
 - **`describeProblem`** (`lib/problems.ts`) debe aceptar `fields` de `invalid_client` con los campos del cliente de una lista cerrada, como hizo con `invalid_profile`.
+
+### B.5 Hito 4 · pantalla de clientes · 2026-11-10
+
+**Qué hay.** La pantalla `/clientes` (`app/(app)/clientes/page.tsx`), «Clientes» como enlace del menú y de `SECTIONS.usuario` (el proxy exige sesión; gestor y administrador van a `/403` por `requireRole`), y «Clientes» fuera de la lista «Próximamente» de `/inicio`. Sin cambios de backend ni de migraciones; `schema.d.ts` no cambia.
+
+| Archivo | Papel |
+|---|---|
+| `lib/countries.ts` | Los 249 códigos y los 27 de la UE (los mismos que `countries.py`), `countryName` (`Intl.DisplayNames('es')`), `sortedCountries` (`Intl.Collator('es')`), los tipos de cliente y `taxIdLabel` (rótulo y ayuda del identificador según país y tipo) |
+| `lib/clients-form.ts` | Formulario ↔ cuerpo de la API: solo campos conocidos, vacío = `null`, controles fuera, errores por campo desde `invalid_client` y `client_tax_id_taken` |
+| `lib/clients-api.ts` | `listClients(includeArchived)` para el servidor (`failRead`: 401 → cierra sesión, 403 → `/403`, lo demás → «servicio no disponible») |
+| `lib/clients-actions.ts` | `createClient`, `updateClient(id)` y `setClientArchived(id, archived)`: valida la forma, comprueba la sesión, `refresh()` y devuelve el texto del servidor |
+| `lib/problems.ts` | `clientFields` de `invalid_client` con lista cerrada (`name`, `kind`, `country`, `tax_id`, `address`) y la misma poda que el perfil |
+| `components/clients/` | `client-form` (campos compartidos, «Añadir cliente»), `client-actions` (editor, «Editar», «Archivar» / «Reactivar») y `client-list` (tarjetas ≤ 1.279 px y tabla ≥ 1.280) |
+
+**Decisiones tomadas al implementar** (completan §5.5):
+
+| Tema | Decisión |
+|---|---|
+| El rótulo sigue a la persona | El nombre del identificador cambia **mientras elige** (España → «NIF»; UE y empresa → «NIF-IVA»; el resto → «Identificador fiscal»; sin país → «NIF o identificador fiscal» con «Elige primero el país») con la ayuda de si es obligatorio. Es presentación: el control lo hace el servidor |
+| El país y el tipo son selectores sin estado propio | `<select>` sin controlar, con `key` por valor (React solo aplica el `defaultValue` al montarlo y al terminar la acción reinicia el formulario: el selector de retención del perfil lo perdía). Un estado local solo guarda lo elegido para el rótulo y se **resincroniza con cada resultado** de la acción (ajuste de estado al cambiar la entrada, sin efecto) |
+| Un cliente nuevo nace en España y como empresa | Lo más habitual en una persona autónoma; el ámbito resultante se ve en la lista nada más guardar |
+| Un solo `details` por pantalla | «Añadir cliente» es un `<details>` nativo; **se mantiene abierto mientras haya un resultado** (error o «Cliente añadido.»). La primera versión copiaba el `open={error ? true : undefined}` de «Añadir serie»: tras un error y un éxito React quitaba el atributo, el desplegable se cerraba y el aviso de éxito quedaba escondido (lo encontró la comprobación visual) |
+| El 409 del NIF no se lee dos veces | Con `client_tax_id_taken` el resumen solo enlaza al campo (el titular sería el mismo texto); con `invalid_client` el titular «Revisa los campos marcados: no se ha guardado nada.» más un enlace por campo |
+| Editar el que se ve | El editor se abre en la fila (una fila más que ocupa la tabla, tarjeta en móvil) y no en la celda de acciones, demasiado estrecha para cinco campos. Un cliente archivado **no ofrece «Editar»** (el servidor lo rechazaría con `client_archived`) |
+| El aviso de archivar vive en la lista | Al archivar, la fila desaparece de los activos y con ella su `aria-live`: el aviso «Cliente archivado. {nombre}» se guarda en `ClientList`, que sigue montado |
+| Mostrar archivados | Es `?archivados=1` (lectura de servidor, sin estado en el navegador); el enlace cambia de «Mostrar» a «Ocultar archivados» |
+| Ámbito y VIES | Texto con insignia: «Nacional» neutro, «UE» con `scope-eu`, «Fuera de la UE» con `scope-non-eu`; «Válido (simulado)» en verde, «Sin comprobar» en ámbar y «No aplica» discreto, con «VIES:» oculto para el lector de pantalla |
+
+**Pruebas.** **20 unitarias nuevas** (`countries.test.ts` 10, `clients-form.test.ts` 9, `problems.test.ts` 1) y los asertos de `roles.test.ts` y `route-guard.test.ts` ampliados; en total, **206** (antes 186). Lo que fijan: los 249 y los 27 **idénticos a `countries.py`** (el test lee ese archivo, con CRLF; si alguien toca una lista y no la otra, falla), que `XK`, `XI`, `EU`, `UK` y `ZZ` no están, los nombres en español de este motor (España, Alemania, Grecia, Estados Unidos, México; todos distintos de su código), el orden con la ñ después de la n, los seis casos del rótulo, un cuerpo que nunca lleva el ámbito ni el VIES, los controles y los caracteres invisibles (construidos con `String.fromCharCode`), el primer error de cada campo y el 409 junto al NIF. `lint`, `typecheck`, `build`, `check:bundle` (sin cadenas de claves) y `gen:api --check` verdes; `pytest backend/tests/clients backend/tests/rules`, 883 sin cambios.
+
+**Mutaciones.** **28** sobre `countries.ts`, `clients-form.ts`, `problems.ts` y `roles.ts` con un ejecutor desechable fuera del repositorio: **26 detectadas y 2 equivalentes por construcción**: **U19** (quitar la comprobación del código en `fieldErrorsFromClientProblem`: `clientFields` solo lo rellena `describeProblem` cuando el código es `invalid_client`) y **U28** (añadir `/clientes` a los apartados del gestor: `sectionOwner` recorre los roles en orden y `usuario` va antes). Los mutantes más útiles: el catálogo con Kosovo o sin Zimbabue, la UE con Reino Unido o sin Grecia, el selector ordenado por código, los nombres en inglés, el particular español obligatorio, el cuerpo con el ámbito y un 5xx que enseña campos.
+
+**Comprobación visual** con Chromium contra localhost y la cuenta sintética de Alicia (mi API en el 8000 y la web de producción en el 3100, sin tocar el `next dev` del 3000), a **1.440 y 390 px**: **84 comprobaciones** correctas. La lista trae los tres clientes del seed en orden alfabético con sus insignias y el pie de VIES; el rótulo pasa por NIF, NIF-IVA e «Identificador fiscal» al cambiar país y tipo; el selector tiene los 249 países ordenados; con errores, el resumen recibe el foco, cada error está junto a su campo, **no repite lo escrito** y **el país y el tipo conservan lo elegido**; un NIF mal escrito y uno repetido (409) salen junto al NIF; las altas de los tres ámbitos dejan el formulario vacío y aparecen en la lista; editar la fila del medio cambia solo esa fila (nombre y ámbito) y el selector de país **conserva su valor tras guardar**; archivar avisa en la lista, «Mostrar archivados» enseña la fila marcada con «Reactivar» y sin «Editar», y reactivar con el NIF ya tomado da el error en la fila. **Sin scroll horizontal** y **sin un solo error ni aviso en la consola** en ninguno de los dos anchos. Las capturas están en el directorio temporal de la sesión; no se versionan.
+
+**Lo que no se ha comprobado:**
+- **Firefox y WebKit**: solo Chromium. Es lo primero del hito 5 (en especial los 249 nombres: si el motor y el servidor devolvieran un nombre distinto, React avisaría de hidratación en el selector).
+- **La hidratación del selector entre Node y el navegador**: en Chromium no hubo avisos; el motor de Node 24 y el del navegador coinciden en los nombres en español, pero no es una garantía entre versiones de ICU.
+- **Lector de pantalla real** (el aviso de archivar y el resumen de errores solo se comprobaron por DOM y foco).
+- **El CI de los hitos 3 y 4**: no se ve desde aquí.
+- **«Añadir serie» tiene el mismo `open={error ? true : undefined}`** que arregló este hito (SPEC-W-005): tras un error y un éxito se cierra y esconde «Serie añadida.». No se ha tocado (es otra spec); conviene corregirlo en una pasada de W-005.
+- **Dos copias de la pantalla**: Next conserva oculta la pantalla anterior al alternar «Mostrar archivados», y con ella el estado del formulario (un error viejo puede seguir ahí al volver). Es el comportamiento de la versión de Next del proyecto, y lo notable para el hito 5 es que los selectores de las pruebas deben pedir **solo lo visible**.
+
+**Para el hito 5** (E2E y cierre):
+- **`clientes.spec.ts`** en los tres motores y los dos anchos: alta de un cliente de cada ámbito (nacional con CIF, UE con NIF-IVA, fuera de la UE con texto libre), rótulo del identificador al cambiar país y tipo, errores a la vez con el foco en el resumen y el país y el tipo conservados, NIF repetido (409 junto al NIF), editar con dos filas, archivar con aviso en la lista, «Mostrar archivados», reactivar con colisión, sin scroll horizontal y sin errores de consola.
+- **Fixture** que **archiva los clientes de la cuenta del worker** al empezar y al terminar (T6-10): un cliente no se borra. Los clientes del seed (`Estudio Norte S.L.`, `Kreativ GmbH`, `Taller Zócalo`) no se editan.
+- **Selectores**: pedir lo visible (`getByRole('main')`, `details:visible`), y **esperar el texto concreto** y no «Cliente añadido.», que sigue en pantalla de la alta anterior (la primera versión de la comprobación visual falló por eso).
+- **`roles.spec.ts` y `responsive.spec.ts`**: ya leen `enabledNav` de Alicia, que incluye «Clientes»; falta el caso «el gestor y el administrador no lo ven y `/clientes` los lleva a `/403`», como `Perfil`.

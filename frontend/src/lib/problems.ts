@@ -18,6 +18,8 @@ export type Problem = {
   invalidFields?: string[];
   /** `invalid_profile`: TODOS los campos del perfil que fallan, cada uno con su texto (el servidor no repite lo escrito). */
   profileFields?: { field: string; message: string }[];
+  /** `invalid_client`: TODOS los campos de la ficha de cliente que fallan, cada uno con su texto (el servidor no repite lo escrito). */
+  clientFields?: { field: string; message: string }[];
 };
 
 const BY_STATUS: Record<number, string> = {
@@ -45,6 +47,9 @@ export const PROFILE_FIELDS = [
   "iban",
 ] as const;
 const PROFILE_FIELD_SET: ReadonlySet<string> = new Set(PROFILE_FIELDS);
+// SPEC-W-006: los campos de la ficha de cliente que puede señalar `invalid_client`, en el orden de la pantalla.
+export const CLIENT_FIELDS = ["name", "kind", "country", "tax_id", "address"] as const;
+const CLIENT_FIELD_SET: ReadonlySet<string> = new Set(CLIENT_FIELDS);
 const FIELD_LOCS = new Map([
   ["body.expense_date", "expense_date"],
   ["body.concept", "concept"],
@@ -86,17 +91,20 @@ export function describeProblem(input: { status: number; body: unknown; retryAft
         ]
       : [];
 
-  const rawProfileFields = body["fields"];
-  const profileFields =
-    client && code === "invalid_profile" && Array.isArray(rawProfileFields)
-      ? rawProfileFields.flatMap((entry: unknown) => {
+  // `fields` de un problema de campos: solo nombres de una lista cerrada y textos cortos y seguros; nada más se refleja.
+  const rawFields = body["fields"];
+  const fieldsOf = (allowed: ReadonlySet<string>): { field: string; message: string }[] =>
+    Array.isArray(rawFields)
+      ? rawFields.flatMap((entry: unknown) => {
           if (typeof entry !== "object" || entry === null) return [];
           const { field: name, message: text } = entry as Record<string, unknown>;
-          if (typeof name !== "string" || !PROFILE_FIELD_SET.has(name)) return [];
+          if (typeof name !== "string" || !allowed.has(name)) return [];
           if (typeof text !== "string" || text.length === 0 || text.length > MAX_DETAIL || UNSAFE_TEXT.test(text)) return [];
           return [{ field: name, message: text }];
         })
       : [];
+  const profileFields = client && code === "invalid_profile" ? fieldsOf(PROFILE_FIELD_SET) : [];
+  const clientFields = client && code === "invalid_client" ? fieldsOf(CLIENT_FIELD_SET) : [];
 
   return {
     status: input.status,
@@ -107,6 +115,7 @@ export function describeProblem(input: { status: number; body: unknown; retryAft
     ...(failedChecks.length > 0 ? { failedChecks } : {}),
     ...(invalidFields.length > 0 ? { invalidFields } : {}),
     ...(profileFields.length > 0 ? { profileFields } : {}),
+    ...(clientFields.length > 0 ? { clientFields } : {}),
   };
 }
 

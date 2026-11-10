@@ -19,6 +19,9 @@ test("Gastos exige sesión, también sus subrutas y los Route Handlers de lectur
   assert.deepEqual(anon("/gastos"), { redirect: "/login?next=/gastos" });
   assert.deepEqual(anon("/perfil"), { redirect: "/login?next=/perfil" });
   assert.equal(authed("/perfil"), null);
+  assert.deepEqual(anon("/clientes"), { redirect: "/login?next=/clientes" });
+  assert.deepEqual(anon("/clientes", "?archivados=1"), { redirect: "/login?next=/clientes%3Farchivados%3D1" });
+  assert.equal(authed("/clientes"), null);
   assert.deepEqual(anon("/gastos/3f2a-1"), { redirect: "/login?next=/gastos/3f2a-1" });
   assert.deepEqual(anon("/gastos/3f2a-1/leer"), { redirect: "/login?next=/gastos/3f2a-1/leer" });
   assert.deepEqual(anon("/gastos", "?aviso=descartado"), { redirect: "/login?next=/gastos%3Faviso%3Ddescartado" });

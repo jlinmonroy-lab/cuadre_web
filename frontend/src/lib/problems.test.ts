@@ -120,6 +120,38 @@ test("invalid_profile devuelve todos los campos con su texto, de una lista cerra
   assert.equal(describeProblem({ status: 422, body: { ...body, code: "otra_cosa" } }).profileFields, undefined);
 });
 
+test("invalid_client devuelve todos los campos con su texto, de una lista cerrada y sin reflejar texto libre", () => {
+  const body = {
+    code: "invalid_client",
+    detail: "Revisa los campos marcados: no se ha guardado nada.",
+    fields: [
+      { field: "name", message: "Escribe el nombre del cliente." },
+      { field: "country", message: "Elige un país de la lista." },
+      { field: "tax_id", message: "El NIF no es válido: revisa el dígito o la letra de control." },
+      { field: "owner_id", message: "no es un campo del cliente" },
+      { field: "iban", message: "tampoco es de la ficha de cliente" },
+      { field: "address", message: "con <marca>" },
+      { field: "kind", message: "x".repeat(301) },
+      { field: "name", message: 5 },
+      "texto",
+    ],
+  };
+  assert.deepEqual(describeProblem({ status: 422, body }).clientFields, [
+    { field: "name", message: "Escribe el nombre del cliente." },
+    { field: "country", message: "Elige un país de la lista." },
+    { field: "tax_id", message: "El NIF no es válido: revisa el dígito o la letra de control." },
+  ]);
+  assert.equal(describeProblem({ status: 500, body }).clientFields, undefined);
+  assert.equal(describeProblem({ status: 422, body: { ...body, code: "invalid_profile" } }).clientFields, undefined);
+  // Cada problema usa SU lista: un `invalid_client` no rellena los campos del perfil, y un `invalid_profile` solo se queda con los suyos
+  // (`tax_id` e `iban` lo son; `name`, `country`, `kind` y `address` no).
+  assert.equal(describeProblem({ status: 422, body }).profileFields, undefined);
+  assert.deepEqual(describeProblem({ status: 422, body: { ...body, code: "invalid_profile" } }).profileFields, [
+    { field: "tax_id", message: "El NIF no es válido: revisa el dígito o la letra de control." },
+    { field: "iban", message: "tampoco es de la ficha de cliente" },
+  ]);
+});
+
 test("invalid_series señala su campo de una lista cerrada", () => {
   for (const field of ["code", "description", "first_number"]) {
     assert.equal(describeProblem({ status: 422, body: { code: "invalid_series", detail: "Mal.", field } }).field, field);

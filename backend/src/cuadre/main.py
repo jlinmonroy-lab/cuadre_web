@@ -9,7 +9,15 @@ from starlette.middleware.cors import CORSMiddleware
 
 from cuadre import __version__
 from cuadre.agents import get_agents_client
-from cuadre.api import routes_clients, routes_documents, routes_expenses, routes_health, routes_me, routes_profile
+from cuadre.api import (
+    routes_clients,
+    routes_documents,
+    routes_expenses,
+    routes_health,
+    routes_invoices,
+    routes_me,
+    routes_profile,
+)
 from cuadre.clients import FakeViesChecker
 from cuadre.config import Settings, get_settings
 from cuadre.core.auth import JwksTokenVerifier
@@ -78,6 +86,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(routes_documents.router)
     app.include_router(routes_expenses.router)
     app.include_router(routes_profile.router)
+    # `/api/clients/billing` va ANTES que `/api/clients/{client_id}`: si no, «billing» se leería como un uuid y daría 422.
+    app.include_router(routes_invoices.router)
     app.include_router(routes_clients.router)
     return app
 

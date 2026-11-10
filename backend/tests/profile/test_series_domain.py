@@ -119,3 +119,27 @@ def test_validate_series_reports_every_error_at_once_and_in_order() -> None:
     result = validate_series("-A", "x" * 81, True)
     assert [e.field for e in result.errors] == ["code", "description", "first_number"]
     assert (result.code, result.description, result.first_number) == (None, None, None)
+
+
+# --- Códigos reservados a las series rectificativas (SPEC-W-007 §5.2) ---------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("raw", ["R-2026", "r-2026", "R-0000", "R-9999", " R-2027 "])
+def test_a_rectifying_code_is_reserved(raw: str) -> None:
+    code, message = validate_code(raw)
+    assert code is None and message == MESSAGES["code_reserved"]
+    assert validate_series(raw).errors[0].message == MESSAGES["code_reserved"]
+
+
+@pytest.mark.parametrize("raw", ["R-26", "R-20266", "R-202", "XR-2026", "R2026", "R-ABCD", "R-2026A", "2026"])
+def test_a_code_that_only_looks_like_a_rectifying_one_is_free(raw: str) -> None:
+    code, message = validate_code(raw)
+    assert message is None and code == raw.strip().upper()
+
+
+def test_the_reserved_pattern_is_the_one_of_the_invoicing_domain() -> None:
+    """Este paquete no importa `cuadre.invoicing`: se repite el patrón y esta prueba obliga a que sea el mismo."""
+    from cuadre.invoicing.limits import RECTIFYING_CODE
+    from cuadre.profile.limits import SERIES_RESERVED
+
+    assert SERIES_RESERVED.pattern == RECTIFYING_CODE.pattern

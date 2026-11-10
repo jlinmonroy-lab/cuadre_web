@@ -36,6 +36,9 @@ SERIES_CODE_MAX = 8
 # Prefiltro ANTES de pasar a mayúsculas: `"ß".upper()` es `"SS"` y `"ı".upper()` es `"I"`, ASCII que no se escribió.
 SERIES_RAW = re.compile(r"[0-9A-Za-z-]{1,8}")
 SERIES_CODE = re.compile(r"[A-Z0-9]([A-Z0-9-]{0,6}[A-Z0-9])?")
+# Los códigos `R-AAAA` son de las series rectificativas, que crea la emisión (SPEC-W-007 §5.2): una serie propia no los usa. Se repite aquí
+# (este paquete no importa `cuadre.invoicing`) y una prueba compara el patrón con `invoicing.limits.RECTIFYING_CODE`.
+SERIES_RESERVED = re.compile(r"R-[0-9]{4}")
 SERIES_DESCRIPTION_MAX = 80
 SERIES_FIRST_NUMBER_MIN, SERIES_FIRST_NUMBER_MAX = 1, 999_999
 

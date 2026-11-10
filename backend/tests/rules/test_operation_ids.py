@@ -36,6 +36,8 @@ VERBS = {
     "discard",
     # SPEC-W-003 §5.4: anular un gasto.
     "void",
+    # SPEC-W-007 §5.3: la vista previa de una factura.
+    "preview",
 }
 
 

@@ -28,7 +28,12 @@ PURE_INVOICING = {
     "types.py",
 }
 IMPURE_TAX: set[str] = set()
-IMPURE_INVOICING: set[str] = set()  # SPEC-W-007 hito 3: API, base de datos y Storage; hito 4: PDF
+IMPURE_INVOICING = {
+    "errors.py",
+    "models.py",
+    "repository.py",
+    "service.py",
+}  # SPEC-W-007 hito 3: API y base de datos; hito 4: PDF y Storage
 
 PACKAGES = ((TAX, PURE_TAX, IMPURE_TAX), (INVOICING, PURE_INVOICING, IMPURE_INVOICING))
 

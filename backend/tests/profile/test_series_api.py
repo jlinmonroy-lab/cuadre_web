@@ -3,9 +3,15 @@
 import threading
 from typing import Any
 
+import psycopg
 import pytest
+from psycopg import Connection
+from psycopg.rows import DictRow
 
+from cuadre.db import user_transaction
+from cuadre.profile import repository
 from tests.profile.conftest import VALID, Api
+from tests.support import Cast, Pool
 
 
 def codes(rows: list[dict[str, Any]]) -> list[str]:
@@ -170,3 +176,45 @@ def test_a_foreign_or_unknown_series_is_a_404(api: Api) -> None:
     missing = api.request("PUT", "/api/invoice-series/00000000-0000-4000-8000-000000000000/default", api.cast.alicia)
     assert (missing.status_code, missing.json()["code"]) == (404, "series_not_found")
     assert api.series(api.cast.beto) == []
+
+
+def test_a_rectifying_code_is_refused_to_create_and_to_rename(api: Api) -> None:
+    api.save(api.cast.alicia, **VALID)
+    created = api.request("POST", "/api/invoice-series", api.cast.alicia, json={"code": "FAC"}).json()
+    for response in (
+        api.request("POST", "/api/invoice-series", api.cast.alicia, json={"code": "R-2027"}),
+        api.request("PATCH", f"/api/invoice-series/{created['id']}", api.cast.alicia, json={"code": "R-2027"}),
+    ):
+        assert response.status_code == 422, response.text
+        body = response.json()
+        assert body["code"] == "invalid_series" and body["field"] == "code"
+        assert "rectificativas" in body["detail"]
+    assert codes(api.series(api.cast.alicia)) == ["2026", "FAC"]
+
+
+def test_the_rectifying_series_is_not_listed_nor_reachable(api: Api, admin: Connection[DictRow]) -> None:
+    """La serie `R-AAAA` la crea la emisión (SPEC-W-007): Perfil no la enseña, y las rutas de series la tratan como inexistente."""
+    api.save(api.cast.alicia, **VALID)
+    admin.execute(
+        "insert into public.invoice_series (owner_id, code, kind) values (%s, 'R-2026', 'rectifying') returning id",
+        (api.cast.alicia.id,),
+    )
+    rectifying = admin.execute(
+        "select id from public.invoice_series where owner_id = %s and code = 'R-2026'", (api.cast.alicia.id,)
+    ).fetchone()
+    assert rectifying is not None
+    assert codes(api.series(api.cast.alicia)) == ["2026"]
+    response = api.request(
+        "PATCH", f"/api/invoice-series/{rectifying['id']}", api.cast.alicia, json={"description": "x"}
+    )
+    assert response.status_code == 404
+
+
+def test_the_database_refusal_of_a_reserved_code_is_a_field_error(app_pool: Pool, cast: Cast) -> None:
+    """Si alguien llega a la base sin pasar por el dominio, la base responde `series_code_reserved` y la API lo traduce igual."""
+    with pytest.raises(psycopg.Error) as info, user_transaction(app_pool, cast.alicia.id) as conn:
+        conn.execute("select app.create_invoice_series('R-2027', null, 1, false)")
+    problem = repository.translate_db_error(info.value)
+    assert problem is not None
+    assert (problem.status, problem.code, problem.extra["field"]) == (422, "invalid_series", "code")
+    assert "rectificativas" in problem.detail

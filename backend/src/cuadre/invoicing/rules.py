@@ -111,6 +111,13 @@ def _date(raw: object) -> date | None:
     return value if value >= EARLIEST_DATE else None
 
 
+def issue_year(raw: object) -> int | None:
+    """El año de una fecha de expedición bien escrita (`AAAA-MM-DD` real o un `date`, desde el 2000), o `None`. Lo usa la API para elegir la serie
+    rectificativa del año (`R-AAAA`) sin repetir cómo se lee una fecha."""
+    value = _date(raw)
+    return None if value is None else value.year
+
+
 def _issue_date(raw: object, today: date) -> tuple[date | None, str | None]:
     value = _date(raw)
     if value is None:

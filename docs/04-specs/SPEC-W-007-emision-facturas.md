@@ -279,10 +279,10 @@ Todas exigen `Authorization: Bearer` y rol `usuario` (`forbidden` 403 para gesto
 | `preview_invoice` | `POST /api/invoices/preview` | `InvoiceInput`. **200** `InvoicePreview` (condiciones, importes y mención, **sin número**); **no escribe**; mismos 422 que emitir |
 | `issue_invoice` | `POST /api/invoices` | `InvoiceInput`. Valida, emite y genera el PDF; **201** `Invoice`; **422** `invalid_invoice`, `profile_incomplete` o `irpf_rate_missing`; **409** `client_not_billable` o `invoice_date_out_of_order` |
 | `issue_rectifying_invoice` | `POST /api/invoices/{invoice_id}/rectifications` | `RectificationInput`. **201** `Invoice`; **404**; **409** `rectification_exceeds`, `invoice_not_rectifiable` o `invoice_date_out_of_order`; **422** |
-| `list_invoices` | `GET /api/invoices` | Query `year` (por defecto el actual), `scope` y `paid` (filtros). **200** `[Invoice]`, la más reciente primero |
+| `list_invoices` | `GET /api/invoices` | Query `year` (de 2000 a 9998; por defecto el actual), `scope` y `paid` (filtros; `paid` solo mira las ordinarias: una rectificativa no se cobra). **200** `[Invoice]`, la más reciente primero |
 | `get_invoice` | `GET /api/invoices/{invoice_id}` | **200** `Invoice` (con `pdf_status`, `rectified_by` y la base vigente); **404** `invoice_not_found` |
-| `get_invoice_pdf` | `GET /api/invoices/{invoice_id}/pdf` | **200** `application/pdf` con la huella comprobada; **404**; **409** `invoice_pdf_pending` o `invoice_pdf_corrupt` |
-| `create_invoice_pdf` | `POST /api/invoices/{invoice_id}/pdf` | Genera el PDF de una factura emitida **sin** él, de forma idempotente. **200** `Invoice`; **404** |
+| `get_invoice_pdf` *(hito 4)* | `GET /api/invoices/{invoice_id}/pdf` | **200** `application/pdf` con la huella comprobada; **404**; **409** `invoice_pdf_pending` o `invoice_pdf_corrupt` |
+| `create_invoice_pdf` *(hito 4)* | `POST /api/invoices/{invoice_id}/pdf` | Genera el PDF de una factura emitida **sin** él, de forma idempotente. **200** `Invoice`; **404** |
 | `set_invoice_payment` | `PUT /api/invoices/{invoice_id}/payment` | `{ "paid": bool }`. **200** `Invoice`; **404**; **409** `invoice_not_payable` |
 | `get_clients_billing` | `GET /api/clients/billing` | Query `year`. **200** `[{ client_id, billed_cents }]` (suma de bases, con signo) |
 
@@ -292,11 +292,11 @@ RectificationInput { reason, corrected_base_cents: integer, issue_date }
 InvoicePreview { scope, kind, tax_treatment, base_cents, vat_rate, vat_cents, irpf_rate, irpf_cents, total_cents, legal_note: string|null, vat_editable: bool }
 Invoice { id, series_code, number, display_number, kind: "standard"|"rectifying", issue_date, client: { id, name, kind, country, scope, tax_id, address },
           concept, tax_treatment, base_cents, vat_rate, vat_cents, irpf_rate, irpf_cents, total_cents, legal_note,
-          rectifies: { id, display_number, issue_date }|null, rectification_reason, rectified_by: [display_number],
+          rectifies: { id, display_number, issue_date }|null, rectification_reason, rectified_by: [display_number], standing: { base_cents, vat_cents, irpf_cents }|null,   # lo vigente de una ordinaria; null en una rectificativa (B.4)
           paid_at: datetime|null, pdf_status: "ready"|"pending", created_at }
 ```
 
-**Códigos de error nuevos** (`code`, HTTP): `invalid_invoice` 422 (con `fields: [ { field, message } ]`, **todos** los que fallan) · `profile_incomplete` 422 (con `missing`) · `irpf_rate_missing` 422 · `client_not_billable` 409 (con `field`) · `invoice_date_out_of_order` 409 · `rectification_exceeds` 409 · `invoice_not_rectifiable` 409 · `invoice_not_payable` 409 · `invoice_pdf_pending` 409 · `invoice_pdf_corrupt` 409 · `invoice_not_found` 404 (también si es de otra persona) · `forbidden` 403. Los errores de forma del cuerpo son el `validation_error` 422 de siempre. Los textos van en español y no repiten el valor escrito.
+**Códigos de error nuevos** (`code`, HTTP): `invalid_invoice` 422 (con `fields: [ { field, message } ]`, **todos** los que fallan) · `profile_incomplete` 422 (con `missing`) · `irpf_rate_missing` 422 · `client_not_billable` 409 (con `field`) · `invoice_date_out_of_order` 409 · `rectification_exceeds` 409 · `invoice_not_rectifiable` 409 · `invoice_not_payable` 409 · `invoice_changed` 409 (otra rectificativa cambió lo vigente mientras se rectificaba; B.4) · `series_exhausted` 409 · `invoice_pdf_pending` 409 · `invoice_pdf_corrupt` 409 · `invoice_not_found` 404 (también si es de otra persona) · `forbidden` 403. Los errores de forma del cuerpo son el `validation_error` 422 de siempre. Los textos van en español y no repiten el valor escrito.
 
 ### 5.4 Backend
 
@@ -544,6 +544,7 @@ npm --prefix frontend exec -- playwright test e2e/factura.spec.ts      # AC-21 a
 2. **Base de datos**: migraciones (tipos, `kind` de serie, `invoices`, `invoice_files`, trigger, funciones, bucket y políticas), matriz de RLS y seed; pruebas de RLS, de trigger y de concurrencia; mutaciones.
    **Hecho el 2026-11-10** (cuatro migraciones, seed y matriz; 466 pruebas de RLS nuevas y 244 mutaciones SQL —237 detectadas y 7 equivalentes por diseño—; `migration up` y `db reset` dan la misma huella; las claves foráneas compuestas, el orden de los cerrojos, la base de datos que recalcula lo vigente de una rectificativa y `invoice_files.owner_id` corrigieron §5.2; Anexo B.3).
 3. **API**: emitir, previsualizar, listar, leer, cobrar, rectificar y `get_clients_billing`; `openapi.json` y `schema.d.ts` regenerados; mutaciones.
+   **Hecho el 2026-11-10** (siete rutas: las dos del PDF pasan al hito 4; 199 pruebas nuevas y 79 mutaciones —71 detectadas y 8 equivalentes por diseño—; la rectificativa relee una vez si otra se coló y, si no, `invoice_changed`; `Invoice.standing`, el filtro `paid` solo de ordinarias y el perfil que rechaza `R-AAAA` corrigieron §5.3; Anexo B.4).
 4. **PDF, QR y almacenamiento**: generación determinista, subida, huella, descarga con comprobación y reintento; pruebas de contenido y de alteración.
 5. **Frontend**: `/facturas`, `/facturas/[id]`, menú, columna «Facturado en {año}» y condiciones en `/clientes`; unitarias; comprobación visual en los tres motores.
 6. **E2E y cierre**: `factura.spec.ts` en tres motores y dos anchos, ajustes de `roles.spec.ts`, `responsive.spec.ts` y `env.ts`, mutaciones de la interfaz, Anexo B, `tasks.json`.
@@ -765,3 +766,73 @@ Los **seis huecos reales** que encontraron las mutaciones y cerraron pruebas: el
 - `p_terms` va como `Jsonb` con **enteros** JSON para los tipos (`21`) y los importes, y `legal_note` como cadena o `null`; `p_base_cents` y `p_corrected_base_cents` como `bigint`. En una rectificativa, `p_terms` lleva solo los tres importes de `rectification_amounts`, calculados desde `standing_of` **leído después de bloquear**; si otra rectificativa llega entre medias, la base responde `invalid_invoice` o `rectification_exceeds` y la API vuelve a leer y devuelve 409.
 - Filtrar `kind = 'standard'` en `list_invoice_series` y hacer que `normalize_series_code` rechace `^R-[0-9]{4}$` (o traducir `series_code_reserved`).
 - Un `StorageGateway` que suba **bytes** al bucket `invoices` con el JWT de la persona, sin `UPDATE` ni `DELETE`: un 409 de Storage significa «ya está» (ruta con la huella).
+
+### B.4 Hito 3 · API de las facturas · 2026-11-10
+
+**Qué hay.** Siete de las nueve rutas de §5.3 (`get_invoice_pdf` y `create_invoice_pdf` son del hito 4, con el dibujo, la subida y la huella del PDF) y cuatro módulos impuros nuevos de `cuadre.invoicing` (917 líneas con las rutas); `backend/openapi.json` y `frontend/src/api/schema.d.ts` regenerados (no se editan a mano).
+
+| Pieza | Contenido |
+|---|---|
+| `api/routes_invoices.py` | `preview_invoice`, `issue_invoice`, `issue_rectifying_invoice`, `list_invoices`, `get_invoice`, `set_invoice_payment` y `get_clients_billing`. Solo `usuario`; sin `PUT` ni `DELETE` de facturas |
+| `invoicing/models.py` | Entrada suelta (`str` con `max_length`, `extra="forbid"`, `StrictInt` en `base_cents` y `corrected_base_cents`, `StrictBool` en `paid`) y salida con uniones de literales: `Invoice`, `InvoicePreview`, `ClientBilling` |
+| `invoicing/service.py` | `InvoiceService`: emitir, vista previa, rectificar (con un reintento), cobrar, listar, leer y facturado. Valida con el dominio **antes** de llamar a la base |
+| `invoicing/repository.py` | SQL explícito; `translate_db_error` de cada código de §5.2 y `is_stale_rectification` |
+| `invoicing/errors.py` | `invalid_invoice` (con `fields`), `profile_incomplete` (con `missing`), `invoice_not_found`, `invoice_not_payable`, `invoice_changed`, `series_exhausted` y los problemas del dominio |
+| Dominio y perfil | `issue_year` en `cuadre.invoicing.rules`; en `cuadre.profile`: `R-AAAA` reservado con mensaje propio, `list_series` y `get_series` sin las rectificativas y `series_code_reserved` traducido |
+
+**Decisiones tomadas al implementar** (completan o corrigen §5.3, ya actualizada):
+
+| Tema | Decisión |
+|---|---|
+| Orden al emitir | Una sola transacción: perfil (`profile_incomplete` **antes** de mirar el cuerpo) → `ensure_year_series` → cliente, serie y retención → `validate_invoice` → `app.issue_invoice` → releer la fila. Un fallo deshace también la serie del año |
+| La vista previa no escribe | Es el mismo camino sin `ensure_year_series` ni la función de la base: no avanza el contador, no crea la serie del año, no deja rastro en `activity_log` y no necesita un número libre |
+| Serie | Vacía (o ausente) es la predeterminada; un texto que no es un uuid no es «vacío» sino una serie que no existe; archivada o rectificativa, un error de campo `series_id` |
+| Rectificar y la carrera | La API lee la original, las rectificativas previas y la última fecha de la serie `R-AAAA` **antes** de bloquear (el rol de la API no puede hacer `FOR UPDATE` sobre `invoices`). Si otra rectificativa llegó entre medias, la base lo rechaza (`rectification_exceeds` o `invalid_invoice` en `corrected_base_cents`, `vat_cents`, `irpf_cents` o `total_cents`) y la API **relee una vez**; si vuelve a pasar, `invoice_changed` (409, código nuevo). Una lectura vieja que la relectura desmiente sale como el error normal (`rectification_exceeds`) |
+| La serie rectificativa | La del **año de la fecha** (`issue_year`); si la fecha no se entiende, la del año de hoy, solo para validar (el error de la fecha sale igualmente). Se crea en la misma transacción |
+| `Invoice.standing` | Campo nuevo: lo vigente (`base_cents`, `vat_cents`, `irpf_cents`) de una ordinaria y `null` en una rectificativa. §5.3 decía que `get_invoice` devuelve la base vigente pero `Invoice` no tenía dónde; el formulario de rectificar la necesita |
+| Filtro `paid` | Solo mira ordinarias: una rectificativa no se cobra, así que ni es «cobrada» ni está «pendiente de cobro» |
+| Facturado | `GET /api/clients/billing?year=` suma `base_cents` con signo por cliente en el año de **expedición** (las rectificativas restan en su fecha), con los archivados incluidos. La ruta se registra **antes** de `/api/clients/{client_id}`: `routes_invoices` va antes que `routes_clients` en `main.py` y un test lo fija |
+| Años | `year` de 2000 a 9998 (2000 es la fecha mínima del dominio; 9999 no tiene «1 de enero siguiente»); por defecto el año de hoy en Madrid |
+| Perfil (deuda de B.3) | `R-AAAA` se rechaza al crear y al renombrar una serie con «Los códigos con la forma R-2026 están reservados para las rectificativas» (422 de campo `code`); Perfil no enseña la serie rectificativa. El patrón se repite en `profile/limits.py` (este paquete no importa `cuadre.invoicing`) y una prueba lo compara |
+| `operation_id` | `preview` entra en la lista de verbos de `test_operation_ids.py` porque §5.3 fija `preview_invoice` |
+
+**Pruebas.** **199 nuevas** (sin RLS: de 3.276 a **3.475**; las 1.561 de RLS no cambian), contra la app real con la base real y el reloj real (la base comprueba «no futura» con el suyo, así que las fechas son fijas y pasadas o relativas a hoy):
+
+| Archivo | Pruebas | Qué fija |
+|---|---|---|
+| `test_invoices_api.py` | 52 | Los seis tratamientos con importes y mención, forma de `Invoice`, números 1-2-3, serie elegida o predeterminada, copias congeladas, la serie del año creada al emitir, **todos los errores a la vez** y que nada se emite, `StrictInt`, perfil incompleto antes del cuerpo, retención sin elegir solo para la empresa nacional, cliente archivado o sin domicilio, fecha fuera de orden, serie agotada, leer y cobrar |
+| `test_preview.py` | 14 | Importes y mención de cada ámbito, es lo que luego se guarda, **no escribe** (contadores, series y registro intactos), mismos errores que emitir |
+| `test_rectifications_api.py` | 25 | Simple, anulación, cadena a cero, 105 al 10 % en dos pasos, serie `R-AAAA` por año, errores y su orden, y **la carrera**: relectura con éxito, relectura que desmiente y `invoice_changed` |
+| `test_listing.py` / `test_billing.py` | 13 / 12 | Orden, año por defecto y fronteras del 31/12 y el 1/1, filtros, signo, archivados, que una lectura no escribe ni descobra |
+| `test_roles.py` | 34 | Gestor y administrador 403 en las siete rutas, 401 sin sesión, gestor con vínculo activo también 403, cuenta suspendida, ajenas = inexistentes, sin `PUT`/`DELETE` |
+| `test_error_mapping.py` | 15 | Cada código de la base con errores REALES de PostgreSQL, y lo que no es nuestro no se traduce |
+| `test_no_sensitive_logs.py` | 1 | Ni concepto, motivo, cliente, domicilio, NIF ni IBAN en los registros, en los errores ni en `activity_log` a lo largo de todo el flujo |
+| `test_concurrency.py` | 3 | 20 emisiones simultáneas por HTTP = números 1…20; cinco anulaciones = exactamente una; rectificaciones parciales simultáneas sin devolver de más |
+| Dominio y perfil | 30 | `issue_year`; `R-AAAA` reservado y su patrón igual al de `cuadre.invoicing`; el listado sin rectificativas; la traducción de `series_code_reserved` |
+
+**Mutaciones.** **79 mutaciones** de `service`, `repository`, `errors`, `models`, las rutas, `main.py`, el dominio y el perfil, con un ejecutor desechable fuera del repositorio (restaura por hash; ninguna dejó huella). **71 detectadas y 8 equivalentes por diseño**, todas razonadas:
+
+| Mutante | Por qué es equivalente |
+|---|---|
+| S26: rectificar sin mirar la completitud del perfil | La base repite la comprobación (`profile_incomplete`) y la API traduce el mismo problema |
+| S29: el tratamiento de la original fijo en la API | Solo viaja a la base el importe; el tratamiento, los tipos y la mención los hereda la función de la original |
+| R13: traducir cualquier estado SQL | Un error que no es `P0001` nunca lleva como mensaje uno de nuestros códigos |
+| R21: aceptar tipos fraccionarios | El dominio solo produce 21, 10, 4 y los 7 y 15 del perfil |
+| R22, R23: la serie predeterminada archivada o rectificativa | Dos CHECK de la tabla lo impiden (`invoice_series_default_not_archived`, `invoice_series_rectifying_not_default`) |
+| R24: el último día de la serie sin filtrar por dueño | `series_id` ya identifica a la persona |
+| P05: `get_series` del perfil sin el filtro de tipo | Las funciones de la base no encuentran una rectificativa (`series_lock_own`), así que la ruta ya da 404 |
+
+Los **tres huecos reales** que encontraron y cerraron pruebas: el orden de fechas se comprueba en la serie rectificativa del año de la fecha (S24), una lectura de una factura cobrada no la descobra (S31) y la base que rechaza un código reservado se traduce a 422 de campo (P04); y el filtro de años de lo facturado ganó su frontera del 1 de enero (R06).
+
+**Verificación a mano** con la API real y un token de GoTrue de Alicia: vista previa, emitir (`2026-006`), rectificar (`R-2026-002`), cobrar, listar (8), facturado y un 422 de campo; Perfil solo enseña la serie `2026`. Después se paró el servidor (puerto 8000 libre), se reinició la base y se comprobó todo: ruff, `openapi.json` y `schema.d.ts` al día, `typecheck`, `lint` y 206 unitarias del frontend.
+
+**Lo que no se ha comprobado:**
+- **El PDF** (`pdf_status` vale `pending` salvo que exista fila en `invoice_files`) y sus dos rutas: hito 4.
+- **El rendimiento del listado** con miles de facturas (el índice `invoices_owner_date` existe, no se ha medido).
+- **La pantalla** y los textos tal como se ven: hito 5.
+- **Dos rectificativas a la vez desde procesos distintos de la API** (varias instancias): la prueba usa hilos de un solo proceso contra la misma base; el cerrojo es de la base, así que no cambia, pero no se ha medido con varios procesos.
+
+**Para el hito 4** (PDF, QR y almacenamiento):
+- Añadir al final de `issue_invoice` el paso 3 de §5.4: **fuera** de la transacción, dibujar el PDF, subirlo con el JWT de la persona (`StorageGateway` gana la subida de bytes y la descarga entera; un 409 de Storage con la huella en la ruta es éxito) y `app.attach_invoice_pdf`; si falla, la factura sigue emitida con `pdf_status: pending` y `create_invoice_pdf` la completa de forma idempotente.
+- Las dos rutas pendientes (`get_invoice_pdf`, `create_invoice_pdf`) y los códigos `invoice_pdf_pending`, `invoice_pdf_corrupt` e `invoice_pdf_exists`.
+- La copia del emisor para el PDF sale de la fila de la factura (`issuer_*`), no del perfil; el logo, del perfil actual.

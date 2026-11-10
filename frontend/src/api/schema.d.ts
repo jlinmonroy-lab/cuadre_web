@@ -57,6 +57,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/clients/billing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lo facturado a cada cliente en un año (suma de bases con signo) */
+        get: operations["get_clients_billing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents": {
         parameters: {
             query?: never;
@@ -299,6 +316,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listar las facturas de un año, la más reciente primero */
+        get: operations["list_invoices"];
+        put?: never;
+        /** Emitir una factura (todo o nada, con todos los errores a la vez) */
+        post: operations["issue_invoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoices/{invoice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Obtener una factura, con las rectificativas que la corrigen y lo vigente */
+        get: operations["get_invoice"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoices/{invoice_id}/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Marcar una factura ordinaria como cobrada o pendiente (lo único que cambia en una factura) */
+        put: operations["set_invoice_payment"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoices/{invoice_id}/rectifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Emitir una rectificativa por diferencias de la factura indicada */
+        post: operations["issue_rectifying_invoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoices/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Vista previa de una factura: ámbito, importes y mención, sin número y sin escribir nada */
+        post: operations["preview_invoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -460,6 +563,19 @@ export interface components {
              * @enum {string}
              */
             vies_status: "valid_simulated" | "unchecked" | "not_applicable";
+        };
+        /**
+         * ClientBilling
+         * @description Lo facturado a un cliente en un año: la suma de las bases con signo (las rectificativas restan).
+         */
+        ClientBilling: {
+            /** Billed Cents */
+            billed_cents: number;
+            /**
+             * Client Id
+             * Format: uuid
+             */
+            client_id: string;
         };
         /**
          * ClientInput
@@ -785,6 +901,169 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** Invoice */
+        Invoice: {
+            /** Base Cents */
+            base_cents: number;
+            client: components["schemas"]["InvoiceClient"];
+            /** Concept */
+            concept: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Display Number */
+            display_number: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Irpf Cents */
+            irpf_cents: number;
+            /** Irpf Rate */
+            irpf_rate: string;
+            /**
+             * Issue Date
+             * Format: date
+             */
+            issue_date: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "standard" | "rectifying";
+            /** Legal Note */
+            legal_note: string | null;
+            /** Number */
+            number: number;
+            /** Paid At */
+            paid_at: string | null;
+            /**
+             * Pdf Status
+             * @enum {string}
+             */
+            pdf_status: "ready" | "pending";
+            /** Rectification Reason */
+            rectification_reason: string | null;
+            /** Rectified By */
+            rectified_by: string[];
+            rectifies: components["schemas"]["InvoiceRef"] | null;
+            /** Series Code */
+            series_code: string;
+            standing: components["schemas"]["Standing"] | null;
+            /**
+             * Tax Treatment
+             * @enum {string}
+             */
+            tax_treatment: "national_vat" | "eu_reverse_charge" | "eu_consumer_vat" | "non_eu_consumer_vat" | "non_eu_not_subject";
+            /** Total Cents */
+            total_cents: number;
+            /** Vat Cents */
+            vat_cents: number;
+            /** Vat Rate */
+            vat_rate: string;
+        };
+        /**
+         * InvoiceClient
+         * @description La copia del cliente que la factura congeló al emitirse (D-09).
+         */
+        InvoiceClient: {
+            /** Address */
+            address: string;
+            /** Country */
+            country: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "business" | "individual";
+            /** Name */
+            name: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "national" | "eu" | "non_eu";
+            /** Tax Id */
+            tax_id: string | null;
+        };
+        /**
+         * InvoiceInput
+         * @description Los campos de §5.1.1. Los ausentes valen `null` y el dominio dice cuáles hacen falta; `series_id` vacío es la serie predeterminada.
+         */
+        InvoiceInput: {
+            /** Base Cents */
+            base_cents?: number | null;
+            /** Client Id */
+            client_id?: string | null;
+            /** Concept */
+            concept?: string | null;
+            /** Issue Date */
+            issue_date?: string | null;
+            /** Series Id */
+            series_id?: string | null;
+            /** Vat Rate */
+            vat_rate?: string | null;
+        };
+        /**
+         * InvoicePreview
+         * @description Lo que se emitiría, sin número ni nada escrito (§5.3). El navegador lo enseña y no calcula impuestos.
+         */
+        InvoicePreview: {
+            /** Base Cents */
+            base_cents: number;
+            /** Irpf Cents */
+            irpf_cents: number;
+            /** Irpf Rate */
+            irpf_rate: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "business" | "individual";
+            /** Legal Note */
+            legal_note: string | null;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "national" | "eu" | "non_eu";
+            /**
+             * Tax Treatment
+             * @enum {string}
+             */
+            tax_treatment: "national_vat" | "eu_reverse_charge" | "eu_consumer_vat" | "non_eu_consumer_vat" | "non_eu_not_subject";
+            /** Total Cents */
+            total_cents: number;
+            /** Vat Cents */
+            vat_cents: number;
+            /** Vat Editable */
+            vat_editable: boolean;
+            /** Vat Rate */
+            vat_rate: string;
+        };
+        /** InvoiceRef */
+        InvoiceRef: {
+            /** Display Number */
+            display_number: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Issue Date
+             * Format: date
+             */
+            issue_date: string;
+        };
         /** InvoiceSeries */
         InvoiceSeries: {
             /** Archived */
@@ -879,6 +1158,14 @@ export interface components {
             field: "legal_name" | "tax_id" | "fiscal_address";
             /** Label */
             label: string;
+        };
+        /**
+         * PaymentInput
+         * @description `paid` va con `StrictBool`: un `"yes"` no es `true`.
+         */
+        PaymentInput: {
+            /** Paid */
+            paid: boolean;
         };
         /** Preview */
         Preview: {
@@ -982,6 +1269,15 @@ export interface components {
             /** Vat Regime */
             vat_regime?: string | null;
         };
+        /** RectificationInput */
+        RectificationInput: {
+            /** Corrected Base Cents */
+            corrected_base_cents?: number | null;
+            /** Issue Date */
+            issue_date?: string | null;
+            /** Reason */
+            reason?: string | null;
+        };
         /** Retention */
         Retention: {
             /** Reduced Until Year */
@@ -1060,6 +1356,18 @@ export interface components {
         /** SetCategory */
         SetCategory: {
             category: components["schemas"]["ExpenseCategory"];
+        };
+        /**
+         * Standing
+         * @description Lo vigente de una factura tras sus rectificativas (§5.1.5).
+         */
+        Standing: {
+            /** Base Cents */
+            base_cents: number;
+            /** Irpf Cents */
+            irpf_cents: number;
+            /** Vat Cents */
+            vat_cents: number;
         };
         /** TaxLine */
         TaxLine: {
@@ -1487,6 +1795,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_clients_billing: {
+        parameters: {
+            query?: {
+                /** @description Año de expedición; por defecto el actual (Europe/Madrid) */
+                year?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClientBilling"][];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar facturas (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Datos no válidos (`invalid_invoice` con `fields`), perfil incompleto (`profile_incomplete` con `missing`) o retención sin elegir (`irpf_rate_missing`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
         };
@@ -2659,6 +3017,380 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_invoices: {
+        parameters: {
+            query?: {
+                /** @description Solo ordinarias cobradas o pendientes de cobro */
+                paid?: boolean | null;
+                /** @description Ámbito del cliente */
+                scope?: ("national" | "eu" | "non_eu") | null;
+                /** @description Año de expedición; por defecto el actual (Europe/Madrid) */
+                year?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"][];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar facturas (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Datos no válidos (`invalid_invoice` con `fields`), perfil incompleto (`profile_incomplete` con `missing`) o retención sin elegir (`irpf_rate_missing`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    issue_invoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar facturas (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No se puede emitir: cliente archivado o sin domicilio (`client_not_billable`), fecha anterior a la última de la serie (`invoice_date_out_of_order`), rectificativa que sube el importe (`rectification_exceeds`), factura no rectificable o no cobrable, serie agotada o factura cambiada mientras se rectificaba */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Datos no válidos (`invalid_invoice` con `fields`), perfil incompleto (`profile_incomplete` con `missing`) o retención sin elegir (`irpf_rate_missing`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_invoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar facturas (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description La factura no existe (también si es de otra persona) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_invoice_payment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar facturas (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description La factura no existe (también si es de otra persona) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No se puede emitir: cliente archivado o sin domicilio (`client_not_billable`), fecha anterior a la última de la serie (`invoice_date_out_of_order`), rectificativa que sube el importe (`rectification_exceeds`), factura no rectificable o no cobrable, serie agotada o factura cambiada mientras se rectificaba */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    issue_rectifying_invoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RectificationInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Invoice"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar facturas (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description La factura no existe (también si es de otra persona) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No se puede emitir: cliente archivado o sin domicilio (`client_not_billable`), fecha anterior a la última de la serie (`invoice_date_out_of_order`), rectificativa que sube el importe (`rectification_exceeds`), factura no rectificable o no cobrable, serie agotada o factura cambiada mientras se rectificaba */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Datos no válidos (`invalid_invoice` con `fields`), perfil incompleto (`profile_incomplete` con `missing`) o retención sin elegir (`irpf_rate_missing`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    preview_invoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvoiceInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoicePreview"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar facturas (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No se puede emitir: cliente archivado o sin domicilio (`client_not_billable`), fecha anterior a la última de la serie (`invoice_date_out_of_order`), rectificativa que sube el importe (`rectification_exceeds`), factura no rectificable o no cobrable, serie agotada o factura cambiada mientras se rectificaba */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Datos no válidos (`invalid_invoice` con `fields`), perfil incompleto (`profile_incomplete` con `missing`) o retención sin elegir (`irpf_rate_missing`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
         };

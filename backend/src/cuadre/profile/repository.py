@@ -45,6 +45,8 @@ def translate_db_error(exc: psycopg.Error) -> ProblemError | None:
         return forbidden()
     message = exc.diag.message_primary or ""
     if exc.sqlstate == "P0001":
+        if message == "series_code_reserved":
+            return errors.invalid_series("code", SERIES_MESSAGES["code_reserved"])
         if message == "invalid_series":
             field = (exc.diag.message_detail or "").strip()
             if field in _SERIES_FIELDS:
@@ -117,16 +119,16 @@ def logo_path(conn: Connection[DictRow]) -> str | None:
 
 
 def list_series(conn: Connection[DictRow]) -> list[DictRow]:
-    """La predeterminada primero y después por código; incluye las archivadas."""
+    """La predeterminada primero y después por código; incluye las archivadas y no las rectificativas `R-AAAA` (SPEC-W-007: las crea la emisión)."""
     return conn.execute(
-        f"SELECT {SERIES_COLUMNS} FROM public.invoice_series WHERE owner_id = (SELECT auth.uid()) "
+        f"SELECT {SERIES_COLUMNS} FROM public.invoice_series WHERE owner_id = (SELECT auth.uid()) AND kind = 'standard' "
         "ORDER BY is_default DESC, code, id"
     ).fetchall()
 
 
 def get_series(conn: Connection[DictRow], series_id: UUID) -> DictRow | None:
     return conn.execute(
-        f"SELECT {SERIES_COLUMNS} FROM public.invoice_series WHERE id = %s AND owner_id = (SELECT auth.uid())",
+        f"SELECT {SERIES_COLUMNS} FROM public.invoice_series WHERE id = %s AND owner_id = (SELECT auth.uid()) AND kind = 'standard'",
         (series_id,),
     ).fetchone()
 

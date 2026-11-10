@@ -10,6 +10,7 @@ from cuadre.profile.limits import (
     SERIES_FIRST_NUMBER_MAX,
     SERIES_FIRST_NUMBER_MIN,
     SERIES_RAW,
+    SERIES_RESERVED,
 )
 from cuadre.profile.types import FieldError, SeriesResult
 
@@ -17,6 +18,7 @@ MESSAGES = {
     "code": "El código de la serie lleva de 1 a 8 letras, números o guiones, sin guion al principio ni al final.",
     "description": "La descripción admite hasta 80 caracteres y no puede llevar saltos de línea.",
     "first_number": "El número inicial es un entero entre 1 y 999999.",
+    "code_reserved": "Los códigos con la forma R-2026 están reservados para las rectificativas: elige otro.",
 }
 DEFAULT_FIRST_NUMBER = 1
 
@@ -36,7 +38,11 @@ def year_series_code(today: date) -> str:
 
 def validate_code(raw: object) -> tuple[str | None, str | None]:
     code = normalize_series_code(raw.strip() if isinstance(raw, str) else raw)
-    return (code, None) if code is not None else (None, MESSAGES["code"])
+    if code is None:
+        return None, MESSAGES["code"]
+    if SERIES_RESERVED.fullmatch(code):
+        return None, MESSAGES["code_reserved"]
+    return code, None
 
 
 def validate_description(raw: object) -> tuple[str | None, str | None]:

@@ -440,3 +440,30 @@ def test_the_values_are_immutable() -> None:
     with pytest.raises(AttributeError):
         v.concept = "otro"  # type: ignore[misc]
     assert replace(v, concept="otro").concept == "otro"
+
+
+# --- El año de la fecha (la serie rectificativa es la de ese año) -------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "year"),
+    [
+        ("2026-11-10", 2026),
+        (" 2025-12-31 ", 2025),
+        ("2000-01-01", 2000),
+        (date(2027, 3, 4), 2027),
+        ("1999-12-31", None),  # antes del 2000 no se admite
+        ("2026-02-30", None),
+        ("2026-13-01", None),
+        (FULLWIDTH_DATE, None),
+        ("26-11-10", None),
+        ("", None),
+        (None, None),
+        (20261110, None),
+        (datetime(2026, 11, 10, 12, 0), None),
+    ],
+)
+def test_issue_year(raw: object, year: int | None) -> None:
+    from cuadre.invoicing.rules import issue_year
+
+    assert issue_year(raw) == year

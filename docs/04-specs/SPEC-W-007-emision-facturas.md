@@ -150,7 +150,7 @@ La retención se calcula sobre la **base**, no sobre el IVA. Un cliente nacional
 
 #### 5.1.3 Importes
 
-`vat_cents = round(base_cents × vat_rate / 100)` y `irpf_cents = round(base_cents × irpf_rate / 100)`, en `Decimal` con `ROUND_HALF_UP`; `total_cents = base_cents + vat_cents − irpf_cents`. Con importes negativos (rectificativas) se redondea el **valor absoluto** y se aplica el signo, de modo que el redondeo es **simétrico** (−333 × 21 % = −70, no −69).
+`vat_cents = round(base_cents × vat_rate / 100)` y `irpf_cents = round(base_cents × irpf_rate / 100)`, en `Decimal` con `ROUND_HALF_UP` (el de `cuadre.validators.vat.percentage_of`); `total_cents = base_cents + vat_cents − irpf_cents`. Una rectificativa **no** calcula un porcentaje de un importe negativo (desvía céntimos en cadenas de rectificaciones: B.2): sus cuotas son las de la base corregida menos las vigentes (§5.1.5).
 
 Ejemplos (fijan las pruebas de tabla):
 
@@ -162,7 +162,7 @@ Ejemplos (fijan las pruebas de tabla):
 | Fuera de la UE, empresa | 50.000 | 0 | 0 | 50.000 |
 | Fuera de la UE, particular, 21 % | 100.000 | 21.000 | 0 | 121.000 |
 | Redondeo hacia arriba en el medio céntimo (base 1.050 al 10 %) | 1.050 | 105 | 0 | 1.155 |
-| Rectificativa de −333 al 21 % | −333 | −70 | 0 | −403 |
+| Anulación de 105 al 10 % en dos pasos, −52 y −53 (suma de las dos rectificativas) | −105 | −11 | 0 | −116 |
 
 #### 5.1.4 Número, serie y fechas
 
@@ -174,7 +174,7 @@ Entrada: la factura original (`rectifies`), el **motivo** (2 a 300 caracteres, s
 
 El Reglamento no nombra «por sustitución» ni «por diferencias» (art. 15.4 y 15.5; B.1-B): esta spec expresa **el importe de la rectificación con signo**, con la referencia a la original y un motivo (decisión de la spec, no del Reglamento). El plazo de **cuatro años desde el devengo** (art. 15.3) **no se comprueba**.
 
-- La **base de la rectificativa** es `corrected_base_cents − base vigente`, donde la base vigente es la de la original más las diferencias de sus rectificativas anteriores; el IVA y la retención se calculan **con los tipos y el tratamiento de la original** y con el redondeo simétrico de 5.1.3.
+- La **base de la rectificativa** es `corrected_base_cents − base vigente`, donde la base vigente es la de la original más las diferencias de sus rectificativas anteriores. El IVA y la retención son **los de la base corregida, con los tipos y el tratamiento de la original, menos los vigentes** (art. 15.5, «los valores tras la rectificación»), nunca un porcentaje del importe negativo: así la factura corregida cuadra al céntimo con cualquier cadena de rectificaciones (B.2).
 - Va en la **serie rectificativa** del año (`R-{año}`, `kind = 'rectifying'`), con su propia numeración correlativa y las reglas de fecha de 5.1.4 aplicadas a **esa** serie; la fecha tampoco puede ser anterior a la de la original.
 - Lleva la copia del cliente y de las condiciones de la original; el emisor, el actual (D-09 se aplica a cada factura al emitirse).
 - `rectification_exceeds` (409) si la base corregida es mayor que la vigente (una rectificativa no sube la factura: eso es una factura nueva) o negativa; no se puede rectificar una rectificativa (`invoice_not_rectifiable`); una rectificativa **no se cobra** (D-13).
@@ -409,6 +409,7 @@ AC-14  Rectificativa por diferencias (RF-007)
   When la persona emite una rectificativa con base corregida 100.000, y otra anulando el resto
   Then la primera lleva base −20.000, IVA −4.200, retención −3.000 y total −21.200 en la serie R-{año}, con su propio número, el motivo y la referencia a la original
     And la segunda lleva base −100.000 y las dos juntas dejan la base vigente en 0
+    And una original de base 105 al 10 % anulada en dos pasos (−52 y −53) queda con base, IVA y retención vigentes en 0, al céntimo
     And la original no cambia y aparece como rectificada
 
 AC-15  Límites de las rectificativas
@@ -531,6 +532,7 @@ npm --prefix frontend exec -- playwright test e2e/factura.spec.ts      # AC-21 a
 0. **Spike**: con valores **sintéticos**, (a) qué librería de **PDF** y de **QR** (Python puro, fuentes con `ñ` y `€`) caben en una función de Vercel por tamaño, tiempo y reproducibilidad de los bytes; (b) la norma del **QR de VeriFactu** y el contenido mínimo de la **factura completa** (RD 1619/2012) y el texto de las **menciones** (P-03), con fuentes oficiales; (c) la **subida con el JWT** al bucket `invoices` y las políticas que no lancen errores; (d) el DDL de §5.2 en seco, con la **carrera de numeración** con y sin cerrojo, el trigger de inmutabilidad y `TRUNCATE`; (e) cómo **sembrar** facturas sin saltarse el trigger; (f) P-01 y P-02 con la persona. Resultado al Anexo B.
    **Hecho el 2026-11-10** (seis guiones desechables fuera del repositorio; resultado en el Anexo B.1: `reportlab` + `Pillow` y no `fpdf2`, reproducibilidad entre Windows y Linux, guarda de dimensiones del logo, normativa del Reglamento de facturación, del QR y de la Ley del IVA, Storage con el JWT, DDL con sus carreras y cerrojos, cambios en las series de SPEC-W-005, seed por las funciones y forma de la API; corrigió D-05, D-10, D-11, D-12, T7-09, T7-10, §5.1.2, §5.1.5, §5.1.6, §5.2, §5.3, §5.4, AC-03, AC-16 y AC-17, y cerró P-01, P-03 y P-05).
 1. **Dominio puro**: `cuadre.tax` y `cuadre.invoicing` (condiciones, importes, número, validación, rectificativas, contenido del QR) con tablas de pruebas y mutaciones; `test_invoicing_boundary.py`.
+   **Hecho el 2026-11-10** (`cuadre.tax` y `cuadre.invoicing`, 15 módulos puros; 412 pruebas y 84 mutaciones —83 detectadas y 1 equivalente—; la rectificativa por diferencia de valores y la guarda del QR corrigieron §5.1.3, §5.1.5, AC-14 y B.1-A; Anexo B.2).
 2. **Base de datos**: migraciones (tipos, `kind` de serie, `invoices`, `invoice_files`, trigger, funciones, bucket y políticas), matriz de RLS y seed; pruebas de RLS, de trigger y de concurrencia; mutaciones.
 3. **API**: emitir, previsualizar, listar, leer, cobrar, rectificar y `get_clients_billing`; `openapi.json` y `schema.d.ts` regenerados; mutaciones.
 4. **PDF, QR y almacenamiento**: generación determinista, subida, huella, descarga con comprobación y reintento; pruebas de contenido y de alteración.
@@ -559,7 +561,7 @@ Entorno: Windows 11, Python 3.12.10 (y 3.12.16 en el contenedor Linux), PostgreS
 | Tiempo de importación (mediana de 3, Windows) | `reportlab.pdfgen.canvas` 141 ms (213 ms con su QR), `fpdf` 509 ms, `segno` 95 ms, `Pillow` 41 ms, `pypdf` 217 ms |
 | ¿`€`, `ñ` y acentos con las fuentes base? | **`reportlab` sí** (Helvetica con WinAnsi: no hace falta incrustar una TTF). **`fpdf2` no**: sus fuentes base son latin-1 y falla con `FPDFUnicodeEncodingException` en el primer `€`; necesitaría una TTF empaquetada |
 | Factura A4 con logo, concepto largo y QR | `reportlab`: **8.259 bytes** con logo PNG, **12.549** con JPEG y **18.425** con WebP (la rectificativa, 8.387, 12.678 y 18.554); **32 a 36 ms en caliente** y de 31 a 260 ms en frío (la primera llamada de un proceso: 260 ms en Windows y 170 ms en Linux). Pillow lee los tres formatos |
-| QR | `reportlab.graphics.barcode.qr.QrCodeWidget` (sin `segno`): nivel M, **37×37 módulos (versión 5)** para 63 caracteres y también para 71 y 120; **zxing-cpp lo decodifica** y el texto coincide. `segno` y `qrcode` no hacen falta |
+| QR | `reportlab.graphics.barcode.qr.QrCodeWidget` (sin `segno`): nivel M, **37×37 módulos (versión 5)** para 63 y 71 caracteres (el de 120 era solo letras mayúsculas y números: con `|` el QR va en modo de bytes y la versión 5 admite 84, B.2); **zxing-cpp lo decodifica** y el texto coincide. `segno` y `qrcode` no hacen falta |
 | ¿Mismos bytes siempre? | Con `Canvas(invariant=1)` (fecha de creación fija `D:20000101000000`): **15 repeticiones idénticas** en cada una de las seis combinaciones, **tres procesos distintos con el mismo SHA-256** (`41fb642d…`) y **Windows frente al contenedor `python:3.12-slim` con la misma versión de `reportlab`, `Pillow` y zlib (1.3.1): idénticos** en la ordinaria (`41fb642d…`) y en la rectificativa (`e385f522…`). Con otra versión de zlib no se ha probado |
 | ¿Cómo se prueba el contenido? | `pypdf` (solo de pruebas) extrae todo el texto (737 y 845 caracteres): número, fecha de expedición, `Muñoz`, `Diseño`, `1.200,00 €`, `Inversión del sujeto pasivo`, `art. 69`, IBAN, leyenda del QR y, en la rectificativa, la referencia y el motivo; el título y el creador salen en los metadatos. El QR se comprueba regenerando su matriz de módulos con `reportlab`, sin decodificador |
 | Un logo de ≤ 1 MiB (límite de SPEC-W-005) con dimensiones enormes | **Es un riesgo real**: un PNG de **269 KiB y 88 Mpx** tarda **1,9 s y llega a 872 MiB de memoria** en dibujarse (16 Mpx: 0,3 s y 180 MiB; 64 Mpx: 1,3 s y 639 MiB; 1 Mpx: 23 ms y 37 MiB). `Image.open(...).size` cuesta **0,2 ms y no decodifica** los píxeles; el límite de Pillow (89.478.485 px) no protege (avisa por encima, no impide 88 Mpx). W-005 solo comprobó el tipo y el tamaño del archivo, no las dimensiones |
@@ -641,3 +643,45 @@ Entorno: Windows 11, Python 3.12.10 (y 3.12.16 en el contenedor Linux), PostgreS
 - **Hito 4.** `reportlab` 5.1.0, `Pillow` 13.0.0 y `charset-normalizer` 3.5.2 (no `fpdf2` ni `segno`), `Canvas(invariant=1)`, fuentes base; **el logo solo se dibuja si mide ≤ 4 Mpx** (se lee con `Image.open().size`); ruta `{owner_id}/{invoice_id}-{sha256[:16]}.pdf` (el 409 es éxito idempotente tras comprobar la huella); QR de 35 mm, nivel M, arriba y centrado; leyenda «QR VeriFactu simulado, no remitido a la AEAT»; `POST /pdf` como reintento y «Generar PDF» para el seed.
 - **Hito 5.** La pantalla ofrece «Generar PDF» cuando `pdf_status` es `pending`; los selectores y la lista usan los nombres de país del servidor (lección de SPEC-W-006).
 - **Hito 6.** `factura.spec.ts` no puede borrar facturas: cuentas nuevas por worker.
+
+### B.2 Hito 1 · dominio puro de facturación · 2026-11-10
+
+**Qué hay.** Dos paquetes de Python puro (821 líneas en 15 módulos), sin base de datos, red, FastAPI, Pydantic, `stdnum`, `float` ni reloj; la fecha de hoy es un argumento:
+
+| Paquete | Módulos |
+|---|---|
+| `backend/src/cuadre/tax/` | `limits` (tipos 21, 10 y 4; por defecto 21; las dos menciones; los cinco tratamientos), `types` (`TaxTreatment`, `InvoiceTerms`, `Amounts`, `Standing`), `invoice_terms` (la tabla de §5.1.2), `amounts` (`compute_amounts` y `rectification_amounts`) |
+| `backend/src/cuadre/invoicing/` | `limits`, `types` (los `Raw*`, `ClientCopy`, `SeriesInfo`, `OriginalInvoice`, `InvoiceValues`, `RectificationValues`, `Problem` y los resultados), `rules` (`validate_invoice`, `validate_rectification`, `parse_uuid`), `numbering` (número visible, serie `R-AAAA` y orden de fechas), `rectification` (`standing_of`), `qr` (contenido del QR simulado), `storage_path` (ruta del PDF), `logo` (guarda de dimensiones) y `texts` (fechas en español y la referencia de la rectificativa) |
+
+**Decisiones tomadas al implementar** (completan §5.1):
+
+| Tema | Decisión |
+|---|---|
+| **Corrección a §5.1.3 y §5.1.5** | **Una rectificativa no calcula un porcentaje de un importe negativo**: eso desvía céntimos en cadenas de rectificaciones. Base 105 al 10 % lleva 11 de IVA; anulada en dos pasos de −52 y −53, el porcentaje del negativo da −5 y −5 y deja **una cuota vigente de 1 con base 0**. Como permite el art. 15.5 («los valores tras la rectificación»), sus cuotas son **las de la base corregida (con los tipos de la original) menos las vigentes**, siempre sobre una base ≥ 0. Los números de AC-14 no cambian y el redondeo simétrico de §5.1.3 deja de hacer falta; el ejemplo «−333 al 21 %» se sustituye por la anulación de 105 en dos pasos. Una **prueba de propiedad** (miles de cadenas aleatorias, con la validación entera) comprueba que la cuota y la retención vigentes finales son las de `percentage_of(base final)` |
+| Qué resuelve la API | El dominio recibe **ya resueltos** el cliente (`ClientCopy`, `None` si no existe o es ajeno), la serie (`SeriesInfo` con la fecha de su última factura), la retención del perfil, la original, las rectificaciones que ya tiene y `today`. El ámbito y la retención del perfil entran como datos; el dominio no lee nada |
+| Resultado | **O** los valores, **O** todos los errores de campo, **O** un problema único (nunca dos). Los campos van en el orden de la pantalla: `client_id`, `series_id`, `issue_date`, `concept`, `base_cents`, `vat_rate` (y en la rectificativa `reason`, `corrected_base_cents`, `issue_date`). Sin errores de campo, el problema sale en este orden: cliente archivado, cliente sin domicilio, retención sin elegir (422), fecha anterior a la última de la serie (409); en la rectificativa, **primero** que la original no sea una rectificativa, y después que no suba el importe y las dos fechas (la de la original y la de la serie) |
+| Tipos de IVA | `21`, `21.0` y `21.00` son el mismo tipo (`parse_rate`); un número JSON, `True` o `"21 %"` no lo son; vacío es el del tratamiento. A un cliente sin IVA no se le envía ninguno (`vat_not_applicable`), pero un tipo que no es 21, 10 o 4 se dice igual para todos |
+| Fechas | `AAAA-MM-DD` con un prefiltro **ASCII** antes de `date` (con `\d` entrarían los dígitos de ancho completo), o un `date`; un `datetime` no vale; **antes del 2000-01-01 no se admite** (`cuadre.validators.limits.EARLIEST_DATE`, la de los gastos: no estaba en la spec) |
+| Base | `bool`, cadenas, decimales y flotantes **no** son una base (`True` es un `int` en Python); de 1 a 9.999.999.999 céntimos. La API la declarará `StrictInt` (B.1-F) |
+| Rectificativa | Base corregida **igual** a la vigente es un error de campo («no hay nada que rectificar»; también cuando ya está en 0); **mayor** es el problema `rectification_exceeds` (409); negativa o no entera, error de campo. La serie de una rectificativa que no sea la rectificativa del año o esté archivada es un `ValueError` (la elige la API, no la persona) |
+| QR | `CUADRE-VERIFACTU-SIMULADO\|{NIF}\|{serie}-{NNN}\|{DD-MM-AAAA}\|{importe}`; el importe sale de céntimos enteros (`1272.00`, `-212.00`), sin `float`; un campo vacío o con `\|` es un `ValueError`. Con NIF español (9), serie de 8 y 6 dígitos, el peor caso mide 76 caracteres |
+| **Corrección a B.1-A** | El QR de 120 caracteres que midió el spike era solo mayúsculas y números (modo alfanumérico). Con `\|` el texto va en **modo de bytes** y la versión 5 de nivel M admite **84**: el peor caso real (76) cabe, y una prueba lo fija |
+| Series | `rectifying_series_code(año)` da `R-AAAA` y `is_reserved_series_code` reconoce `^R-[0-9]{4}$` (ASCII): lo usará el hito 2 para reservar esos códigos en las series ordinarias |
+| PDF y logo | `invoice_pdf_path(owner, invoice, sha256)` construye `{owner}/{invoice}-{sha256[:16]}.pdf` (minúsculas estrictas) y `pdf_path_owner` devuelve la carpeta o `None` sin lanzar nunca; `logo_fits` acepta hasta **4 Mpx exactos** y rechaza dimensiones que no son enteros positivos |
+
+**Pruebas.** **412 nuevas**: `tests/tax/` 56, `tests/invoicing/` 346 y `tests/rules/test_invoicing_boundary.py` 10. Suite sin RLS **3.276** (antes 2.864); RLS 1.095 sin cambios; `ruff` y `pip freeze` sin cambios (no hay dependencias nuevas). Lo que fijan: la tabla de condiciones de §5.1.2 en sus seis cruces y las dos menciones exactas; los importes de §5.1.3 con 21/10/4/0, retención 15/7, el medio céntimo hacia arriba, la base máxima y la identidad `total = base + IVA − retención` con 5.000 casos aleatorios contra un oráculo de enteros; cada campo y cada mensaje de §5.1.1 (los textos de la spec se comparan con `MESSAGES`), **todos los errores a la vez y su orden**, fechas con formatos raros y de ancho completo, `base_cents` con `True`, `"120"`, `120.0`, 0, −1 y el máximo ±1, controles y saltos en concepto y motivo, **el orden de los problemas**; los ejemplos de AC-14 y la anulación en dos pasos; los límites de AC-15; el relleno del número (`2026-001`, `2026-1000`, `2026-999999`); el QR, la ruta del PDF, el logo y los 12 meses; y la guarda estructural (cada módulo declarado como puro, sin base de datos, red, FastAPI, Pydantic, `stdnum` ni reloj, `cuadre.tax` sin depender de `cuadre.invoicing`, y de `cuadre.validators` solo el IVA y la fecha mínima).
+
+**Mutaciones.** **84** con un ejecutor desechable fuera del repositorio (restaura por hash): cada tratamiento y su tabla (retención, IVA elegible, mención, el particular de fuera de la UE como el prototipo), el tipo por defecto y la lista de tipos, el redondeo (truncar en vez de medio hacia arriba, en IVA y retención), el signo del total, el cálculo por porcentaje del negativo frente a la diferencia de valores, las cotas de base, concepto, motivo y número (±1), el relleno del número, `<` frente a `<=` en cada fecha, el prefiltro de fechas Unicode, `bool` como base, el tipo de IVA a un cliente sin IVA, las series (rectificativa o archivada), el cliente archivado o sin domicilio, la retención ausente, las rectificativas (no rectificar una rectificativa, la base vigente sin cada suma, `>` frente a `>=`, la igualdad, la negativa, las dos fechas, los tipos intercambiados, la mención no heredada), el QR (signo, orden de la fecha, céntimos, separador), la ruta del PDF (prefijo, mayúsculas, dueño), los textos y la guarda (un import de red, un reloj, un módulo sin declarar y un `float`). **83 detectadas y 1 equivalente por construcción**: **M58** (`>` en lugar de `>=` en el exceso): la igualdad ya la corta `_corrected` como error de campo antes de llegar, así que `>=` y `>` dan lo mismo. Ninguna superviviente real; un patrón de mi ejecutor no casó por el formateo de `ruff` y se corrigió.
+
+**Lo que no se ha comprobado:**
+- **Los campos reales de `ClientCopy` y `SeriesInfo`**: salen de la base en el hito 3 (`last_issue_date` es la fecha máxima de la serie, y debe leerse **dentro del cerrojo**, B.1-D).
+- **La retención del perfil** como `Decimal`: `irpf_rate` se guarda como `numeric(5,2)`; el hito 3 lo convierte sin pasar por `float`.
+- **Los textos de los mensajes en la interfaz**: se pintan en el hito 5.
+- **Territorios especiales** (P-02) y la excepción del art. 69.Dos (P-05): no se modelan.
+
+**Para el hito 2** (base de datos):
+- **Paridad de constantes** (`test_limits_parity.py`): concepto y motivo de 2 a 300; número de 1 a 999.999; `RECTIFYING_CODE`; `PDF_PATH` y `PDF_HASH_PREFIX` frente a la política del bucket; los cinco valores de `TREATMENTS` frente al enum; `SERIES_KINDS` frente a `invoice_kind`; la base de 1 a 9.999.999.999 (en la ordinaria, `base_cents > 0`).
+- **Reservar** los códigos `^R-\d{4}$` en `app.create_invoice_series` y `app.update_invoice_series` (`series_code_reserved`) con `is_reserved_series_code` como referencia.
+- Las funciones `app.*` **repiten lo barato** y la identidad `total = base + IVA − retención`, no la regla fiscal; reciben las condiciones ya calculadas por `cuadre.tax`.
+- **Cerrojos** de la serie (`FOR UPDATE`) y de la original (B.1-D), con la fecha comprobada dentro.
+- El seed emite por las funciones con `set_config` de las claims, con fechas ≤ hoy, y gana dos clientes de Alicia (un particular de la UE y uno de fuera de la UE).

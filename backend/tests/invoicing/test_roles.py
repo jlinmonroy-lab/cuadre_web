@@ -18,6 +18,8 @@ ROUTES: list[tuple[str, str, dict[str, Any] | None]] = [
     ("GET", "/api/invoices", None),
     ("GET", f"/api/invoices/{ZERO}", None),
     ("PUT", f"/api/invoices/{ZERO}/payment", {"paid": True}),
+    ("GET", f"/api/invoices/{ZERO}/pdf", None),
+    ("POST", f"/api/invoices/{ZERO}/pdf", None),
     ("GET", "/api/clients/billing", None),
 ]
 

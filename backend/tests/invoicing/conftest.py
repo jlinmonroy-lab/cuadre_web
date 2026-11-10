@@ -7,7 +7,7 @@ REAL: la base comprueba «no futura» con el suyo, así que las fechas son fijas
 
 import os
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
@@ -22,6 +22,7 @@ from cuadre.core.auth import JwksTokenVerifier
 from cuadre.main import create_app
 from tests.agents.support import make_settings
 from tests.api.conftest import FakeJwksClient, Signer, jwks_client, signer  # noqa: F401 - fixtures de otro conftest
+from tests.invoicing.fakes import FakeLogoStorage, FakePdfStorage
 from tests.rls.invoices_support import D1, D2, D3, Ready, ready, today
 from tests.support import Cast, Person
 
@@ -53,9 +54,15 @@ class Api:
     cast: Cast
     admin: Connection[DictRow]
     world: Ready
+    storage: FakePdfStorage
+    logos: FakeLogoStorage
+    tokens: dict[str, str] = field(default_factory=dict)
 
     def headers(self, person: Person) -> dict[str, str]:
-        return {"Authorization": f"Bearer {self.signer.token(person)}"}
+        """El mismo token para la misma persona durante toda la prueba: así se puede comprobar que Storage recibió ESE JWT."""
+        if person.key not in self.tokens:
+            self.tokens[person.key] = self.signer.token(person)
+        return {"Authorization": f"Bearer {self.tokens[person.key]}"}
 
     def request(self, method: str, url: str, person: Person, **kwargs: Any) -> httpx.Response:
         return self.client.request(method, url, headers=self.headers(person), **kwargs)
@@ -67,6 +74,12 @@ class Api:
         return self.world.clients[(scope, kind)]
 
     # --- Rutas --------------------------------------------------------------------------------------------------------
+
+    def pdf(self, person: Person, invoice_id: object) -> httpx.Response:
+        return self.request("GET", f"/api/invoices/{invoice_id}/pdf", person)
+
+    def create_pdf(self, person: Person, invoice_id: object) -> httpx.Response:
+        return self.request("POST", f"/api/invoices/{invoice_id}/pdf", person)
 
     def preview(self, person: Person, body: dict[str, Any]) -> httpx.Response:
         return self.request("POST", "/api/invoices/preview", person, json=body)
@@ -105,6 +118,9 @@ def app(jwks_client: FakeJwksClient) -> FastAPI:  # noqa: F811
         make_settings(database_url=os.environ["DATABASE_URL"], supabase_url=os.environ["SUPABASE_URL"])
     )
     application.state.token_verifier = JwksTokenVerifier(os.environ["SUPABASE_URL"], jwk_client=jwks_client)
+    # Los tokens de prueba no los acepta el Storage real: los PDF y los logos van a dobles en memoria.
+    application.state.invoice_storage = FakePdfStorage()
+    application.state.logo_storage = FakeLogoStorage()
     return application
 
 
@@ -113,7 +129,7 @@ def api(app: FastAPI, signer: Signer, cast: Cast, admin: Connection[DictRow]) ->
     """Alicia con el perfil completo, la retención del 15 %, la serie `2026` y un cliente de cada ámbito y tipo."""
     world = ready(admin, cast.alicia)
     with TestClient(app, raise_server_exceptions=False) as client:
-        yield Api(app, client, signer, cast, admin, world)
+        yield Api(app, client, signer, cast, admin, world, app.state.invoice_storage, app.state.logo_storage)
 
 
 __all__ = ["D1", "D2", "D3", "Api", "CONCEPT", "api", "app", "invoice_body", "rectification_body"]

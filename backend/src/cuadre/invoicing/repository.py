@@ -160,6 +160,28 @@ def list_invoices(conn: Connection[DictRow], year: int, scope: str | None, paid:
     ).fetchall()
 
 
+def pdf_source(conn: Connection[DictRow], invoice_id: UUID) -> DictRow | None:
+    """Todo lo que el PDF dibuja: las copias congeladas del emisor y del cliente de la fila (nunca el perfil de ahora) y, en una rectificativa, la
+    factura que rectifica."""
+    return conn.execute(
+        "SELECT i.id, i.kind::text AS kind, i.series_code, i.number, i.issue_date, i.issuer_name, i.issuer_tax_id, i.issuer_address, i.issuer_iban, "
+        "i.client_name, i.client_tax_id, i.client_address, i.concept, i.base_cents, i.vat_rate, i.vat_cents, i.irpf_rate, i.irpf_cents, "
+        "i.total_cents, i.legal_note, i.rectification_reason, o.series_code AS original_series_code, o.number AS original_number, "
+        "o.issue_date AS original_issue_date "
+        "FROM public.invoices i LEFT JOIN public.invoices o ON o.id = i.rectifies_id "
+        "WHERE i.id = %s AND i.owner_id = (SELECT auth.uid())",
+        (invoice_id,),
+    ).fetchone()
+
+
+def get_file(conn: Connection[DictRow], invoice_id: UUID) -> DictRow | None:
+    """El registro del PDF de una factura propia: ruta, huella y tamaño. `None` si aún no tiene."""
+    return conn.execute(
+        "SELECT storage_path, sha256, size_bytes FROM public.invoice_files WHERE invoice_id = %s AND owner_id = (SELECT auth.uid())",
+        (invoice_id,),
+    ).fetchone()
+
+
 def rectified_by(conn: Connection[DictRow], invoice_ids: list[UUID]) -> dict[UUID, list[tuple[str, int]]]:
     """Las rectificativas de cada factura: (código de serie, número), por orden de emisión."""
     if not invoice_ids:
@@ -240,6 +262,15 @@ def issue_rectification(conn: Connection[DictRow], values: RectificationValues) 
     ).fetchone()
     assert row is not None
     return row["id"]
+
+
+def attach_pdf(conn: Connection[DictRow], invoice_id: UUID, path: str, sha256: str, size: int) -> None:
+    conn.execute("SELECT app.attach_invoice_pdf(%s, %s, %s, %s)", (invoice_id, path, sha256, size))
+
+
+def is_pdf_already_attached(exc: psycopg.Error) -> bool:
+    """`invoice_pdf_exists`: otra petición registró el PDF antes. Para quien lo pidió es un éxito (el PDF existe)."""
+    return exc.sqlstate == "P0001" and (exc.diag.message_primary or "") == "invoice_pdf_exists"
 
 
 def set_paid(conn: Connection[DictRow], invoice_id: UUID, paid: bool) -> None:

@@ -22,6 +22,11 @@ dependencies = [
   "python-stdnum==2.2",
   # `zoneinfo` necesita la base de zonas horarias en Windows (Europe/Madrid); hoy solo la trae psycopg.
   "tzdata==2026.6",
+  # PDF de las facturas (SPEC-W-007 hito 4, T7-09): `reportlab` dibuja el PDF y su QR, `Pillow` solo lee el logo y `charset-normalizer` lo exige reportlab.
+  # `Pillow` es una rueda con extensión nativa; ninguna de las tres usa la red.
+  "reportlab==5.1.0",
+  "Pillow==13.0.0",
+  "charset-normalizer==3.5.2",
 ]
 
 [project.optional-dependencies]
@@ -31,6 +36,8 @@ dev = [
   "PyYAML==6.0.3",
   "python-dotenv==1.2.4",
   "jsonschema==4.26.0",
+  # Extrae el texto de los PDF en las pruebas (solo pruebas).
+  "pypdf==7.0.0",
 ]
 
 [tool.setuptools.packages.find]

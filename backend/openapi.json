@@ -5265,7 +5265,7 @@
                 }
               }
             },
-            "description": "No se puede emitir: cliente archivado o sin domicilio (`client_not_billable`), fecha anterior a la última de la serie (`invoice_date_out_of_order`), rectificativa que sube el importe (`rectification_exceeds`), factura no rectificable o no cobrable, serie agotada o factura cambiada mientras se rectificaba"
+            "description": "No se puede emitir: cliente archivado o sin domicilio (`client_not_billable`), fecha anterior a la última de la serie (`invoice_date_out_of_order`), rectificativa que sube el importe (`rectification_exceeds`), factura no rectificable o no cobrable, serie agotada o factura cambiada mientras se rectificaba; en el PDF, `invoice_pdf_pending` (aún no tiene) o `invoice_pdf_corrupt` (el archivo no coincide con su huella)"
           },
           "422": {
             "content": {
@@ -5341,7 +5341,7 @@
                 }
               }
             },
-            "description": "No se puede emitir: cliente archivado o sin domicilio (`client_not_billable`), fecha anterior a la última de la serie (`invoice_date_out_of_order`), rectificativa que sube el importe (`rectification_exceeds`), factura no rectificable o no cobrable, serie agotada o factura cambiada mientras se rectificaba"
+            "description": "No se puede emitir: cliente archivado o sin domicilio (`client_not_billable`), fecha anterior a la última de la serie (`invoice_date_out_of_order`), rectificativa que sube el importe (`rectification_exceeds`), factura no rectificable o no cobrable, serie agotada o factura cambiada mientras se rectificaba; en el PDF, `invoice_pdf_pending` (aún no tiene) o `invoice_pdf_corrupt` (el archivo no coincide con su huella)"
           },
           "422": {
             "content": {
@@ -5517,7 +5517,7 @@
                 }
               }
             },
-            "description": "No se puede emitir: cliente archivado o sin domicilio (`client_not_billable`), fecha anterior a la última de la serie (`invoice_date_out_of_order`), rectificativa que sube el importe (`rectification_exceeds`), factura no rectificable o no cobrable, serie agotada o factura cambiada mientras se rectificaba"
+            "description": "No se puede emitir: cliente archivado o sin domicilio (`client_not_billable`), fecha anterior a la última de la serie (`invoice_date_out_of_order`), rectificativa que sube el importe (`rectification_exceeds`), factura no rectificable o no cobrable, serie agotada o factura cambiada mientras se rectificaba; en el PDF, `invoice_pdf_pending` (aún no tiene) o `invoice_pdf_corrupt` (el archivo no coincide con su huella)"
           },
           "422": {
             "content": {
@@ -5536,6 +5536,201 @@
           }
         ],
         "summary": "Marcar una factura ordinaria como cobrada o pendiente (lo único que cambia en una factura)",
+        "tags": [
+          "facturas"
+        ]
+      }
+    },
+    "/api/invoices/{invoice_id}/pdf": {
+      "get": {
+        "operationId": "get_invoice_pdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "El PDF guardado, con su huella comprobada"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar facturas (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "La factura no existe (también si es de otra persona)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No se puede emitir: cliente archivado o sin domicilio (`client_not_billable`), fecha anterior a la última de la serie (`invoice_date_out_of_order`), rectificativa que sube el importe (`rectification_exceeds`), factura no rectificable o no cobrable, serie agotada o factura cambiada mientras se rectificaba; en el PDF, `invoice_pdf_pending` (aún no tiene) o `invoice_pdf_corrupt` (el archivo no coincide con su huella)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Almacenamiento no disponible"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Descargar el PDF de una factura, comprobando su huella SHA-256",
+        "tags": [
+          "facturas"
+        ]
+      },
+      "post": {
+        "operationId": "create_invoice_pdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invoice"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar facturas (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "La factura no existe (también si es de otra persona)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No se puede emitir: cliente archivado o sin domicilio (`client_not_billable`), fecha anterior a la última de la serie (`invoice_date_out_of_order`), rectificativa que sube el importe (`rectification_exceeds`), factura no rectificable o no cobrable, serie agotada o factura cambiada mientras se rectificaba; en el PDF, `invoice_pdf_pending` (aún no tiene) o `invoice_pdf_corrupt` (el archivo no coincide con su huella)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Almacenamiento no disponible"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Generar el PDF de una factura emitida que no lo tiene (idempotente)",
         "tags": [
           "facturas"
         ]
@@ -5615,7 +5810,7 @@
                 }
               }
             },
-            "description": "No se puede emitir: cliente archivado o sin domicilio (`client_not_billable`), fecha anterior a la última de la serie (`invoice_date_out_of_order`), rectificativa que sube el importe (`rectification_exceeds`), factura no rectificable o no cobrable, serie agotada o factura cambiada mientras se rectificaba"
+            "description": "No se puede emitir: cliente archivado o sin domicilio (`client_not_billable`), fecha anterior a la última de la serie (`invoice_date_out_of_order`), rectificativa que sube el importe (`rectification_exceeds`), factura no rectificable o no cobrable, serie agotada o factura cambiada mientras se rectificaba; en el PDF, `invoice_pdf_pending` (aún no tiene) o `invoice_pdf_corrupt` (el archivo no coincide con su huella)"
           },
           "422": {
             "content": {

@@ -47,7 +47,7 @@ def test_each_treatment_is_issued_with_its_amounts_and_note(api: Api, scope: str
         None,
         [],
     )
-    assert (invoice["paid_at"], invoice["pdf_status"]) == (None, "pending")
+    assert (invoice["paid_at"], invoice["pdf_status"]) == (None, "ready")
 
 
 def test_the_response_has_the_documented_shape(api: Api) -> None:

@@ -31,9 +31,11 @@ IMPURE_TAX: set[str] = set()
 IMPURE_INVOICING = {
     "errors.py",
     "models.py",
+    "pdf.py",
     "repository.py",
     "service.py",
-}  # SPEC-W-007 hito 3: API y base de datos; hito 4: PDF y Storage
+    "storage.py",
+}  # SPEC-W-007 hito 3: API y base de datos; hito 4: el PDF (reportlab y Pillow) y Storage
 
 PACKAGES = ((TAX, PURE_TAX, IMPURE_TAX), (INVOICING, PURE_INVOICING, IMPURE_INVOICING))
 

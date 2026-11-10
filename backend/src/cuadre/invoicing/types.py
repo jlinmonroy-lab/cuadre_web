@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 from typing import Literal
 
 from cuadre.clients.types import Kind, Scope
@@ -123,3 +124,31 @@ class RectificationResult:
     values: RectificationValues | None
     errors: tuple[FieldError, ...] = ()
     problem: Problem | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PdfInvoice:
+    """Todo lo que el PDF de una factura dibuja, ya leído de la fila: las copias congeladas del emisor y del cliente (D-09), nunca el perfil de
+    ahora. Los importes son céntimos enteros con su signo y los tipos, porcentajes (`Decimal`)."""
+
+    display_number: str
+    kind: InvoiceKind
+    issue_date: date
+    issuer_name: str
+    issuer_tax_id: str
+    issuer_address: str
+    issuer_iban: str | None
+    client_name: str
+    client_tax_id: str | None
+    client_address: str
+    concept: str
+    base_cents: int
+    vat_rate: Decimal
+    vat_cents: int
+    irpf_rate: Decimal
+    irpf_cents: int
+    total_cents: int
+    legal_note: str | None
+    rectifies_number: str | None = None
+    rectifies_date: date | None = None
+    rectification_reason: str | None = None

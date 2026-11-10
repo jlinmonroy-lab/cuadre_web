@@ -18,7 +18,7 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 import httpx2 as httpx
 
@@ -46,6 +46,9 @@ class StorageDenied(StorageError):
 
 class StorageUnavailable(StorageError):
     """No responde, responde algo inesperado o rechaza la credencial."""
+
+
+UploadResult = Literal["created", "exists"]
 
 
 @dataclass(frozen=True)
@@ -164,6 +167,41 @@ class HttpStorage:
             raise StorageDenied
         return self._relative_url(reply, "signedURL", f"/object/sign/{self._bucket}/")
 
+    def upload(self, path: str, data: bytes, content_type: str, *, token: str) -> UploadResult:
+        """Sube un objeto en nombre de la persona (SPEC-W-007 §5.4, B.1-C). **409 = ya estaba** (con la huella en la ruta, el mismo contenido da
+        siempre la misma ruta): no es un error. 403 es una política (un vínculo, un rol o una ruta que no es suya); 413, 415 y el resto, un fallo
+        nuestro o de Storage, que la API responde como «no disponible»."""
+        reply = self._call(
+            "upload",
+            "POST",
+            f"/object/{self._bucket}/{self._path(path)}",
+            token,
+            content=data,
+            extra_headers={"Content-Type": content_type},
+        )
+        if reply.status == 409:
+            return "exists"
+        if reply.status == 403:
+            raise StorageDenied
+        self._ok(reply)
+        return "created"
+
+    def download(self, path: str, *, token: str, max_bytes: int) -> bytes:
+        """El objeto entero, con un tope: nunca se leen más de `max_bytes + 1` bytes (el último sobra y delata un objeto demasiado grande). Un objeto
+        ajeno responde igual que uno inexistente (`StorageNotFound`)."""
+        reply = self._call(
+            "download",
+            "GET",
+            f"/object/authenticated/{self._bucket}/{self._path(path)}",
+            token,
+            max_bytes=max_bytes + 1,
+        )
+        if reply.status == 404:
+            raise StorageNotFound
+        if reply.status == 403:
+            raise StorageDenied
+        return self._ok(reply).body[: max_bytes + 1]
+
     def delete(self, path: str, *, token: str) -> None:
         reply = self._call("delete", "DELETE", f"/object/{self._bucket}/{self._path(path)}", token)
         if reply.status == 404:
@@ -201,6 +239,7 @@ class HttpStorage:
         token: str,
         *,
         json_body: dict[str, Any] | None = None,
+        content: bytes | None = None,
         extra_headers: dict[str, str] | None = None,
         max_bytes: int = MAX_JSON_BYTES,
     ) -> _Reply:
@@ -214,7 +253,12 @@ class HttpStorage:
             limits=httpx.Limits(max_keepalive_connections=0),
         )
         try:
-            with client, client.stream(method, self._base + endpoint, headers=headers, json=json_body) as response:
+            with (
+                client,
+                client.stream(
+                    method, self._base + endpoint, headers=headers, json=json_body, content=content
+                ) as response,
+            ):
                 body = bytearray()
                 for chunk in response.iter_bytes():
                     body += chunk

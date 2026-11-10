@@ -67,6 +67,24 @@ def invoice_changed() -> ProblemError:
     )
 
 
+def invoice_pdf_pending() -> ProblemError:
+    return ProblemError(
+        409,
+        "invoice_pdf_pending",
+        "PDF pendiente",
+        "Esta factura aún no tiene PDF. Genéralo y vuelve a descargarlo.",
+    )
+
+
+def invoice_pdf_corrupt() -> ProblemError:
+    return ProblemError(
+        409,
+        "invoice_pdf_corrupt",
+        "PDF alterado",
+        "El archivo guardado no coincide con la huella registrada, así que no se entrega. La factura no ha cambiado.",
+    )
+
+
 def series_exhausted() -> ProblemError:
     return ProblemError(
         409,

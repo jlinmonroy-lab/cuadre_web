@@ -182,7 +182,7 @@ El Reglamento no nombra «por sustitución» ni «por diferencias» (art. 15.4 y
 
 #### 5.1.6 PDF y QR (D-03, D-10, D-11)
 
-El PDF lleva: número y serie, **fecha de expedición**, el **emisor** (nombre, NIF, domicilio y el logo del perfil, que **solo se dibuja si mide 4 Mpx o menos**, medido con `Image.open().size` sin decodificarlo: B.1-A), el **cliente** (nombre, NIF o NIF-IVA y domicilio), el concepto, la base, el IVA con su tipo (o «Sin IVA»), la retención con su tipo, el **total**, la **mención legal** del tratamiento, el IBAN para el pago si el perfil lo tiene, y el **QR simulado** con su leyenda. La rectificativa lleva además «Factura rectificativa de la {número} de {fecha}», el motivo y los importes con signo. Sin hora actual ni identificadores aleatorios (`Canvas(invariant=1)`). **QR** (D-11, B.1-B): **arriba y centrado**, de **35 mm** y nivel **M**, con el texto `CUADRE-VERIFACTU-SIMULADO|{NIF}|{serie}-{NNN}|{DD-MM-AAAA}|{importe}` (fecha y importe en los formatos del QR real de la AEAT, con signo en una rectificativa) y debajo la leyenda «QR VeriFactu simulado, no remitido a la AEAT».
+El PDF lleva: número y serie, **fecha de expedición**, el **emisor** (nombre, NIF, domicilio y el logo del perfil, que **solo se dibuja si mide 4 Mpx o menos**, medido con `Image.open().size` sin decodificarlo: B.1-A), el **cliente** (nombre, NIF o NIF-IVA y domicilio), el concepto, la base, el IVA con su tipo (o «Sin IVA»), la retención con su tipo, el **total**, la **mención legal** del tratamiento, el IBAN para el pago si el perfil lo tiene, y el **QR simulado** con su leyenda. La rectificativa lleva además «Factura rectificativa de la {número} de {fecha}», el motivo y los importes con signo. Sin hora actual ni identificadores aleatorios (`Canvas(invariant=1)`). **QR** (D-11, B.1-B): **arriba y centrado**, de **35 mm** y nivel **M**, con el texto `CUADRE-VERIFACTU-SIMULADO|{NIF}|{serie}-{NNN}|{DD-MM-AAAA}|{importe}` (fecha y importe en los formatos del QR real de la AEAT, con signo en una rectificativa) y debajo la leyenda «QR VeriFactu simulado, no remitido a la AEAT». Los 35 mm incluyen la zona de silencio; la retención solo se escribe si su tipo no es 0 y «Sin IVA» sustituye a la línea del IVA cuando su tipo es 0. Helvetica no tiene todas las letras: `reportlab` **no falla**, dibuja un cuadrado negro, así que el texto pasa por `pdf_text` (lo que cabe en WinAnsi tal cual, el resto sin signo y lo que no cabe, `?`: B.5).
 
 ### 5.2 Base de datos
 
@@ -281,8 +281,8 @@ Todas exigen `Authorization: Bearer` y rol `usuario` (`forbidden` 403 para gesto
 | `issue_rectifying_invoice` | `POST /api/invoices/{invoice_id}/rectifications` | `RectificationInput`. **201** `Invoice`; **404**; **409** `rectification_exceeds`, `invoice_not_rectifiable` o `invoice_date_out_of_order`; **422** |
 | `list_invoices` | `GET /api/invoices` | Query `year` (de 2000 a 9998; por defecto el actual), `scope` y `paid` (filtros; `paid` solo mira las ordinarias: una rectificativa no se cobra). **200** `[Invoice]`, la más reciente primero |
 | `get_invoice` | `GET /api/invoices/{invoice_id}` | **200** `Invoice` (con `pdf_status`, `rectified_by` y la base vigente); **404** `invoice_not_found` |
-| `get_invoice_pdf` *(hito 4)* | `GET /api/invoices/{invoice_id}/pdf` | **200** `application/pdf` con la huella comprobada; **404**; **409** `invoice_pdf_pending` o `invoice_pdf_corrupt` |
-| `create_invoice_pdf` *(hito 4)* | `POST /api/invoices/{invoice_id}/pdf` | Genera el PDF de una factura emitida **sin** él, de forma idempotente. **200** `Invoice`; **404** |
+| `get_invoice_pdf` | `GET /api/invoices/{invoice_id}/pdf` | **200** `application/pdf` con la huella comprobada (`attachment`, `Cache-Control: private, no-store`); **404**; **409** `invoice_pdf_pending` o `invoice_pdf_corrupt`; **503** `storage_unavailable` |
+| `create_invoice_pdf` | `POST /api/invoices/{invoice_id}/pdf` | Genera el PDF de una factura emitida **sin** él, de forma idempotente. **200** `Invoice`; **404** |
 | `set_invoice_payment` | `PUT /api/invoices/{invoice_id}/payment` | `{ "paid": bool }`. **200** `Invoice`; **404**; **409** `invoice_not_payable` |
 | `get_clients_billing` | `GET /api/clients/billing` | Query `year`. **200** `[{ client_id, billed_cents }]` (suma de bases, con signo) |
 
@@ -304,7 +304,7 @@ Invoice { id, series_code, number, display_number, kind: "standard"|"rectifying"
 - **Flujo de `issue_invoice`.** (1) Leer perfil, cliente y serie y **calcular** las condiciones con `cuadre.tax`; (2) transacción corta: `app.issue_invoice` con las condiciones ya calculadas → leer la fila → confirmar; (3) **fuera** de la transacción, dibujar el PDF y el QR, subirlo con el JWT de la persona, comprobar y registrar la huella con `app.attach_invoice_pdf`; (4) responder. Nunca una conexión retenida mientras se espera a Storage (D-10, ADR-0016).
 - **Modelos.** La **entrada es suelta** (`client_id`, `series_id`, `issue_date`, `concept` y `vat_rate` como `str` con `max_length`, `extra="forbid"`): una fecha `2026-02-30` o un cliente `no-uuid` llegan al dominio y salen en `invalid_invoice` con **todos los errores a la vez**. **`base_cents` va con `StrictInt | None`**: un `int` normal acepta `true`, `"120"`, `120.0` y `1e3` sin avisar (B.1-F). `paid` con `StrictBool`; la salida lleva uniones de literales. Importes siempre `int` de céntimos y tipos como cadenas `"21.00"`; **ningún `float`** (RES-02: un test lo vigila en código y migraciones).
 - **PDF y QR** (B.1-A). `reportlab` 5.1.0 (BSD) con `Pillow` 13.0.0 y `charset-normalizer` 3.5.2: es la única que cubre `€`, `ñ` y acentos con las fuentes base y trae un QR decodificable (no `fpdf2`, que exige empaquetar una TTF y es LGPL, ni `segno`). `Pillow` es una rueda **con extensión nativa** (`manylinux` para Vercel; sin binarios del sistema). `Canvas(invariant=1)` y metadatos fijos: mismos bytes en Windows y Linux con la misma zlib. El logo se mide con `Image.open().size` y solo se dibuja si tiene 4 Mpx o menos (un PNG de 269 KiB y 88 Mpx cuesta 872 MiB y 2 s). `pypdf` 7.0.0 solo como dependencia de pruebas (extracción de texto).
-- **Storage.** `StorageGateway` gana la **subida de bytes** (`POST /object/{bucket}/{ruta}` con el JWT de la persona) y la **descarga entera**. Storage responde HTTP 400 con el estado real en el cuerpo (409 «Duplicate», 403, 413, 415, 404); el 409 de una ruta con prefijo de huella es un éxito idempotente (B.1-C).
+- **Storage.** `HttpStorage` gana la **subida de bytes** (`upload`: `POST /object/{bucket}/{ruta}` con el JWT de la persona, sin `x-upsert`) y la **descarga entera con tope** (`download`: nunca más de `max_bytes + 1`). La facturación los usa por los protocolos `PdfStorage` y `LogoReader` (`invoicing/storage.py`), sin tocar `StorageGateway` ni los dobles de documentos y perfil (B.5). Storage responde HTTP 400 con el estado real en el cuerpo (409 «Duplicate», 403, 413, 415, 404); el 409 de una ruta con prefijo de huella es un éxito idempotente (B.1-C).
 - **Registro.** Ni el nombre, ni el NIF, ni el IBAN, ni el domicilio, ni el concepto de una factura se escriben en ningún registro: `request_id`, `user_id`, ruta, código y duración.
 
 ### 5.5 Frontend
@@ -546,6 +546,7 @@ npm --prefix frontend exec -- playwright test e2e/factura.spec.ts      # AC-21 a
 3. **API**: emitir, previsualizar, listar, leer, cobrar, rectificar y `get_clients_billing`; `openapi.json` y `schema.d.ts` regenerados; mutaciones.
    **Hecho el 2026-11-10** (siete rutas: las dos del PDF pasan al hito 4; 199 pruebas nuevas y 79 mutaciones —71 detectadas y 8 equivalentes por diseño—; la rectificativa relee una vez si otra se coló y, si no, `invoice_changed`; `Invoice.standing`, el filtro `paid` solo de ordinarias y el perfil que rechaza `R-AAAA` corrigieron §5.3; Anexo B.4).
 4. **PDF, QR y almacenamiento**: generación determinista, subida, huella, descarga con comprobación y reintento; pruebas de contenido y de alteración.
+   **Hecho el 2026-11-10** (las dos rutas del PDF, el paso 3 de emitir y de rectificar, `HttpStorage.upload` y `download`, el dibujo con `reportlab` y `Pillow`, el QR simulado y el logo con su guarda; 180 pruebas nuevas, 11 de ellas contra el Storage real, y 89 mutaciones —86 detectadas y 3 equivalentes por diseño—; el QR de cada PDF se decodificó a mano con `zxing-cpp`; las letras que Helvetica no tiene, `application/pdf` en OpenAPI y que `create_invoice_pdf` sí falla corrigieron §5.1.6, §5.3 y §5.4; Anexo B.5).
 5. **Frontend**: `/facturas`, `/facturas/[id]`, menú, columna «Facturado en {año}» y condiciones en `/clientes`; unitarias; comprobación visual en los tres motores.
 6. **E2E y cierre**: `factura.spec.ts` en tres motores y dos anchos, ajustes de `roles.spec.ts`, `responsive.spec.ts` y `env.ts`, mutaciones de la interfaz, Anexo B, `tasks.json`.
 
@@ -836,3 +837,69 @@ Los **tres huecos reales** que encontraron y cerraron pruebas: el orden de fecha
 - Añadir al final de `issue_invoice` el paso 3 de §5.4: **fuera** de la transacción, dibujar el PDF, subirlo con el JWT de la persona (`StorageGateway` gana la subida de bytes y la descarga entera; un 409 de Storage con la huella en la ruta es éxito) y `app.attach_invoice_pdf`; si falla, la factura sigue emitida con `pdf_status: pending` y `create_invoice_pdf` la completa de forma idempotente.
 - Las dos rutas pendientes (`get_invoice_pdf`, `create_invoice_pdf`) y los códigos `invoice_pdf_pending`, `invoice_pdf_corrupt` e `invoice_pdf_exists`.
 - La copia del emisor para el PDF sale de la fila de la factura (`issuer_*`), no del perfil; el logo, del perfil actual.
+
+### B.5 Hito 4 · PDF, QR y almacenamiento · 2026-11-10
+
+**Qué hay.** Las dos rutas del PDF (`get_invoice_pdf` y `create_invoice_pdf`, con lo que las rutas de §5.3 quedan **nueve**), el paso 3 de §5.4 al final de emitir y de rectificar, el dibujo del PDF con su QR, la subida y la descarga de bytes en `HttpStorage` y el logo con su guarda. Cuatro dependencias nuevas, las únicas que cambian `pip freeze`: `reportlab` 5.1.0, `Pillow` 13.0.0 y `charset-normalizer` 3.5.2 en producción y `pypdf` 7.0.0 solo en pruebas.
+
+| Pieza | Contenido |
+|---|---|
+| `invoicing/pdf.py` (234 líneas) | `render_invoice_pdf(factura, logo) -> bytes`, `qr_widget` y `logo_image`. Sin base de datos ni red; es el único módulo que importa `reportlab` y `Pillow` |
+| `invoicing/storage.py` | Los protocolos `PdfStorage` y `LogoReader`, el bucket `invoices` (1 MiB, `application/pdf`) y `invoice_storage()` sobre `HttpStorage` con la regla de ruta de `PDF_PATH` |
+| `documents/storage.py` | `HttpStorage.upload` (200 «creado», **409 «ya estaba»**, 403 denegado, 413, 415 y el resto «no disponible») y `HttpStorage.download` (con tope de `max_bytes + 1`), con el cuerpo binario en `_call` |
+| `invoicing/texts.py` | `format_euros` (`1.200,00 €`), `format_percent`, `format_iban` y `pdf_text` (el texto que Helvetica sí dibuja) |
+| `invoicing/service.py` | `_store_pdf` (leer → dibujar → huella → subir → registrar), `_with_pdf` (emitir y rectificar), `create_pdf` y `get_pdf` |
+
+**Decisiones tomadas al implementar** (completan o corrigen §5.1.6, §5.3 y §5.4, ya actualizadas):
+
+| Tema | Decisión |
+|---|---|
+| **Letras que Helvetica no tiene** (hueco del spike) | `reportlab` **no falla**: dibuja un **cuadrado negro** (se midió con `ł`, `ş`, cirílico, chino y emoji). `pdf_text` deja pasar lo que cabe en cp1252 (`ñ`, `€`, `Š`, `Ž`…), baja el resto a su letra sin signo (`ł` → `l`, `ş` → `s`) y escribe `?` para lo que aun así no cabe; quita también los controles. Sin fuente empaquetada (T7-09) |
+| Orden del paso 3 | La transacción de la factura **se cierra**; después, cada paso con su transacción corta: leer la fila y el logo, dibujar, `sha256`, ruta `{owner}/{factura}-{sha[:16]}.pdf`, subir, comprobar si ya estaba, `app.attach_invoice_pdf`. Nunca una conexión retenida esperando a Storage (ADR-0016) |
+| Emitir no depende del PDF | Un fallo (reportlab, Storage, la base) se registra **solo con el tipo de la excepción** y la factura se devuelve emitida con `pdf_status: "pending"`. **`create_invoice_pdf` es lo contrario**: aquí la persona lo pidió y un fallo es un error (503 `storage_unavailable`) |
+| «Ya estaba» se verifica | Un 409 de Storage no basta: se **descarga y se compara la huella**. Si el objeto de esa ruta es otro (alguien subió otra cosa a esa ruta, que es suya), `invoice_pdf_corrupt` 409 y no se registra nada |
+| Registro del PDF | `invoice_pdf_exists` (otra petición lo registró antes) es **éxito**: cinco `POST /pdf` a la vez dejan una fila y cinco 200 |
+| Descarga | Sin fila: 409 `invoice_pdf_pending`. Con fila: se descarga con el JWT y se comparan **tamaño y SHA-256**; distinto o ausente: 409 `invoice_pdf_corrupt`; Storage caído: 503. Cabeceras `application/pdf`, `attachment; filename="2026-001.pdf"` (el número, ASCII) y `Cache-Control: private, no-store` |
+| El PDF sale de la fila | Emisor y cliente son las **copias congeladas** (D-09), no el perfil de ahora: un `POST /pdf` posterior dice lo de entonces. El **logo** sí es el del perfil actual (no se copia) |
+| Contenido | QR **arriba, centrado, 35 mm (zona de silencio incluida) y nivel M**; la retención solo se escribe si el tipo no es 0 y se ve con el signo contrario (resta); «Sin IVA» cuando el tipo es 0; la mención en negrita; el IBAN en grupos de cuatro; metadatos fijos (título = número, creador `cuadre-web`), sin datos personales; pie «Documento generado con cuadre-web. Proyecto de demostración: no se remite a la AEAT.» |
+| Sin `float` | `test_no_float.py` es estricto (ni literales con decimales ni anotaciones): la geometría del dibujo va en **enteros** (milímetros y puntos; el gris, en por ciento) y las anotaciones usan `SupportsFloat`. No se hizo una excepción a la guarda |
+| OpenAPI | `application/pdf` es la **única** respuesta no JSON y solo en `get_invoice_pdf`; `test_vercel_compat.py` lo fija y comprueba que ninguna ruta recibe un archivo. ADR-0016 (punto 5) habla de subidas y archivos grandes: el PDF pesa de 5 a 18 KB y el bucket lo limita a 1 MiB, muy por debajo de los 4,5 MB; no se edita el ADR |
+
+**Pruebas.** **180 nuevas sin RLS** (de 3.475 a **3.655**; las 1.561 de RLS no cambian):
+
+| Archivo | Pruebas | Qué fija |
+|---|---|---|
+| `test_pdf.py` | 28 | Cada dato del PDF extraído con `pypdf` (número, fecha, emisor, cliente, concepto, importes en es-ES, tipos, «Sin IVA», cada mención, IBAN o su ausencia, referencia y motivo con importes con signo), la leyenda del QR y **ni «VERI\*FACTU» ni una URL**, metadatos y fecha de creación fijos, **mismos datos = mismos bytes** y datos distintos = otros bytes, letras que Helvetica no tiene, la factura más larga posible en **una página** y bajo 1 MiB |
+| `test_pdf_texts.py` | 46 | `format_euros` (de 0,05 € a 99.999.999,99 € y negativos), `format_percent`, `format_iban` y `pdf_text` |
+| `test_qr_drawing.py` | 11 | Nivel M, 35 mm, arriba y centrado (se espía `renderPDF.draw`), texto exacto, matriz de módulos (versión 5, 37 × 37) que cambia con el texto, y que lo codificado sale **de la fila** (NIF del emisor, número, fecha y total con signo) |
+| `test_logo.py` | 16 | PNG, JPEG y WebP se dibujan; GIF, BMP y TIFF no; el límite de 4 Mpx exactos; las dimensiones se leen **sin decodificar un píxel** (se prohíbe `Image.load`); un logo enorme, ilegible o truncado = factura sin logo y sin error |
+| `test_pdf_api.py` | 27 | Emitir deja `ready` con la ruta y la huella coherentes, todas las llamadas a Storage con el JWT de la persona, un Storage caído no tumba la factura, un registro que falla deja el objeto reutilizable, `POST /pdf` idempotente y concurrente, objeto ajeno en la ruta = `invoice_pdf_corrupt`, la descarga devuelve exactamente los bytes con sus cabeceras, **un archivo alterado, ausente o con otro contenido de igual tamaño** = 409, sin PDF = 409, Storage caído al descargar = 503, el logo del perfil, y que el PDF lleva las copias de la fila |
+| `test_pdf_storage_client.py` | 24 | `upload` y `download` contra un servidor local guionado: el cuerpo en bruto, solo el JWT en la cabecera, 409, 403, 413, 415, el tope de lectura, rutas rechazadas antes de salir y registros sin JWT, ruta ni contenido |
+| `test_storage_live.py` | 11 | Lo mismo contra el **Storage real** con tokens de GoTrue: subir y descargar byte a byte, 409 que no reemplaza, gestor con vínculo activo lee y el resto no, 403 al subir quien no es `usuario` o a la carpeta de otro, nadie reemplaza ni borra, 1 MiB exacto y 413/415 |
+| `test_pdf_dependencies.py` | 9 | Versiones exactas fijadas y las instaladas son esas, `pypdf` solo de pruebas, solo `pdf.py` importa las librerías de dibujo y sin red ni base de datos en él |
+| Ampliados | — | `test_roles.py` (las dos rutas nuevas), `test_no_sensitive_logs.py` (ni datos, ni bytes, ni rutas con huella, ni el texto de una excepción que trae datos), `test_vercel_compat.py` y `test_invoicing_boundary.py` |
+
+**Mutaciones.** **89 mutaciones** de `pdf.py`, `texts.py`, `documents/storage.py`, `storage.py`, `service.py`, las rutas, los errores y el repositorio, con un ejecutor desechable fuera del repositorio (restaura por hash; ninguna dejó huella). **86 detectadas y 3 equivalentes por diseño**:
+
+| Mutante | Por qué es equivalente |
+|---|---|
+| P34: dibujar el texto alineado a la derecha sin pasar por `pdf_text` | Solo se alinea a la derecha la fecha y los importes, que son ASCII y `€` (cabe en WinAnsi) |
+| V09: descargar sin comparar el tamaño | La huella SHA-256 ya cubre cualquier cambio de longitud |
+| V19: no comprobar que el PDF cabe en 1 MiB | Si no cupiera, Storage lo rechazaría con 413 y el resultado sería el mismo (factura `pending`) |
+
+Los **ocho huecos reales** que encontraron y cerraron pruebas: el QR del PDF codificaba otro NIF o la base y ningún test miraba lo dibujado (P05 y P06), el emisor y el nombre del PDF sacados de otra columna (V20 y B03), la fecha de creación fija (P09), el byte de más de la descarga (D06), el cuerpo binario que sale por el cable (D09) y el objeto ya subido que no se verificaba (V04). Dos mutaciones más (los saltos de línea del concepto y la medición del logo sin decodificar) estaban detectadas por pruebas que se **afinaron** para que fallaran por la razón correcta.
+
+**Verificación a mano** con la API real, Storage real y un token de GoTrue de Alicia: emitir cuatro facturas de ámbitos distintos y rectificar una (las cinco con `pdf_status: ready`), descargar los cinco PDF y comprobar que su SHA-256 y su tamaño coinciden con lo guardado en `invoice_files`, **decodificar el QR de cada uno con `zxing-cpp`** (en un entorno desechable: da exactamente `CUADRE-VERIFACTU-SIMULADO|12345678Z|2026-006|10-11-2026|1407.40` y los demás, y `-267.40` en la rectificativa), **mirar** el PDF renderizado (QR arriba y centrado, logo a la izquierda, importes, referencia y motivo), completar con `POST /pdf` una factura sembrada sin PDF (dos veces: una fila), y alterar un objeto en Storage para ver el 409. Después: servidor parado (puerto 8000 libre), objetos de prueba retirados de Storage local y `db reset`. Ruff, `openapi.json` y `schema.d.ts` al día, `typecheck`, `lint` y 206 unitarias del frontend.
+
+**Lo que no se ha comprobado:**
+- **Reproducibilidad entre entornos**: solo se midió idéntica entre Windows y Linux con la misma `zlib` 1.3.1 (B.1-A). No se fija un hash de oro en el repositorio; un PDF guardado manda por su huella, no por regenerarlo.
+- **Un decodificador de QR en el CI**: `zxing-cpp` trae código nativo y no es una dependencia; el QR se comprueba por construcción en las pruebas y por decodificación a mano.
+- **Huérfanos**: un PDF subido cuyo registro falla queda en Storage hasta que el reintento lo reconoce (con los mismos datos, la misma ruta); si el logo cambió entre medias la huella es otra y el primero queda huérfano (ya excluido en §4).
+- **El logo de la factura rectificativa** es el del perfil de ahora, no el de la original (solo el emisor y el cliente son copias).
+- **Varios procesos de la API a la vez** sobre una misma factura: el cerrojo y el registro único son de la base y la prueba concurrente usa hilos de un proceso.
+- **La pantalla**: la descarga desde el navegador, y que el nombre y las cabeceras se vean como se espera, son del hito 5.
+
+**Para el hito 5** (frontend):
+- `/facturas/[id]`: descarga con un **Route Handler** del servidor que pida `GET /api/invoices/{id}/pdf` con el JWT de la sesión (`openapi-fetch` con `parseAs: "arrayBuffer"`, sin probar) y reenvíe el cuerpo y las cabeceras `Content-Type`, `Content-Disposition` y `Cache-Control`; la web nunca ve la URL de Storage ni el JWT en el navegador.
+- Estados del PDF: `pdf_status: "pending"` enseña «Generar PDF» (`POST /pdf`, que es idempotente y puede tardar: indicador y anuncio en `aria-live`); `ready` enseña «Descargar PDF»; errores `invoice_pdf_pending`, `invoice_pdf_corrupt` (409) y `storage_unavailable` (503, con `Retry-After`) con su texto en español.
+- Las facturas sembradas de Alicia salen con PDF pendiente: es lo que la pantalla y el E2E del hito 6 usarán para probar «Generar PDF».

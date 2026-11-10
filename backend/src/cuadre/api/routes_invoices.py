@@ -8,9 +8,9 @@ hito 4: aquí `pdf_status` dice si ya existe.
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import Depends, Query, Request
+from fastapi import Depends, Query, Request, Response
 
-from cuadre.core.auth import CurrentUser, require_role_detached
+from cuadre.core.auth import CurrentUser, get_verified_token, require_role_detached
 from cuadre.core.errors import ProblemDetails
 from cuadre.core.routing import new_router
 from cuadre.invoicing.models import (
@@ -22,10 +22,12 @@ from cuadre.invoicing.models import (
     RectificationInput,
 )
 from cuadre.invoicing.service import InvoiceService
+from cuadre.invoicing.storage import LogoReader, PdfStorage
 
 router = new_router(tags=["facturas"])
 
 Usuario = Annotated[CurrentUser, Depends(require_role_detached("usuario"))]
+Token = Annotated[str, Depends(get_verified_token)]
 Year = Annotated[
     int | None, Query(ge=2000, le=9998, description="Año de expedición; por defecto el actual (Europe/Madrid)")
 ]
@@ -33,7 +35,9 @@ Year = Annotated[
 
 def get_invoice_service(request: Request) -> InvoiceService:
     state = request.app.state
-    return InvoiceService(state.db_pool, state.clock)
+    pdf_storage: PdfStorage = state.invoice_storage
+    logo_storage: LogoReader = state.logo_storage
+    return InvoiceService(state.db_pool, state.clock, pdf_storage, logo_storage)
 
 
 Service = Annotated[InvoiceService, Depends(get_invoice_service)]
@@ -47,8 +51,10 @@ def problems(*statuses: int) -> dict[int | str, dict[str, object]]:
         409: (
             "No se puede emitir: cliente archivado o sin domicilio (`client_not_billable`), fecha anterior a la última de la serie "
             "(`invoice_date_out_of_order`), rectificativa que sube el importe (`rectification_exceeds`), factura no rectificable o no cobrable, "
-            "serie agotada o factura cambiada mientras se rectificaba"
+            "serie agotada o factura cambiada mientras se rectificaba; en el PDF, `invoice_pdf_pending` (aún no tiene) o `invoice_pdf_corrupt` "
+            "(el archivo no coincide con su huella)"
         ),
+        503: "Almacenamiento no disponible",
         422: (
             "Datos no válidos (`invalid_invoice` con `fields`), perfil incompleto (`profile_incomplete` con `missing`) o retención sin elegir "
             "(`irpf_rate_missing`)"
@@ -76,8 +82,8 @@ def preview_invoice(body: InvoiceInput, user: Usuario, service: Service) -> Invo
     summary="Emitir una factura (todo o nada, con todos los errores a la vez)",
     responses=problems(401, 403, 409, 422),
 )
-def issue_invoice(body: InvoiceInput, user: Usuario, service: Service) -> Invoice:
-    return service.issue_invoice(user, body)
+def issue_invoice(body: InvoiceInput, user: Usuario, token: Token, service: Service) -> Invoice:
+    return service.issue_invoice(user, token, body)
 
 
 @router.post(
@@ -88,8 +94,10 @@ def issue_invoice(body: InvoiceInput, user: Usuario, service: Service) -> Invoic
     summary="Emitir una rectificativa por diferencias de la factura indicada",
     responses=problems(401, 403, 404, 409, 422),
 )
-def issue_rectifying_invoice(invoice_id: UUID, body: RectificationInput, user: Usuario, service: Service) -> Invoice:
-    return service.issue_rectification(user, invoice_id, body)
+def issue_rectifying_invoice(
+    invoice_id: UUID, body: RectificationInput, user: Usuario, token: Token, service: Service
+) -> Invoice:
+    return service.issue_rectification(user, token, invoice_id, body)
 
 
 @router.get(
@@ -118,6 +126,41 @@ def list_invoices(
 )
 def get_invoice(invoice_id: UUID, user: Usuario, service: Service) -> Invoice:
     return service.get_invoice(user, invoice_id)
+
+
+PDF_RESPONSE: dict[int | str, dict[str, object]] = {
+    200: {
+        "description": "El PDF guardado, con su huella comprobada",
+        "content": {"application/pdf": {"schema": {"type": "string", "format": "binary"}}},
+    }
+}
+
+
+@router.get(
+    "/api/invoices/{invoice_id}/pdf",
+    operation_id="get_invoice_pdf",
+    response_class=Response,
+    summary="Descargar el PDF de una factura, comprobando su huella SHA-256",
+    responses={**PDF_RESPONSE, **problems(401, 403, 404, 409, 503)},
+)
+def get_invoice_pdf(invoice_id: UUID, user: Usuario, token: Token, service: Service) -> Response:
+    data, filename = service.get_pdf(user, token, invoice_id)
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "private, no-store"},
+    )
+
+
+@router.post(
+    "/api/invoices/{invoice_id}/pdf",
+    operation_id="create_invoice_pdf",
+    response_model=Invoice,
+    summary="Generar el PDF de una factura emitida que no lo tiene (idempotente)",
+    responses=problems(401, 403, 404, 409, 503),
+)
+def create_invoice_pdf(invoice_id: UUID, user: Usuario, token: Token, service: Service) -> Invoice:
+    return service.create_pdf(user, token, invoice_id)
 
 
 @router.put(

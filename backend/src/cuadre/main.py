@@ -27,6 +27,7 @@ from cuadre.core.observability import RequestContextMiddleware, configure_loggin
 from cuadre.core.routing import require_operation_id
 from cuadre.db import open_pool
 from cuadre.documents.storage import HttpStorage
+from cuadre.invoicing.storage import invoice_storage
 from cuadre.profile.limits import LOGO_BUCKET, LOGO_PATH
 
 POOL_MAX_SIZE = 10
@@ -63,6 +64,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.logo_storage = HttpStorage(
         settings.supabase_url, bucket=LOGO_BUCKET, path=LOGO_PATH
     )  # bucket privado `logos`
+    app.state.invoice_storage = invoice_storage(
+        settings.supabase_url
+    )  # bucket privado `invoices` (SPEC-W-007), siempre con el JWT de la persona
     # «hoy» en Europe/Madrid para los validadores; los tests inyectan uno fijo (SPEC-W-003 §5.4)
     app.state.clock = SystemClock()
     # VIES simulado (SPEC-W-006 D-05, RES-04): el estado se calcula, no se consulta. La costura para el real (Should) es este atributo.

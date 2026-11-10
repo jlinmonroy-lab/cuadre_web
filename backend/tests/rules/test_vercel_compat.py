@@ -32,6 +32,9 @@ BACKGROUND_NAMES = {
 BACKGROUND_MODULES = {"threading", "multiprocessing", "sched", "concurrent.futures"}
 UPLOAD_NAMES = {"UploadFile", "File", "Form"}
 FORBIDDEN_MEDIA_TYPES = ("multipart/form-data", "application/octet-stream")
+# La única respuesta que no es JSON: el PDF de una factura (SPEC-W-007 §5.3). Pesa de 8 a 18 KB y el bucket lo limita a 1 MiB, muy por debajo de los
+# 4,5 MB de Vercel; la web no ve nunca la URL de Storage (§5.5). ADR-0016 (punto 5) habla de subidas y de archivos grandes: ninguna ruta los admite.
+ALLOWED_BINARY_RESPONSES = ["GET /api/invoices/{invoice_id}/pdf: application/pdf"]
 
 
 def background_work(source: str) -> list[str]:
@@ -144,8 +147,16 @@ def test_t214_the_openapi_declares_neither_multipart_nor_binary_bodies() -> None
     declared = media_types(schema)
     assert declared, "el esquema debería declarar tipos de contenido"
     assert [d for d in declared if any(m in d for m in FORBIDDEN_MEDIA_TYPES)] == []
-    # Y lo que la API sí acepta como cuerpo es JSON.
-    assert {d.split(": ")[1] for d in declared} <= {"application/json", "application/problem+json"}
+    # Y lo que la API sí acepta como cuerpo es JSON; la única respuesta binaria es el PDF de una factura.
+    assert [d for d in declared if "application/pdf" in d] == ALLOWED_BINARY_RESPONSES
+    assert {d.split(": ")[1] for d in declared} <= {"application/json", "application/problem+json", "application/pdf"}
+    requests = [
+        m
+        for operations in schema["paths"].values()
+        for operation in operations.values()
+        for m in operation.get("requestBody", {}).get("content", {})
+    ]
+    assert set(requests) == {"application/json"}  # ninguna ruta recibe un archivo
 
 
 def test_the_committed_openapi_has_the_same_property() -> None:

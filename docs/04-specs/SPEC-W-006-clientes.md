@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-006
 titulo: Clientes: NIF, ámbito y VIES simulado
-estado: en-revision
+estado: hecha
 prioridad: must
 riesgo: bajo
 historias: [US-006]
@@ -370,7 +370,7 @@ npm --prefix frontend exec -- playwright test e2e/clientes.spec.ts     # AC-15 a
 
 ### 8.4 Definición de hecho
 
-- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001, 002, 003 y 005 §8.2 siguen en verde. *(en local, sí: B.6; en el CI, a la espera de su resultado)*
+- [x] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001, 002, 003 y 005 §8.2 siguen en verde. *(En local, sí: B.6. CI en verde de los commits de los hitos 3 y 4, `23dcf79` y `ba6d84f`, confirmado por la persona el 2026-11-10; el del commit del hito 5, `2db4b18`, sin resultado al cerrar: «Estado de la spec» en B.6.)*
 - [x] `pytest backend/tests/rls -m rls` incluye `clients` y sus funciones.
 - [x] «Clientes» está activo en el menú del autónomo y `/clientes` hace todo lo de AC-15.
 - [x] El seed lleva clientes sintéticos de los tres ámbitos y las pruebas que dependían del menú se han revisado.
@@ -650,11 +650,13 @@ La primera vuelta de Chromium dio 28 fallos y 3 correctas (los 3 de sesión) por
 **Hallazgos del hito que no cambian la spec.** `describeProblem` y `taxIdLabel` eran correctos; los dos defectos de producto (hidratación y `maxLength`) los encontró el E2E y no lo habían visto ni las pruebas unitarias ni la comprobación visual, que entraba por navegación blanda y en un solo motor. `Añadir serie` (SPEC-W-005) conserva el mismo `open={error ? true : undefined}` que cerraba el desplegable tras un error y un éxito: no se ha tocado (es de otra spec).
 
 **Lo que no se ha comprobado:**
-- **El CI**: no se ve desde aquí. Es lo único que falta para pasar la spec de `en-revision` a `hecha`.
+- **El CI del commit del hito 5 (`2db4b18`)**: se lanza con su push y no se ve desde aquí (repositorio privado). Los de `23dcf79` y `ba6d84f` están en verde por confirmación de la persona (ver «Estado de la spec»).
 - **Lector de pantalla real**: los avisos y el resumen de errores se comprobaron por DOM, roles y foco, no con NVDA, VoiceOver o TalkBack.
 - **Otras versiones de ICU**: la solución no depende de que coincidan (hay una sola fuente), pero el **orden** del selector lo fija el `Intl.Collator('es')` de Node; el E2E lo comprueba contra el de cada motor y pasó en los tres, sin garantía para versiones futuras.
 - **`COLLATE "es-x-icu"` en el Supabase de producción** (B.1): sin verificar; si faltara, el listado fallaría con un 500.
 - **La base local**: la comprobación visual del hito 4 dejó 21 clientes de prueba en la cuenta de Alicia y `test_clients_seed` falló hasta restaurarla con `supabase db reset`. Nada de eso llega al repositorio.
+
+**Estado de la spec.** Todos los hitos hechos y la verificación en local en verde. La persona confirmó el 2026-11-10 que **los dos CI de ese día están en verde**: el de `23dcf79` (hito 3, API) y el de `ba6d84f` (hito 4, pantalla); no los he visto yo (el repositorio es privado). **El CI de `2db4b18`**, que añade `clientes.spec.ts` y el fixture `clients`, **no tenía resultado al cerrar**: se lanzó con su push. La spec pasa a `hecha` **por decisión de la persona**, y **se reabre si ese CI falla** (lo más probable de fallar es el E2E de clientes en Firefox o WebKit con dos workers y un reintento, que aquí se ejecutó con uno).
 
 **Balance de la spec.**
 

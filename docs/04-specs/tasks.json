@@ -299,26 +299,37 @@
     },
     {
       "id": "SPEC-W-007",
-      "title": "Emisión de facturas: inmutables, numeración, mención legal, PDF y QR simulado",
-      "file": null,
+      "title": "Emisión de facturas: inmutables, numeración, mención legal, PDF, QR simulado y rectificativas",
+      "file": "docs/04-specs/SPEC-W-007-emision-facturas.md",
       "status": "propuesta",
       "priority": "must",
       "risk": "medio",
       "stories": [
-        "US-006"
+        "US-006",
+        "US-007"
       ],
       "requirements": [
-        "RF-006"
+        "RF-006",
+        "RF-007"
       ],
-      "nfr": [],
+      "nfr": [
+        "NFR-06",
+        "NFR-10",
+        "NFR-11"
+      ],
       "constraints": [
         "RES-02",
         "RES-03",
-        "RES-04"
+        "RES-04",
+        "RES-07"
       ],
       "adr": [
         "0003",
-        "0006"
+        "0004",
+        "0006",
+        "0011",
+        "0015",
+        "0016"
       ],
       "depends_on": [
         "SPEC-W-005",
@@ -334,7 +345,7 @@
         "pytest backend/tests/invoicing",
         "npm --prefix frontend exec -- playwright test e2e/factura.spec.ts"
       ],
-      "notes": "Inmutabilidad por trigger (solo paid_at es modificable); numeración correlativa por función SECURITY DEFINER; QR VeriFactu marcado como simulado."
+      "notes": "Emisión inmutable (trigger: solo paid_at es modificable; TRUNCATE también bloqueado), numeración correlativa sin huecos por serie con cerrojo en la misma transacción, condiciones fiscales por ámbito calculadas en código puro y guardadas como tratamiento fiscal (national_vat, eu_reverse_charge, eu_consumer_vat, non_eu_not_subject) para el 303 y el 349 de W-008, copia congelada del emisor y del cliente, PDF reproducible guardado en el bucket privado invoices con su huella SHA-256 y QR VeriFactu marcado como simulado, rectificativas por diferencias en serie propia y vista previa calculada por el servidor. Decididas por la persona el 2026-11-10: rectificativas dentro de W-007, una línea por factura, PDF guardado con huella y domicilio del cliente obligatorio para emitir. Preguntas abiertas P-01 a P-04 (retención sin elegir, territorios especiales, texto de menciones y QR, fecha de operación). Spec escrita el 2026-11-10 con 16 decisiones y siete hitos (0 a 6); propuesta hasta el visto bueno."
     },
     {
       "id": "SPEC-W-008",

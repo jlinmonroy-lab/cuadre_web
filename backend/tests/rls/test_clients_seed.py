@@ -15,7 +15,14 @@ ALICIA = "a1000000-0000-4000-8000-000000000001"
 BETO = "a1000000-0000-4000-8000-000000000002"
 
 EXPECTED = {
-    ALICIA: {"Estudio Norte S.L.": "national", "Kreativ GmbH": "eu", "Taller Zócalo": "non_eu"},
+    # SPEC-W-007 añade a Alicia dos particulares (UE y fuera de la UE) para cubrir los cinco tratamientos fiscales de sus facturas.
+    ALICIA: {
+        "Estudio Norte S.L.": "national",
+        "Kreativ GmbH": "eu",
+        "Taller Zócalo": "non_eu",
+        "Lena Müller": "eu",
+        "Mia Carter": "non_eu",
+    },
     BETO: {"Café Liebre S.L.": "national", "Atelier Lune SARL": "eu", "Sam Rivers": "non_eu"},
 }
 
@@ -25,7 +32,7 @@ def seeded(admin: Connection[DictRow], owner: str) -> list[dict[str, Any]]:
 
 
 @pytest.mark.parametrize("owner", [ALICIA, BETO])
-def test_each_seeded_person_has_one_client_of_each_scope(admin: Connection[DictRow], owner: str) -> None:
+def test_each_seeded_person_has_a_client_of_each_scope(admin: Connection[DictRow], owner: str) -> None:
     found = {r["name"]: r["scope"] for r in seeded(admin, owner)}
     assert found == EXPECTED[owner]
 
@@ -60,5 +67,5 @@ def test_the_seeded_clients_pass_the_domain_and_saving_them_through_it_changes_n
 
 def test_the_seed_has_no_archived_clients_and_only_eu_companies_carry_vies(admin: Connection[DictRow]) -> None:
     found = admin.execute("select * from public.clients where owner_id in (%s, %s)", (ALICIA, BETO)).fetchall()
-    assert len(found) == 6 and all(r["archived_at"] is None for r in found)
+    assert len(found) == 8 and all(r["archived_at"] is None for r in found)
     assert {r["name"] for r in found if r["vies_status"] == "valid_simulated"} == {"Kreativ GmbH", "Atelier Lune SARL"}

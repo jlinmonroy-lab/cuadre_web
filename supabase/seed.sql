@@ -66,3 +66,56 @@ insert into public.clients (owner_id, name, kind, country, scope, tax_id, addres
   ('a1000000-0000-4000-8000-000000000002', 'Café Liebre S.L.', 'business', 'ES', 'national', 'B00000026', 'Plaza Ejemplo 1, 46000 Valencia', 'not_applicable'),
   ('a1000000-0000-4000-8000-000000000002', 'Atelier Lune SARL', 'business', 'FR', 'eu', 'FRZM842411902', '12 rue Imaginaire, 75001 Paris', 'valid_simulated'),
   ('a1000000-0000-4000-8000-000000000002', 'Sam Rivers', 'individual', 'US', 'non_eu', null, '1 Main Street, Springfield', 'not_applicable');
+
+-- 7 · Facturas de ejemplo de Alicia (SPEC-W-007, RES-07): una de cada uno de los cinco tratamientos fiscales, una cobrada y una
+-- rectificativa. Se emiten POR LAS PROPIAS FUNCIONES (`app.issue_invoice`…), con las claims de Alicia puestas para la transacción (Anexo
+-- B.1-E): así la numeración, las copias del emisor y del cliente y el registro de actividad son los de verdad, y el seed no puede dejar una
+-- factura que la aplicación no habría emitido. Los importes son los de la tabla de §5.1.3 (con la retención del 7 % de Alicia). Las fechas
+-- son relativas a hoy (Madrid) y crecientes dentro de la serie: una factura no puede ser futura. Para cubrir los cinco tratamientos, Alicia
+-- gana dos clientes PARTICULARES, con domicilio: uno de la UE y otro de fuera de la UE. Las facturas quedan sin PDF (`pdf_status: pending`).
+insert into public.clients (owner_id, name, kind, country, scope, tax_id, address, vies_status) values
+  ('a1000000-0000-4000-8000-000000000001', 'Lena Müller', 'individual', 'DE', 'eu', null, 'Musterweg 3, 80331 München', 'not_applicable'),
+  ('a1000000-0000-4000-8000-000000000001', 'Mia Carter', 'individual', 'CA', 'non_eu', null, '25 Maple Avenue, Toronto', 'not_applicable');
+
+do $seed$
+declare
+  v_alicia constant uuid := 'a1000000-0000-4000-8000-000000000001';
+  v_today constant date := private.today_madrid();
+  v_series uuid;
+  v_first uuid;
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', v_alicia, 'role', 'authenticated')::text, true);
+  select id into v_series from public.invoice_series where owner_id = v_alicia and code = '2026';
+
+  -- Nacional, empresa: 21 % y retención del 7 % → base 120.000, IVA 25.200, retención 8.400, total 136.800.
+  v_first := app.issue_invoice(
+    (select id from public.clients where owner_id = v_alicia and name = 'Estudio Norte S.L.'), v_series, v_today - 30,
+    'Diseño de identidad visual', 120000,
+    '{"tax_treatment": "national_vat", "vat_rate": 21, "vat_cents": 25200, "irpf_rate": 7, "irpf_cents": 8400, "total_cents": 136800, "legal_note": null}');
+  -- UE, empresa: inversión del sujeto pasivo.
+  perform app.issue_invoice(
+    (select id from public.clients where owner_id = v_alicia and name = 'Kreativ GmbH'), v_series, v_today - 25,
+    'Desarrollo de la web corporativa', 150000,
+    '{"tax_treatment": "eu_reverse_charge", "vat_rate": 0, "vat_cents": 0, "irpf_rate": 0, "irpf_cents": 0, "total_cents": 150000, "legal_note": "Inversión del sujeto pasivo."}');
+  -- UE, particular: IVA español.
+  perform app.issue_invoice(
+    (select id from public.clients where owner_id = v_alicia and name = 'Lena Müller'), v_series, v_today - 20,
+    'Ilustraciones para un libro', 100000,
+    '{"tax_treatment": "eu_consumer_vat", "vat_rate": 21, "vat_cents": 21000, "irpf_rate": 0, "irpf_cents": 0, "total_cents": 121000, "legal_note": null}');
+  -- Fuera de la UE, empresa: no sujeta.
+  perform app.issue_invoice(
+    (select id from public.clients where owner_id = v_alicia and name = 'Taller Zócalo'), v_series, v_today - 15,
+    'Rotulación de un local', 50000,
+    '{"tax_treatment": "non_eu_not_subject", "vat_rate": 0, "vat_cents": 0, "irpf_rate": 0, "irpf_cents": 0, "total_cents": 50000, "legal_note": "Operación no sujeta a IVA por reglas de localización (art. 69 de la Ley del IVA)."}');
+  -- Fuera de la UE, particular: IVA español.
+  perform app.issue_invoice(
+    (select id from public.clients where owner_id = v_alicia and name = 'Mia Carter'), v_series, v_today - 10,
+    'Retrato por encargo', 100000,
+    '{"tax_treatment": "non_eu_consumer_vat", "vat_rate": 21, "vat_cents": 21000, "irpf_rate": 0, "irpf_cents": 0, "total_cents": 121000, "legal_note": null}');
+
+  -- La primera está cobrada y se rectifica a 100.000: base −20.000, IVA −4.200, retención −1.400 (8.400 − 7.000), total −22.800.
+  perform app.set_invoice_paid(v_first, true);
+  perform app.issue_rectifying_invoice(
+    v_first, 'Se facturaron horas de más', 100000, v_today - 5, '{"vat_cents": -4200, "irpf_cents": -1400, "total_cents": -22800}');
+end
+$seed$;

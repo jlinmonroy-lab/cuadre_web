@@ -192,16 +192,19 @@ Migraciones nuevas (`YYYYMMDDHHMMSS_descripcion.sql`, sin destructivas; las ya a
 TYPE invoice_kind          AS ENUM ('standard', 'rectifying')
 TYPE invoice_tax_treatment AS ENUM ('national_vat', 'eu_reverse_charge', 'eu_consumer_vat', 'non_eu_consumer_vat', 'non_eu_not_subject')
 ALTER TABLE invoice_series ADD COLUMN kind invoice_kind NOT NULL DEFAULT 'standard'
+  CHECK ((kind = 'rectifying') = (code ~ '^R-[0-9]{4}$'))      -- invoice_series_kind_matches_code (B.3)
+  CHECK (kind = 'standard' OR NOT is_default)                  -- invoice_series_rectifying_not_default
+  UNIQUE (id, owner_id, kind)                                  -- para la clave foránea de las facturas; ALTER TABLE clients ADD UNIQUE (id, owner_id)
 
 invoices
   id                uuid PK DEFAULT gen_random_uuid()
   owner_id          uuid NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT       -- no cascadea (CONF-004, RES-03)
-  series_id         uuid NOT NULL REFERENCES invoice_series(id) ON DELETE RESTRICT
+  series_id         uuid NOT NULL                                                   -- FK (series_id, owner_id, kind) → invoice_series, ON DELETE RESTRICT (B.3)
   series_code       text NOT NULL                                                   -- copia: el código de una serie usada no cambia, pero la factura no depende de ello
   number            integer NOT NULL CHECK (number BETWEEN 1 AND 999999)
   kind              invoice_kind NOT NULL
   issue_date        date NOT NULL
-  client_id         uuid NOT NULL REFERENCES clients(id) ON DELETE RESTRICT
+  client_id         uuid NOT NULL                                                   -- FK (client_id, owner_id) → clients, ON DELETE RESTRICT (B.3)
   client_name       text NOT NULL, client_kind client_kind NOT NULL, client_country text NOT NULL,
   client_scope      client_scope NOT NULL, client_tax_id text, client_address text NOT NULL   -- copia congelada (D-09)
   issuer_name       text NOT NULL, issuer_tax_id text NOT NULL, issuer_address text NOT NULL, issuer_iban text   -- copia del perfil
@@ -212,12 +215,15 @@ invoices
   irpf_rate         numeric(5,2) NOT NULL DEFAULT 0, irpf_cents bigint NOT NULL DEFAULT 0
   total_cents       bigint NOT NULL
   legal_note        text
-  rectifies_id      uuid REFERENCES invoices(id) ON DELETE RESTRICT
+  rectifies_id      uuid                                                            -- FK (rectifies_id, owner_id) → invoices (id, owner_id), ON DELETE RESTRICT (B.3)
   rectification_reason text CHECK (char_length(rectification_reason) BETWEEN 2 AND 300)
   paid_at           timestamptz                                                      -- lo ÚNICO modificable
   created_at        timestamptz NOT NULL DEFAULT now()
-  UNIQUE (owner_id, series_id, number)
+  UNIQUE (owner_id, series_id, number), UNIQUE (id, owner_id)
   CHECK (total_cents = base_cents + vat_cents - irpf_cents)
+  CHECK (base_cents BETWEEN -9999999999 AND 9999999999), CHECK (issue_date >= '2000-01-01'), CHECK (vat_rate IN (0, 4, 10, 21)), CHECK (irpf_rate IN (0, 7, 15))   -- B.3
+  CHECK (kind = 'standard' OR base_cents < 0)                       -- invoices_rectifying_base_negative (B.3)
+  CHECK ((kind = 'standard' AND vat_cents >= 0 AND irpf_cents >= 0) OR (kind = 'rectifying' AND vat_cents <= 0 AND irpf_cents <= 0))   -- invoices_amounts_sign (B.3)
   CHECK ((kind = 'rectifying') = (rectifies_id IS NOT NULL))               -- invoices_rectification_ref
   CHECK ((kind = 'rectifying') = (rectification_reason IS NOT NULL))       -- invoices_rectification_reason (B.1-D: el CHECK único admitía dos combinaciones inválidas)
   CHECK (kind = 'rectifying' OR base_cents > 0)   -- la ordinaria siempre positiva; la rectificativa puede ser negativa
@@ -226,9 +232,11 @@ INDEX invoices_owner_date ON invoices (owner_id, issue_date DESC, id)
 INDEX invoices_rectifies ON invoices (rectifies_id) WHERE rectifies_id IS NOT NULL
 
 invoice_files
-  invoice_id  uuid PK REFERENCES invoices(id) ON DELETE RESTRICT
-  storage_path text NOT NULL, sha256 text NOT NULL CHECK (sha256 ~ '^[0-9a-f]{64}$'), size_bytes integer NOT NULL
+  invoice_id  uuid PK
+  owner_id    uuid NOT NULL                                  -- el de la factura; FK (invoice_id, owner_id) → invoices (id, owner_id) ON DELETE RESTRICT (B.3: la política y la matriz son de una columna)
+  storage_path text NOT NULL, sha256 text NOT NULL CHECK (sha256 ~ '^[0-9a-f]{64}$'), size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 1 AND 1048576)
   created_at timestamptz NOT NULL DEFAULT now()
+  CHECK (storage_path = owner_id || '/' || invoice_id || '-' || substr(sha256, 1, 16) || '.pdf')   -- invoice_files_path_matches
 ```
 
 Las restricciones llevan nombre propio (`invoices_total_matches`, `invoices_rectification_ref`, `invoices_rectification_reason`, `invoices_base_positive`, `invoices_rectifying_not_paid`, `invoices_owner_series_number_key`…) para que la API las traduzca por nombre; el CHECK único de la rectificativa de la primera versión de esta spec **se partió en dos** porque admitía una ordinaria con referencia pero sin motivo y al revés (B.1-D). **Trigger `invoices_immutable`** (`BEFORE UPDATE OR DELETE`, más `BEFORE TRUNCATE`): rechaza con `invoice_immutable` (P0001) todo `DELETE`, todo `TRUNCATE` y todo `UPDATE` en el que la fila, **sin `paid_at`**, cambie (`(to_jsonb(new) - 'paid_at') IS DISTINCT FROM (to_jsonb(old) - 'paid_at')`: no hay una lista de columnas que mantener); `invoice_files` es de solo inserción (sin `UPDATE`, `DELETE` ni `TRUNCATE`). **Límite**: el dueño de la base puede hacer `DISABLE TRIGGER`; la inmutabilidad lo es frente a la aplicación y a los roles de la API, no frente a quien administra la base. `app.set_invoice_paid` es la única que escribe `paid_at`.
@@ -244,21 +252,21 @@ Las restricciones llevan nombre propio (`invoices_total_matches`, `invoices_rect
 
 | Función | Efecto |
 |---|---|
-| `app.issue_invoice(p_client_id, p_series_id, p_issue_date, p_concept, p_base_cents, p_vat_rate, p_terms jsonb)` | Comprueba el perfil, el cliente (activo, con domicilio), la serie (activa, ordinaria) y las fechas; copia emisor y cliente; escribe las condiciones que le pasa la API ya calculadas (la base **repite** las comprobaciones baratas y la identidad aritmética `total = base + IVA − retención`, no la regla fiscal: D-10 de SPEC-W-006 aplica igual); asigna `next_number` y lo avanza; escribe `activity_log`. Devuelve el id |
-| `app.issue_rectifying_invoice(p_original_id, p_reason, p_corrected_base_cents, p_issue_date, p_terms jsonb)` | Lo anterior para la serie rectificativa del año (`app.ensure_rectifying_series`), con las reglas de 5.1.5 (`rectification_exceeds`, `invoice_not_rectifiable`, fecha) |
+| `app.issue_invoice(p_client_id, p_series_id, p_issue_date, p_concept, p_base_cents, p_terms jsonb)` (el tipo de IVA va dentro de `p_terms`, que lleva las siete condiciones: B.3) | Comprueba el perfil, el cliente (activo, con domicilio), la serie (activa, ordinaria) y las fechas; copia emisor y cliente; escribe las condiciones que le pasa la API ya calculadas (la base **repite** las comprobaciones baratas y la identidad aritmética `total = base + IVA − retención`, no la regla fiscal: D-10 de SPEC-W-006 aplica igual); asigna `next_number` y lo avanza; escribe `activity_log`. Devuelve el id |
+| `app.issue_rectifying_invoice(p_original_id, p_reason, p_corrected_base_cents, p_issue_date, p_terms jsonb)` | Lo anterior para la serie rectificativa del año (`app.ensure_rectifying_series`), con las reglas de 5.1.5 (`rectification_exceeds`, `invoice_not_rectifiable`, fecha). `p_terms` lleva solo `vat_cents`, `irpf_cents` y `total_cents`; **la base y lo vigente los calcula la base de datos bajo el cerrojo** y el resto se hereda de la original (B.3) |
 | `app.set_invoice_paid(p_id, p_paid)` | Marca o desmarca `paid_at` de una factura ordinaria (`invoice_not_payable` si es rectificativa) y lo registra |
 | `app.attach_invoice_pdf(p_invoice_id, p_path, p_sha256, p_size)` | Inserta **una sola vez** la fila de `invoice_files` de una factura propia (`invoice_pdf_exists` si ya hay) |
 | `app.ensure_rectifying_series(p_year)` | Crea `R-{año}` si no existe, idempotente, como `app.ensure_year_series` |
 
-Los errores `P0001` son `invoice_not_found`, `client_not_found`, `client_not_billable`, `series_not_found`, `profile_incomplete`, `irpf_rate_missing`, `invoice_date_out_of_order`, `invalid_invoice` (campo en el `DETAIL`), `rectification_exceeds`, `invoice_not_rectifiable`, `invoice_not_payable`, `invoice_immutable` e `invoice_pdf_exists`.
+Los errores `P0001` son `invoice_not_found`, `client_not_found`, `client_not_billable`, `series_not_found`, `profile_incomplete`, `irpf_rate_missing`, `invoice_date_out_of_order`, `invalid_invoice` (campo en el `DETAIL`), `rectification_exceeds`, `invoice_not_rectifiable`, `invoice_not_payable`, `invoice_immutable`, `invoice_pdf_exists` y `series_exhausted` (la serie llegó al 999.999); las de series añaden `series_code_reserved` (B.3).
 
-**Cerrojos (obligatorios; B.1-D).** `app.issue_invoice` y `app.issue_rectifying_invoice` toman `SELECT … FOR UPDATE` de la **fila de la serie** (o `pg_advisory_xact_lock`: dan lo mismo) y comprueban la fecha **dentro** del cerrojo; `app.issue_rectifying_invoice` bloquea además la **fila de la original** (`FOR UPDATE`) antes de calcular la base vigente. Medido: sin cerrojo, 20 hilos × 5 emiten 18 de 100 (el resto cae en el `UNIQUE` con un error sin código útil) y cinco anulaciones simultáneas de una misma factura admiten 2 (se devuelve dos veces); con cerrojo, 100 de 100 sin huecos ni repetidos y exactamente una anulación.
+**Cerrojos (obligatorios; B.1-D).** `app.issue_invoice` y `app.issue_rectifying_invoice` toman `SELECT … FOR UPDATE` de la **fila de la serie** (o `pg_advisory_xact_lock`: dan lo mismo) y comprueban la fecha **dentro** del cerrojo; `app.issue_rectifying_invoice` bloquea además la **fila de la original** (`FOR UPDATE`) antes de calcular la base vigente. Se ponen **las dos capas**, siempre en el mismo orden (persona → serie → cliente con `FOR SHARE` → original), para no abrir interbloqueos (B.3). Medido: sin cerrojo, 20 hilos × 5 emiten 18 de 100 (el resto cae en el `UNIQUE` con un error sin código útil) y cinco anulaciones simultáneas de una misma factura admiten 2 (se devuelve dos veces); con cerrojo, 100 de 100 sin huecos ni repetidos y exactamente una anulación.
 
 **Cambios en SPEC-W-005 (B.1-D).** La migración que añade `kind` a `invoice_series` (por defecto `'standard'`) cambia: `private.series_lock_own` filtra `kind = 'standard'` (una serie rectificativa no se edita, no es predeterminada ni se archiva); `list_invoice_series` filtra `kind = 'standard'` (no sale en Perfil); `app.create_invoice_series` y `app.update_invoice_series` **reservan** los códigos `^R-\d{4}$` para las rectificativas (`series_code_reserved`); y `app.ensure_rectifying_series(p_year)` crea `R-{año}` sin ser predeterminada. El trigger `invoice_series_guard` **deja avanzar** `next_number` (lo que hace la emisión) y rechaza bajarlo.
 
 **Storage.** Bucket privado `invoices` (solo `application/pdf`, hasta 1 MiB: un PDF típico mide de 8 a 18 KB), ruta `{owner_id}/{invoice_id}-{sha256[:16]}.pdf` (el prefijo de la huella hace **idempotente** la subida: el mismo contenido da siempre la misma ruta y un 409 de Storage significa «ya está»). Políticas como las de `logos` (funciones `private.invoice_file_*` que **nunca** lanzan errores; B.1-C lo midió): **insertar**, solo un `usuario` en su carpeta y con nombre de la forma exacta (la política se evalúa **al subir**); **leer**, el dueño o un gestor con vínculo activo (un vínculo revocado, otro usuario y el administrador reciben 404); **sin** `UPDATE` ni `DELETE` (reemplazar o borrar da 403: nadie puede sustituir un PDF subido). Que la persona pueda subir su propio archivo a una ruta de su carpeta no compromete la factura: la fila de `invoice_files` guarda la huella y la descarga la comprueba (D-03).
 
-**Matriz de RLS.** `invoices` e `invoice_files`: `kind: financial`, `owner_column: owner_id` (en `invoice_files`, a través de la factura), privilegios `SELECT`, con `seed` y sondas de escritura.
+**Matriz de RLS.** `invoices` e `invoice_files`: `kind: financial`, `owner_column: owner_id` (`invoice_files` lleva su propio `owner_id`, B.3), privilegios `SELECT`, con `seed` y sondas de escritura.
 
 **Seed (sintético).** Facturas de Alicia de los **cinco tratamientos** y una rectificativa, emitidas **por las propias funciones** desde `seed.sql` con `set_config('request.jwt.claims', …)` (B.1-E), con fechas **anteriores o iguales a hoy** y crecientes dentro de la serie. Para cubrirlos, el seed gana **dos clientes de Alicia** (un particular de la UE y uno de fuera de la UE, con domicilio) y se actualizan `test_clients_seed` y la matriz. Las facturas sembradas quedan con `pdf_status: "pending"` (el seed no dibuja PDF): se generan con «Generar PDF». Nombres y NIF inventados con dígitos de control válidos (RES-07).
 
@@ -534,6 +542,7 @@ npm --prefix frontend exec -- playwright test e2e/factura.spec.ts      # AC-21 a
 1. **Dominio puro**: `cuadre.tax` y `cuadre.invoicing` (condiciones, importes, número, validación, rectificativas, contenido del QR) con tablas de pruebas y mutaciones; `test_invoicing_boundary.py`.
    **Hecho el 2026-11-10** (`cuadre.tax` y `cuadre.invoicing`, 15 módulos puros; 412 pruebas y 84 mutaciones —83 detectadas y 1 equivalente—; la rectificativa por diferencia de valores y la guarda del QR corrigieron §5.1.3, §5.1.5, AC-14 y B.1-A; Anexo B.2).
 2. **Base de datos**: migraciones (tipos, `kind` de serie, `invoices`, `invoice_files`, trigger, funciones, bucket y políticas), matriz de RLS y seed; pruebas de RLS, de trigger y de concurrencia; mutaciones.
+   **Hecho el 2026-11-10** (cuatro migraciones, seed y matriz; 466 pruebas de RLS nuevas y 244 mutaciones SQL —237 detectadas y 7 equivalentes por diseño—; `migration up` y `db reset` dan la misma huella; las claves foráneas compuestas, el orden de los cerrojos, la base de datos que recalcula lo vigente de una rectificativa y `invoice_files.owner_id` corrigieron §5.2; Anexo B.3).
 3. **API**: emitir, previsualizar, listar, leer, cobrar, rectificar y `get_clients_billing`; `openapi.json` y `schema.d.ts` regenerados; mutaciones.
 4. **PDF, QR y almacenamiento**: generación determinista, subida, huella, descarga con comprobación y reintento; pruebas de contenido y de alteración.
 5. **Frontend**: `/facturas`, `/facturas/[id]`, menú, columna «Facturado en {año}» y condiciones en `/clientes`; unitarias; comprobación visual en los tres motores.
@@ -685,3 +694,74 @@ Entorno: Windows 11, Python 3.12.10 (y 3.12.16 en el contenedor Linux), PostgreS
 - Las funciones `app.*` **repiten lo barato** y la identidad `total = base + IVA − retención`, no la regla fiscal; reciben las condiciones ya calculadas por `cuadre.tax`.
 - **Cerrojos** de la serie (`FOR UPDATE`) y de la original (B.1-D), con la fecha comprobada dentro.
 - El seed emite por las funciones con `set_config` de las claims, con fechas ≤ hoy, y gana dos clientes de Alicia (un particular de la UE y uno de fuera de la UE).
+
+### B.3 Hito 2 · base de datos de las facturas · 2026-11-10
+
+**Qué hay.** Cuatro migraciones nuevas (887 líneas de SQL; no se tocó ninguna aplicada), el seed y la matriz de RLS. No hay Python de producción nuevo: `openapi.json` y `schema.d.ts` no cambian.
+
+| Migración | Contenido |
+|---|---|
+| `20261110100000_invoice_kinds_and_series_kind` | Tipos `invoice_kind` e `invoice_tax_treatment`; `invoice_series.kind` con sus dos CHECK; sustituye `invoice_series_guard` (`kind` no cambia nunca), `series_lock_own` (solo ordinarias), `create_invoice_series` y `update_invoice_series` (reservan `R-AAAA`); nuevas `series_lock_for_issue` y `app.ensure_rectifying_series` |
+| `20261110100100_invoices` | `invoices` e `invoice_files` con 28 restricciones (sin contar las claves primarias), todas con nombre, y claves compuestas, RLS activada y forzada, dos políticas de lectura por tabla, el trigger de inmutabilidad (más `TRUNCATE`) y el de solo inserción |
+| `20261110100200_invoices_functions` | Cinco ayudantes privados y las cuatro funciones de emisión, rectificación, cobro y PDF |
+| `20261110100300_invoices_bucket` | Bucket privado `invoices` (PDF, 1 MiB), funciones `invoice_file_*` que no lanzan y las políticas de insertar y leer |
+
+**Decisiones tomadas al implementar** (corrigen o completan §5.2, ya actualizada):
+
+| Tema | Decisión |
+|---|---|
+| `invoice_files.owner_id` | La tabla lleva su propio `owner_id` y una clave compuesta `(invoice_id, owner_id) → invoices`: la matriz de RLS exige una columna de dueño y así la política es de una sola columna, sin `exists`. La spec decía «a través de la factura» |
+| Claves foráneas compuestas | `invoices` apunta a `(series_id, owner_id, kind)`, `(client_id, owner_id)` y `(rectifies_id, owner_id)`: una factura no puede colgar de la serie o del cliente de otra persona, una rectificativa no cabe en una serie ordinaria ni al revés. Obliga a `UNIQUE (id, owner_id)` en `clients` y `invoices` y `UNIQUE (id, owner_id, kind)` en `invoice_series` |
+| Firma de las funciones | `app.issue_invoice(p_client_id, p_series_id, p_issue_date, p_concept, p_base_cents, p_terms)`: el tipo de IVA va **dentro** de `p_terms` (las siete condiciones, con los tipos como números JSON). `app.issue_rectifying_invoice` recibe en `p_terms` **solo** `vat_cents`, `irpf_cents` y `total_cents`; el tratamiento, los tipos, la mención, el cliente y el concepto se heredan de la original |
+| La base **recalcula lo vigente** | Bajo el cerrojo, la rectificativa suma la base, el IVA y la retención de la original y de sus rectificativas, calcula `base = corregida − vigente` y exige: que la corregida no suba (`rectification_exceeds`) ni iguale lo vigente, que el IVA y la retención no sumen ni dejen lo vigente por debajo de cero, que una anulación completa lo devuelva todo y la identidad del total. **No recalcula ningún porcentaje**: esa regla sigue siendo de `cuadre.tax`. Así nadie devuelve dos veces una factura aunque llame a la función a mano |
+| Coherencia de las condiciones | La base conoce la tabla de §5.1.2 en una sola función (`invoice_expected_treatment`) y comprueba que el tratamiento es el del cliente, que sin IVA no hay tipo ni cuota, que los tipos son 4, 10 o 21, que la retención es la del perfil (y cero para quien no la lleva), la identidad `total = base + IVA − retención` y que la mención aparece exactamente en los dos tratamientos sin IVA |
+| Orden de las comprobaciones | Emitir: rol → serie → cliente (no existe, archivado, sin domicilio) → perfil → campos (fecha no futura, concepto, base, condiciones) → retención sin elegir → fecha anterior a la última de la serie → serie agotada → coherencia. Rectificar: rol → fecha → serie del año → original (no existe, ya es rectificativa) → perfil → motivo, base corregida y condiciones → nada que rectificar → la base sube → fechas (la de la original, la de la serie) → serie agotada → coherencia |
+| Cerrojos | Dos capas, siempre en el mismo orden (persona → serie → cliente con `FOR SHARE` → original): `series_enter()` (cerrojo asesor por persona, el de SPEC-W-005) y `FOR UPDATE` de la fila de la serie y de la original. El cliente se bloquea con `FOR SHARE`: no se edita ni se archiva entre la comprobación y la copia |
+| Errores nuevos | `series_exhausted` (la serie llegó al 999.999), `series_code_reserved` (una serie ordinaria no usa `R-AAAA`); `profile_incomplete` lleva en el `DETAIL` los campos que faltan separados por comas e `invoice_date_out_of_order` la fecha de la última factura en ISO |
+| CHECK de más | Respecto a §5.2: `invoices_issue_date_min` (la mínima del dominio), `invoices_base_range` (±9.999.999.999), `invoices_rectifying_base_negative` (la rectificativa siempre resta), `invoices_amounts_sign` (el IVA y la retención no cambian de signo), `invoices_vat_rate_values` e `invoices_irpf_rate_values`, las longitudes de la copia del emisor y de la mención, e `invoice_files_path_matches` (la ruta se deduce de la fila) |
+| Series | `invoice_series_kind_matches_code` (`R-AAAA` es rectificativa y solo ella) e `invoice_series_rectifying_not_default`; `ensure_rectifying_series` admite los años 2000 a 9999 |
+| `TRUNCATE` | PostgreSQL ya se niega a vaciar `invoices` sin `cascade` mientras `invoice_files` la referencie (`FeatureNotSupported`); con `cascade`, impiden el vaciado los triggers de las dos tablas, y el de `invoices` se prueba por sí solo desactivando el otro |
+| Seed | Alicia gana dos particulares (UE y fuera de la UE) y seis facturas emitidas por las propias funciones con sus claims: una de cada tratamiento, la primera cobrada y una rectificativa. Las fechas son **relativas a hoy** (de −30 a −5 días): una factura no puede ser futura. `invoices` e `invoice_files` entran en la matriz con su `seed` y sus sondas |
+
+**Pruebas.** **466 nuevas de RLS** (de 1.095 a 1.561; las 3.276 sin RLS no cambian): 28 de la matriz (dos tablas por cinco estados del vínculo y los roles) y nueve archivos nuevos con 438.
+
+| Archivo | Pruebas | Qué fija |
+|---|---|---|
+| `test_invoices.py` | 93 | Nadie escribe (cinco personas por siete sentencias), RLS forzada y solo `SELECT`, dos políticas de lectura y ninguna del administrador, cada CHECK **por nombre y en su frontera**, la clave única, las claves compuestas, `RESTRICT` frente a cuenta, serie, cliente y original, el trigger columna a columna (31 columnas: una nueva obliga a decidir), `paid_at`, `DELETE`, `TRUNCATE`, `service_role`, `invoice_files` de solo inserción |
+| `test_invoices_issue.py` | 104 | Cada tratamiento con sus importes y su mención, números 1-2-3, serie con otro inicio, las copias congeladas, el registro de actividad sin datos personales, roles, ajenos, cliente archivado o sin domicilio, perfil incompleto, cada campo con su `DETAIL` y el orden, las condiciones incoherentes, fechas (hoy, futura, mañana en Madrid con dos husos horarios, 2000-01-01), serie agotada y que **un fallo dentro del INSERT no consume el número** |
+| `test_invoices_rectify.py` | 52 | Rectificativa simple, anulación completa, cadena a cero, el caso de 105 al 10 % en dos pasos, herencia de cliente, tratamiento, tipos y mención, emisor actual, serie `R-AAAA` creada una vez y por año de la fecha, fechas, cada campo, cuotas que devuelven de más, orden |
+| `test_invoices_pay_and_pdf.py` | 53 | Cobrar (fecha conservada, solo se registra el cambio real), el PDF una sola vez con ruta y huella coherentes, `R-AAAA` reservado al crear y al renombrar, serie rectificativa invisible para las funciones ordinarias |
+| `test_invoices_concurrency.py` | 21 | **20 hilos × 5 emisiones = 100 de 100 sin huecos ni repetidos**, dos personas a la vez, cinco anulaciones completas = exactamente una, fecha y número dentro del cerrojo, archivar o editar al cliente espera a la emisión, permisos de las funciones |
+| `test_invoices_limits_parity.py` | 34 | Concepto, motivo, base, número, tipos de IVA y de retención, fecha mínima, enums, `R-AAAA`, ruta y huella del PDF, y tamaño del bucket, contra las constantes de `cuadre.invoicing`, `cuadre.tax` y `cuadre.profile` |
+| `test_invoices_storage.py` | 43 | Las políticas del bucket por SQL: subir, leer (cinco estados del vínculo), nombres raros sin error, sin `UPDATE` ni `DELETE` |
+| `test_invoices_storage_live.py` | 25 | Lo mismo contra la API real de Storage con tokens de GoTrue: firmar, 413, 415, 409 al repetir, 403 al reemplazar o borrar, lecturas firmadas y su caducidad |
+| `test_invoices_seed.py` | 13 | Las facturas sembradas coinciden con lo que calcula `cuadre.tax`, el contador de cada serie, el registro de actividad y los particulares |
+
+Ajustes: `test_clients_seed.py` (Alicia con cinco clientes) y `test_profile_seed.py` (su serie va por el 6).
+
+**Mutaciones.** **244 mutaciones SQL** con un ejecutor desechable fuera del repositorio (rompe un objeto con `create or replace`, ejecuta primero los tests de su área y, si sobrevive, toda la batería; restaura y compara la huella del esquema —no cambió ni una vez—): cada cerrojo, cada comprobación de `issue_invoice` y de `issue_rectifying_invoice` y su orden, `<` frente a `<=` en las fechas, el huso horario del reloj, la base vigente sin cada suma, `corregida >` y `>=`, cada condición del IVA y de la retención devueltos, el total, las copias, la ruta del PDF, el registro de actividad, el trigger (cada columna que se permitiría cambiar), cada privilegio, política, RLS y CHECK, cada clave foránea, el bucket (público, 2 MiB, imágenes, políticas de más) y la regla `R-AAAA`. **237 detectadas y 7 equivalentes por diseño**:
+
+| Mutante | Por qué es equivalente |
+|---|---|
+| L01, L06, L08, L09: quitar `FOR UPDATE` de la serie, de la original, de la factura al cobrar o al registrar el PDF | Capas de defensa redundantes con el cerrojo asesor por persona, que serializa todo lo que emite, rectifica, cobra o registra. Quitar **a la vez** el asesor y la fila (L03, L04) sí se detecta; quitar solo el asesor (L02) lo detecta el test de series de SPEC-W-005 (altas con predeterminada a la vez), no los de facturas |
+| N05: quitar la comprobación de serie agotada de `invoice_insert` | `issue_invoice` e `issue_rectifying_invoice` la repiten antes; quitar las tres a la vez (N06) sí se detecta |
+| N14: el último día de la serie sin filtrar por dueño | `series_id` ya identifica a la persona |
+| R17: `>=` en lugar de `>` en «la base sube» | La igualdad se corta antes como «nada que rectificar» (el mismo caso que M58 en B.2) |
+
+Los **seis huecos reales** que encontraron las mutaciones y cerraron pruebas: el 2000-01-01 por la función, el reloj de Madrid frente a `current_date` (se prueba con Kiritimati y Pago Pago: una de las dos está en otro día a cualquier hora), una mención de 301 caracteres donde la mención es obligatoria, renombrar a un código que solo se parece a `R-AAAA`, el trigger de `TRUNCATE` de `invoices` por sí solo y la huella del PDF en mayúsculas en la política del bucket.
+
+**Verificación.** `migration up` sobre el esquema anterior y `db reset` dan la **misma huella** del esquema (funciones, políticas, restricciones, triggers, índices, privilegios, RLS, enums, columnas y buckets). Ruff limpio; `pip freeze` sin cambios; `openapi.json` y `schema.d.ts` al día.
+
+**Lo que no se ha comprobado:**
+- **Los textos y códigos HTTP** de los errores de la base: salen de la API en el hito 3.
+- **`cuadre.profile` y el listado de series** siguen sin conocer `R-AAAA`: `normalize_series_code` acepta `R-2026` como código válido (la base responde `series_code_reserved`) y `list_invoice_series` mostraría la serie rectificativa en Perfil. Es del hito 3.
+- **Subir un PDF de verdad** (bytes generados por el hito 4): aquí solo se prueban las políticas con un PDF mínimo.
+- **El dueño de la base** puede hacer `DISABLE TRIGGER`; la inmutabilidad lo es frente a la aplicación y a los roles de la API (B.1-D).
+- **Rendimiento con muchos miles de facturas**: el índice del listado existe, no se ha medido.
+- **Los trabajos** (`cuadre_jobs`) no tienen privilegios sobre las dos tablas; los pedirá quien los necesite (SPEC-W-012).
+
+**Para el hito 3** (API):
+- Llamar a `app.ensure_year_series` antes de emitir si no hay serie y mapear los códigos: `invoice_not_found` y `client_not_found` a 404/422, `client_not_billable` (`archived` o `address` en el `DETAIL`), `profile_incomplete` (los campos faltantes en el `DETAIL`, separados por comas), `irpf_rate_missing`, `invoice_date_out_of_order` (la fecha en el `DETAIL`), `rectification_exceeds`, `invoice_not_rectifiable`, `invoice_not_payable`, `invoice_pdf_exists`, `series_exhausted` y `series_code_reserved`; `invalid_invoice` lleva el campo en el `DETAIL` (`issue_date`, `concept`, `base_cents`, `terms`, `tax_treatment`, `vat_rate`, `irpf_rate`, `vat_cents`, `irpf_cents`, `total_cents`, `legal_note`, `reason`, `corrected_base_cents`, `paid`, `sha256`, `size_bytes`, `storage_path`).
+- `p_terms` va como `Jsonb` con **enteros** JSON para los tipos (`21`) y los importes, y `legal_note` como cadena o `null`; `p_base_cents` y `p_corrected_base_cents` como `bigint`. En una rectificativa, `p_terms` lleva solo los tres importes de `rectification_amounts`, calculados desde `standing_of` **leído después de bloquear**; si otra rectificativa llega entre medias, la base responde `invalid_invoice` o `rectification_exceeds` y la API vuelve a leer y devuelve 409.
+- Filtrar `kind = 'standard'` en `list_invoice_series` y hacer que `normalize_series_code` rechace `^R-[0-9]{4}$` (o traducir `series_code_reserved`).
+- Un `StorageGateway` que suba **bytes** al bucket `invoices` con el JWT de la persona, sin `UPDATE` ni `DELETE`: un 409 de Storage significa «ya está» (ruta con la huella).

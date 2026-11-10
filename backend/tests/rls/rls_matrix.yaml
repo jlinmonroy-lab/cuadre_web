@@ -140,3 +140,61 @@ tables:
       # El dueño ve los suyos; el gestor, solo los de quien le dio acceso activo; el administrador, ninguno (D3).
       default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
       active: { gina: [alicia] }
+
+  invoices:
+    kind: financial
+    owner_column: owner_id
+    grants:
+      table: [SELECT]       # toda escritura pasa por app.*; una factura emitida no se edita ni se borra (SPEC-W-007 §5.2, RES-03)
+    # Una factura por usuario del reparto antes de comparar (con su serie y su cliente): con la tabla vacía la prueba no demostraría nada.
+    seed: >-
+      with s as (insert into public.invoice_series (owner_id, code) values (%(owner)s, 'MXI') returning id),
+           c as (insert into public.clients (owner_id, name, kind, country, scope, address)
+                 values (%(owner)s, 'Matriz S.L.', 'business', 'ES', 'national', 'Calle Matriz 1, Madrid') returning id)
+      insert into public.invoices (owner_id, series_id, series_code, number, kind, issue_date, client_id, client_name, client_kind,
+                                   client_country, client_scope, client_address, issuer_name, issuer_tax_id, issuer_address, concept,
+                                   tax_treatment, base_cents, total_cents)
+      select %(owner)s, s.id, 'MXI', 1, 'standard', date '2026-01-02', c.id, 'Matriz S.L.', 'business', 'ES', 'national',
+             'Calle Matriz 1, Madrid', 'Emisor Matriz', '12345678Z', 'Calle Emisor 1, Madrid', 'Concepto de la matriz',
+             'national_vat', 1000, 1000
+        from s, c
+    probe_insert: >-
+      insert into public.invoices (owner_id, series_id, series_code, number, kind, issue_date, client_id, client_name, client_kind,
+                                   client_country, client_scope, client_address, issuer_name, issuer_tax_id, issuer_address, concept,
+                                   tax_treatment, base_cents, total_cents)
+      select owner_id, series_id, series_code, 2, kind, issue_date, client_id, client_name, client_kind, client_country, client_scope,
+             client_address, issuer_name, issuer_tax_id, issuer_address, concept, tax_treatment, base_cents, total_cents
+        from public.invoices where owner_id = %(owner)s
+    probe_update: { column: concept, value: hacked }
+    select:
+      # El dueño ve las suyas; el gestor, solo las de quien le dio acceso activo; el administrador, ninguna (D3).
+      default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
+      active: { gina: [alicia] }
+
+  invoice_files:
+    kind: financial
+    owner_column: owner_id
+    grants:
+      table: [SELECT]       # solo las funciones la escriben, una vez por factura (SPEC-W-007 §5.2)
+    seed: >-
+      with s as (insert into public.invoice_series (owner_id, code) values (%(owner)s, 'MXF') returning id),
+           c as (insert into public.clients (owner_id, name, kind, country, scope, address)
+                 values (%(owner)s, 'Matriz S.L.', 'business', 'ES', 'national', 'Calle Matriz 1, Madrid') returning id),
+           i as (insert into public.invoices (owner_id, series_id, series_code, number, kind, issue_date, client_id, client_name,
+                                              client_kind, client_country, client_scope, client_address, issuer_name, issuer_tax_id,
+                                              issuer_address, concept, tax_treatment, base_cents, total_cents)
+                 select %(owner)s, s.id, 'MXF', 1, 'standard', date '2026-01-02', c.id, 'Matriz S.L.', 'business', 'ES', 'national',
+                        'Calle Matriz 1, Madrid', 'Emisor Matriz', '12345678Z', 'Calle Emisor 1, Madrid', 'Concepto de la matriz',
+                        'national_vat', 1000, 1000
+                   from s, c
+                 returning id)
+      insert into public.invoice_files (invoice_id, owner_id, storage_path, sha256, size_bytes)
+      select i.id, %(owner)s, %(owner)s::text || '/' || i.id::text || '-' || repeat('a', 16) || '.pdf', repeat('a', 64), 100 from i
+    probe_insert: >-
+      insert into public.invoice_files (invoice_id, owner_id, storage_path, sha256, size_bytes)
+      select id, owner_id, owner_id::text || '/' || id::text || '-' || repeat('b', 16) || '.pdf', repeat('b', 64), 100
+        from public.invoices where owner_id = %(owner)s
+    probe_update: { column: size_bytes, value: "7" }
+    select:
+      default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
+      active: { gina: [alicia] }

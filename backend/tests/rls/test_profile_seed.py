@@ -82,9 +82,11 @@ def test_alicia_and_beto_have_a_default_year_series_and_nobody_else_has_any(admi
     rows = admin.execute(
         "select p.email, s.code, s.is_default, s.first_number, s.next_number from public.invoice_series s "
         "join public.profiles p on p.id = s.owner_id where p.email like '%%@example.test' and p.email in "
-        "('alicia@example.test','beto@example.test','gina@example.test','gus@example.test','adan@example.test') order by p.email"
+        "('alicia@example.test','beto@example.test','gina@example.test','gus@example.test','adan@example.test') "
+        "and s.kind = 'standard' order by p.email"
     ).fetchall()
+    # Alicia ya ha emitido sus cinco facturas de ejemplo (SPEC-W-007): la serie del año va por el número 6. Su rectificativa está en otra.
     assert rows == [
-        {"email": "alicia@example.test", "code": "2026", "is_default": True, "first_number": 1, "next_number": 1},
+        {"email": "alicia@example.test", "code": "2026", "is_default": True, "first_number": 1, "next_number": 6},
         {"email": "beto@example.test", "code": "2026", "is_default": True, "first_number": 1, "next_number": 1},
     ]

@@ -59,6 +59,7 @@ def test_the_response_has_the_documented_shape(api: Api) -> None:
         "display_number",
         "kind",
         "issue_date",
+        "issuer",
         "client",
         "concept",
         "tax_treatment",
@@ -78,6 +79,12 @@ def test_the_response_has_the_documented_shape(api: Api) -> None:
         "created_at",
     }
     assert set(invoice["client"]) == {"id", "name", "kind", "country", "scope", "tax_id", "address"}
+    assert invoice["issuer"] == {
+        "name": ISSUER["legal_name"],
+        "tax_id": ISSUER["tax_id"],
+        "address": ISSUER["fiscal_address"],
+        "iban": ISSUER["iban"],
+    }
     assert (invoice["series_code"], invoice["number"], invoice["display_number"]) == ("2026", 1, "2026-001")
     assert invoice["issue_date"] == D1.isoformat() and invoice["concept"] == CONCEPT
     assert invoice["standing"] == {"base_cents": 100_000, "vat_cents": 21_000, "irpf_cents": 15_000}
@@ -115,6 +122,12 @@ def test_the_client_and_the_issuer_are_frozen_copies(api: Api) -> None:
     }
     api.admin.execute("update public.clients set name = 'Otro nombre' where id = %s", (api.cid(),))
     assert api.get(api.cast.alicia, invoice["id"]).json()["client"]["name"] == invoice["client"]["name"]
+    # El emisor también: si cambia el perfil, el detalle sigue diciendo lo mismo que el PDF.
+    api.admin.execute(
+        "update public.business_profiles set legal_name = 'Otro emisor', iban = null where owner_id = %s",
+        (api.cast.alicia.id,),
+    )
+    assert api.get(api.cast.alicia, invoice["id"]).json()["issuer"] == invoice["issuer"]
 
 
 def test_the_current_year_series_is_created_when_the_person_has_none(api: Api) -> None:

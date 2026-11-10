@@ -947,6 +947,7 @@ export interface components {
              * Format: date
              */
             issue_date: string;
+            issuer: components["schemas"]["InvoiceIssuer"];
             /**
              * Kind
              * @enum {string}
@@ -1029,6 +1030,20 @@ export interface components {
             series_id?: string | null;
             /** Vat Rate */
             vat_rate?: string | null;
+        };
+        /**
+         * InvoiceIssuer
+         * @description La copia de los datos de la persona emisora que la factura congeló al emitirse: lo mismo que lleva el PDF, no el perfil de ahora.
+         */
+        InvoiceIssuer: {
+            /** Address */
+            address: string;
+            /** Iban */
+            iban: string | null;
+            /** Name */
+            name: string;
+            /** Tax Id */
+            tax_id: string;
         };
         /**
          * InvoicePreview

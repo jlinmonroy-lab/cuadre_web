@@ -158,3 +158,66 @@ test("invalid_series señala su campo de una lista cerrada", () => {
   }
   assert.equal(describeProblem({ status: 422, body: { code: "invalid_series", detail: "Mal.", field: "owner_id" } }).field, undefined);
 });
+
+test("invalid_invoice devuelve todos los campos de la factura con su texto, de una lista cerrada", () => {
+  const body = {
+    code: "invalid_invoice",
+    detail: "Revisa los campos marcados: no se ha emitido nada.",
+    fields: [
+      { field: "client_id", message: "Elige un cliente." },
+      { field: "issue_date", message: "La fecha no puede ser futura." },
+      { field: "base_cents", message: "Escribe un importe mayor que cero, por ejemplo 1.200,00." },
+      { field: "corrected_base_cents", message: "Escribe la base corregida (0 si se anula la factura)." },
+      { field: "owner_id", message: "no es un campo de la factura" },
+      { field: "concept", message: "con <marca>" },
+      { field: "reason", message: "x".repeat(301) },
+      { field: "vat_rate", message: 5 },
+      "texto",
+    ],
+  };
+  assert.deepEqual(describeProblem({ status: 422, body }).invoiceFields, [
+    { field: "client_id", message: "Elige un cliente." },
+    { field: "issue_date", message: "La fecha no puede ser futura." },
+    { field: "base_cents", message: "Escribe un importe mayor que cero, por ejemplo 1.200,00." },
+    { field: "corrected_base_cents", message: "Escribe la base corregida (0 si se anula la factura)." },
+  ]);
+  assert.equal(describeProblem({ status: 500, body }).invoiceFields, undefined);
+  assert.equal(describeProblem({ status: 422, body: { ...body, code: "invalid_client" } }).invoiceFields, undefined);
+  // Un `invalid_invoice` no rellena los campos de la ficha de cliente.
+  assert.equal(describeProblem({ status: 422, body }).clientFields, undefined);
+});
+
+test("profile_incomplete lista lo que falta en el perfil, solo con campos del perfil y etiquetas seguras", () => {
+  const body = {
+    code: "profile_incomplete",
+    detail: "Completa tu perfil para poder emitir facturas.",
+    missing: [
+      { field: "tax_id", label: "NIF" },
+      { field: "fiscal_address", label: "Domicilio fiscal" },
+      { field: "owner_id", label: "ajeno" },
+      { field: "legal_name", label: "con <marca>" },
+      { field: "iban", label: "" },
+      { field: "activity", label: "x".repeat(301) },
+      { field: "home_pct", label: 3 },
+      "texto",
+    ],
+  };
+  assert.deepEqual(describeProblem({ status: 422, body }).missing, [
+    { field: "tax_id", label: "NIF" },
+    { field: "fiscal_address", label: "Domicilio fiscal" },
+  ]);
+  assert.equal(describeProblem({ status: 500, body }).missing, undefined);
+  assert.equal(describeProblem({ status: 422, body: { ...body, code: "otra_cosa" } }).missing, undefined);
+});
+
+test("los errores de cliente no facturable, serie agotada y fecha fuera de orden señalan su campo", () => {
+  for (const [code, field] of [
+    ["client_not_billable", "client_id"],
+    ["client_not_billable", "address"],
+    ["series_exhausted", "series_id"],
+    ["invoice_date_out_of_order", "issue_date"],
+  ] as const) {
+    assert.equal(describeProblem({ status: 409, body: { code, detail: "Mal.", field } }).field, field);
+  }
+  assert.equal(describeProblem({ status: 409, body: { code: "client_not_billable", detail: "Mal.", field: "owner_id" } }).field, undefined);
+});

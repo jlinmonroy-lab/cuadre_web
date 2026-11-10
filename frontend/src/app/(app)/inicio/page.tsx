@@ -21,7 +21,6 @@ export default async function InicioPage() {
         me={me}
         intro="Esta es tu portada de autónomo. Aquí irá el resumen de tu actividad."
         upcoming={[
-          { label: "Facturas", description: "emisión con numeración correlativa y QR de VeriFactu simulado." },
           { label: "Contabilidad mensual", description: "cierre de cada mes y libros de registro." },
           { label: "Trimestres", description: "borradores orientativos de los modelos 303 y 130." },
         ]}

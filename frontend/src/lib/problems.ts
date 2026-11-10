@@ -20,6 +20,10 @@ export type Problem = {
   profileFields?: { field: string; message: string }[];
   /** `invalid_client`: TODOS los campos de la ficha de cliente que fallan, cada uno con su texto (el servidor no repite lo escrito). */
   clientFields?: { field: string; message: string }[];
+  /** `invalid_invoice`: TODOS los campos de la factura (o de la rectificativa) que fallan, cada uno con su texto. */
+  invoiceFields?: { field: string; message: string }[];
+  /** `profile_incomplete`: lo que falta en el perfil para poder emitir, por nombre. */
+  missing?: { field: string; label: string }[];
 };
 
 const BY_STATUS: Record<number, string> = {
@@ -32,7 +36,21 @@ const GENERIC = "No hemos podido completar la operación. Inténtalo de nuevo.";
 
 const CODE = /^[a-z][a-z0-9_]{0,63}$/;
 // Los campos y las ubicaciones que se aceptan de un error de la API vienen de listas cerradas: nunca se refleja texto libre del cuerpo.
-const FIELDS = new Set(["expense_date", "concept", "category", "amount_cents", "code", "description", "first_number"]);
+// SPEC-W-007: `client_id`, `address`, `series_id` e `issue_date` son los campos que señalan `client_not_billable`, `series_exhausted` e
+// `invoice_date_out_of_order`.
+const FIELDS = new Set([
+  "expense_date",
+  "concept",
+  "category",
+  "amount_cents",
+  "code",
+  "description",
+  "first_number",
+  "client_id",
+  "address",
+  "series_id",
+  "issue_date",
+]);
 // SPEC-W-005: los campos del perfil que puede señalar `invalid_profile`.
 export const PROFILE_FIELDS = [
   "legal_name",
@@ -50,6 +68,9 @@ const PROFILE_FIELD_SET: ReadonlySet<string> = new Set(PROFILE_FIELDS);
 // SPEC-W-006: los campos de la ficha de cliente que puede señalar `invalid_client`, en el orden de la pantalla.
 export const CLIENT_FIELDS = ["name", "kind", "country", "tax_id", "address"] as const;
 const CLIENT_FIELD_SET: ReadonlySet<string> = new Set(CLIENT_FIELDS);
+// SPEC-W-007: los campos que puede señalar `invalid_invoice` (factura y rectificativa), en el orden de la pantalla.
+export const INVOICE_FIELDS = ["client_id", "series_id", "issue_date", "concept", "base_cents", "vat_rate", "reason", "corrected_base_cents"] as const;
+const INVOICE_FIELD_SET: ReadonlySet<string> = new Set(INVOICE_FIELDS);
 const FIELD_LOCS = new Map([
   ["body.expense_date", "expense_date"],
   ["body.concept", "concept"],
@@ -105,6 +126,20 @@ export function describeProblem(input: { status: number; body: unknown; retryAft
       : [];
   const profileFields = client && code === "invalid_profile" ? fieldsOf(PROFILE_FIELD_SET) : [];
   const clientFields = client && code === "invalid_client" ? fieldsOf(CLIENT_FIELD_SET) : [];
+  const invoiceFields = client && code === "invalid_invoice" ? fieldsOf(INVOICE_FIELD_SET) : [];
+
+  // `missing` de un `profile_incomplete`: solo campos del perfil y etiquetas cortas y seguras.
+  const rawMissing = body["missing"];
+  const missing =
+    client && code === "profile_incomplete" && Array.isArray(rawMissing)
+      ? rawMissing.flatMap((entry: unknown) => {
+          if (typeof entry !== "object" || entry === null) return [];
+          const { field: name, label } = entry as Record<string, unknown>;
+          if (typeof name !== "string" || !PROFILE_FIELD_SET.has(name)) return [];
+          if (typeof label !== "string" || label.length === 0 || label.length > MAX_DETAIL || UNSAFE_TEXT.test(label)) return [];
+          return [{ field: name, label }];
+        })
+      : [];
 
   return {
     status: input.status,
@@ -116,6 +151,8 @@ export function describeProblem(input: { status: number; body: unknown; retryAft
     ...(invalidFields.length > 0 ? { invalidFields } : {}),
     ...(profileFields.length > 0 ? { profileFields } : {}),
     ...(clientFields.length > 0 ? { clientFields } : {}),
+    ...(invoiceFields.length > 0 ? { invoiceFields } : {}),
+    ...(missing.length > 0 ? { missing } : {}),
   };
 }
 

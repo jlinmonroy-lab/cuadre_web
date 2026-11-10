@@ -1,19 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, useState } from "react";
 
 import { ClientActions, ClientEditor, type ClientRow } from "@/components/clients/client-actions";
 import { useCountries } from "@/components/clients/countries-context";
+import { SCOPE_STYLE, TAG } from "@/components/scope-badge";
 import { CLIENT_KINDS, taxIdLabel } from "@/lib/countries";
-
-const TAG = "inline-block rounded-full px-2.5 py-0.5 text-[13px] font-semibold";
+import { SCOPE_LABEL, type Conditions } from "@/lib/invoices";
 
 // El ámbito y el estado de VIES los calcula el servidor: aquí solo se muestran, siempre como TEXTO (el color solo refuerza).
-const SCOPE: Record<ClientRow["scope"], { label: string; style: string }> = {
-  national: { label: "Nacional", style: "bg-muted text-ink" },
-  eu: { label: "UE", style: "bg-scope-eu-bg text-scope-eu" },
-  non_eu: { label: "Fuera de la UE", style: "bg-scope-non-eu-bg text-scope-non-eu" },
-};
 const VIES: Record<ClientRow["vies_status"], { label: string; style: string }> = {
   valid_simulated: { label: "Válido (simulado)", style: "bg-status-ok-bg text-status-ok" },
   unchecked: { label: "Sin comprobar", style: "bg-status-doubt-bg text-status-doubt" },
@@ -25,7 +21,7 @@ const kindLabel = (kind: ClientRow["kind"]) => CLIENT_KINDS.find((option) => opt
 function Badges({ client }: { client: ClientRow }) {
   return (
     <ul className="flex flex-wrap gap-1.5" aria-label="Ámbito y comprobación de VIES">
-      <li className={`${TAG} ${SCOPE[client.scope].style}`}>{SCOPE[client.scope].label}</li>
+      <li className={`${TAG} ${SCOPE_STYLE[client.scope]}`}>{SCOPE_LABEL[client.scope]}</li>
       <li className={`${TAG} ${VIES[client.vies_status].style}`}>
         <span className="sr-only">VIES: </span>
         {VIES[client.vies_status].label}
@@ -34,11 +30,30 @@ function Badges({ client }: { client: ClientRow }) {
   );
 }
 
+/** Facturación de un cliente: lo que dice el servidor (vista previa de una factura de ejemplo) sobre IVA, retención y mención. Siempre texto. */
+function ConditionsLine({ conditions }: { conditions: Conditions | undefined }) {
+  if (!conditions || conditions.status === "none") return null;
+  if (conditions.status === "address") return <p className="text-[13px] font-semibold text-status-doubt">Añade el domicilio para poder facturarle.</p>;
+  if (conditions.status === "profile") {
+    return (
+      <p className="text-[13px] text-status-doubt">
+        {conditions.text}{" "}
+        <Link href="/perfil" className="font-semibold underline underline-offset-2">
+          Ir a mi perfil
+        </Link>
+      </p>
+    );
+  }
+  return <p className="text-[13px] text-ink-soft">{conditions.text}</p>;
+}
+
 function Identifier({ client }: { client: ClientRow }) {
   return client.tax_id ? <span className="[overflow-wrap:anywhere]">{client.tax_id}</span> : <span className="text-ink-soft">Sin identificador</span>;
 }
 
-function ClientCard({ client, onNotice }: { client: ClientRow; onNotice: (message: string) => void }) {
+type Billing = { year: number; billed: Record<string, string>; conditions: Record<string, Conditions> };
+
+function ClientCard({ client, billing, onNotice }: { client: ClientRow; billing: Billing; onNotice: (message: string) => void }) {
   const { nameOf } = useCountries();
   const [editing, setEditing] = useState(false);
   return (
@@ -52,6 +67,10 @@ function ClientCard({ client, onNotice }: { client: ClientRow; onNotice: (messag
           {taxIdLabel(client.country, client.kind).label}: <span className="font-semibold text-ink">{client.tax_id ?? "—"}</span>
         </p>
         <Badges client={client} />
+        <p className="text-[13px] text-ink-soft">
+          Facturado en {billing.year}: <span className="font-semibold text-ink">{billing.billed[client.id] ?? "—"}</span>
+        </p>
+        <ConditionsLine conditions={billing.conditions[client.id]} />
         {client.archived ? <p className="text-[13px] font-semibold text-ink-soft">Archivado</p> : null}
       </div>
       <ClientActions client={client} editing={editing} onToggleEdit={() => setEditing((open) => !open)} onNotice={onNotice} />
@@ -60,7 +79,7 @@ function ClientCard({ client, onNotice }: { client: ClientRow; onNotice: (messag
   );
 }
 
-function ClientTableRow({ client, onNotice }: { client: ClientRow; onNotice: (message: string) => void }) {
+function ClientTableRow({ client, billing, onNotice }: { client: ClientRow; billing: Billing; onNotice: (message: string) => void }) {
   const { nameOf } = useCountries();
   const [editing, setEditing] = useState(false);
   return (
@@ -72,6 +91,9 @@ function ClientTableRow({ client, onNotice }: { client: ClientRow; onNotice: (me
             {kindLabel(client.kind)}
             {client.archived ? " · Archivado" : ""}
           </span>
+          <div className="mt-1 max-w-md font-normal">
+            <ConditionsLine conditions={billing.conditions[client.id]} />
+          </div>
         </th>
         <td className="py-3 pr-4">
           <Identifier client={client} />
@@ -80,13 +102,14 @@ function ClientTableRow({ client, onNotice }: { client: ClientRow; onNotice: (me
         <td className="py-3 pr-4">
           <Badges client={client} />
         </td>
+        <td className="py-3 pr-4 text-right whitespace-nowrap tabular-nums">{billing.billed[client.id] ?? "—"}</td>
         <td className="py-3">
           <ClientActions client={client} editing={editing} onToggleEdit={() => setEditing((open) => !open)} onNotice={onNotice} />
         </td>
       </tr>
       {editing && !client.archived ? (
         <tr className="border-b border-rule">
-          <td colSpan={5} className="pb-4 pt-1">
+          <td colSpan={6} className="pb-4 pt-1">
             <ClientEditor client={client} view="tabla" onClose={() => setEditing(false)} />
           </td>
         </tr>
@@ -99,7 +122,16 @@ function ClientTableRow({ client, onNotice }: { client: ClientRow; onNotice: (me
  * Clientes: tarjetas apiladas hasta 1.279 px y tabla desde 1.280 (como Gastos, T3-11). Las dos vistas están en el DOM y solo una se muestra (la
  * otra va con `display: none`, así que no existe para el lector de pantalla). La lista llega ordenada por nombre en español desde la API.
  */
-export function ClientList({ clients, showArchived }: { clients: ClientRow[]; showArchived: boolean }) {
+export function ClientList({
+  clients,
+  showArchived,
+  billing,
+}: {
+  clients: ClientRow[];
+  showArchived: boolean;
+  /** Lo facturado en el año (ya formateado en el servidor) y las condiciones de facturación de cada cliente, por id. */
+  billing: Billing;
+}) {
   // El aviso de «archivado» o «reactivado» vive aquí y no en la fila: al archivar, la fila desaparece de la lista de activos.
   const [notice, setNotice] = useState("");
   return (
@@ -116,7 +148,7 @@ export function ClientList({ clients, showArchived }: { clients: ClientRow[]; sh
           <ul className="grid gap-3 min-[1280px]:hidden">
             {clients.map((client) => (
               <li key={client.id}>
-                <ClientCard client={client} onNotice={setNotice} />
+                <ClientCard client={client} billing={billing} onNotice={setNotice} />
               </li>
             ))}
           </ul>
@@ -129,23 +161,26 @@ export function ClientList({ clients, showArchived }: { clients: ClientRow[]; sh
                   <th scope="col" className="py-2 pr-4 font-semibold">
                     Cliente
                   </th>
-                  <th scope="col" className="w-44 py-2 pr-4 font-semibold">
+                  <th scope="col" className="w-32 py-2 pr-4 font-semibold">
                     NIF o identificador
                   </th>
-                  <th scope="col" className="w-40 py-2 pr-4 font-semibold">
+                  <th scope="col" className="w-28 py-2 pr-4 font-semibold">
                     País
                   </th>
-                  <th scope="col" className="w-72 py-2 pr-4 font-semibold">
+                  <th scope="col" className="w-52 py-2 pr-4 font-semibold">
                     Ámbito y VIES
                   </th>
-                  <th scope="col" className="w-56 py-2 font-semibold">
+                  <th scope="col" className="w-28 py-2 pr-4 text-right font-semibold">
+                    Facturado en {billing.year}
+                  </th>
+                  <th scope="col" className="w-44 py-2 font-semibold">
                     Acciones
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {clients.map((client) => (
-                  <ClientTableRow key={client.id} client={client} onNotice={setNotice} />
+                  <ClientTableRow key={client.id} client={client} billing={billing} onNotice={setNotice} />
                 ))}
               </tbody>
             </table>

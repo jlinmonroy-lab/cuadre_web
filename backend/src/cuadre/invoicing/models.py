@@ -49,6 +49,15 @@ class PaymentInput(BaseModel):
     paid: StrictBool
 
 
+class InvoiceIssuer(BaseModel):
+    """La copia de los datos de la persona emisora que la factura congeló al emitirse: lo mismo que lleva el PDF, no el perfil de ahora."""
+
+    name: str
+    tax_id: str
+    address: str
+    iban: str | None
+
+
 class InvoiceClient(BaseModel):
     """La copia del cliente que la factura congeló al emitirse (D-09)."""
 
@@ -82,6 +91,7 @@ class Invoice(BaseModel):
     display_number: str
     kind: InvoiceKind
     issue_date: date
+    issuer: InvoiceIssuer
     client: InvoiceClient
     concept: str
     tax_treatment: TaxTreatment

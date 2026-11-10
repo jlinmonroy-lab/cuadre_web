@@ -1228,6 +1228,9 @@
             "title": "Issue Date",
             "type": "string"
           },
+          "issuer": {
+            "$ref": "#/components/schemas/InvoiceIssuer"
+          },
           "kind": {
             "enum": [
               "standard",
@@ -1344,6 +1347,7 @@
           "display_number",
           "kind",
           "issue_date",
+          "issuer",
           "client",
           "concept",
           "tax_treatment",
@@ -1503,6 +1507,42 @@
           }
         },
         "title": "InvoiceInput",
+        "type": "object"
+      },
+      "InvoiceIssuer": {
+        "description": "La copia de los datos de la persona emisora que la factura congeló al emitirse: lo mismo que lleva el PDF, no el perfil de ahora.",
+        "properties": {
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "iban": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iban"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "tax_id": {
+            "title": "Tax Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "tax_id",
+          "address",
+          "iban"
+        ],
+        "title": "InvoiceIssuer",
         "type": "object"
       },
       "InvoicePreview": {

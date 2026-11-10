@@ -26,6 +26,7 @@ from cuadre.profile.rules import LABELS
 # ordinaria, lo vigente (la suma de ella y de sus rectificativas).
 INVOICE_SELECT = """
 SELECT i.id, i.series_code, i.number, i.kind::text AS kind, i.issue_date,
+       i.issuer_name, i.issuer_tax_id, i.issuer_address, i.issuer_iban,
        i.client_id, i.client_name, i.client_kind::text AS client_kind, i.client_country, i.client_scope::text AS client_scope,
        i.client_tax_id, i.client_address, i.concept, i.tax_treatment::text AS tax_treatment,
        i.base_cents, i.vat_rate, i.vat_cents, i.irpf_rate, i.irpf_cents, i.total_cents, i.legal_note,

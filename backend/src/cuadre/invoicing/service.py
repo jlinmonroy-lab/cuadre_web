@@ -35,6 +35,7 @@ from cuadre.invoicing.models import (
     Invoice,
     InvoiceClient,
     InvoiceInput,
+    InvoiceIssuer,
     InvoicePreview,
     InvoiceRef,
     RectificationInput,
@@ -186,6 +187,12 @@ class InvoiceService:
                 display_number=display_number(row["series_code"], row["number"]),
                 kind=row["kind"],
                 issue_date=row["issue_date"],
+                issuer=InvoiceIssuer(
+                    name=row["issuer_name"],
+                    tax_id=row["issuer_tax_id"],
+                    address=row["issuer_address"],
+                    iban=row["issuer_iban"],
+                ),
                 client=InvoiceClient(
                     id=row["client_id"],
                     name=row["client_name"],

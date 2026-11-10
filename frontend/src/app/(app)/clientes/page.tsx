@@ -6,6 +6,9 @@ import { ClientList } from "@/components/clients/client-list";
 import { CountriesProvider } from "@/components/clients/countries-context";
 import { listClients } from "@/lib/clients-api";
 import { sortedCountries } from "@/lib/countries";
+import { madridToday } from "@/lib/invoices";
+import { getBilledByClient, getClientConditions } from "@/lib/invoices-api";
+import { formatCents } from "@/lib/money";
 import { requireRole } from "@/lib/session";
 
 // Depende de la sesión en cada navegación (ver el layout de (app)): no es «instantánea» y no se valida como tal.
@@ -19,6 +22,14 @@ export default async function ClientesPage(props: PageProps<"/clientes">) {
   // Los archivados se piden por la dirección (`?archivados=1`): es una lectura de servidor, sin estado en el navegador.
   const showArchived = params["archivados"] === "1";
   const clients = await listClients(showArchived);
+  // Lo facturado en el año y las condiciones de facturación de cada cliente salen de la API (facturas y vista previa): la web no calcula nada.
+  const year = Number(madridToday(new Date()).slice(0, 4));
+  const [billedCents, conditions] = await Promise.all([getBilledByClient(year), getClientConditions(clients)]);
+  const billing = {
+    year,
+    billed: Object.fromEntries(clients.map((client) => [client.id, formatCents(billedCents.get(client.id) ?? 0)])),
+    conditions: Object.fromEntries(conditions),
+  };
 
   return (
     <>
@@ -42,7 +53,7 @@ export default async function ClientesPage(props: PageProps<"/clientes">) {
       <CountriesProvider countries={sortedCountries()}>
         <div className="grid gap-6">
           <AddClient />
-          <ClientList clients={clients} showArchived={showArchived} />
+          <ClientList clients={clients} showArchived={showArchived} billing={billing} />
           <p className="max-w-[70ch] text-[13px] text-ink-soft">Los NIF-IVA de la UE se comprueban en VIES (simulado en esta versión).</p>
         </div>
       </CountriesProvider>

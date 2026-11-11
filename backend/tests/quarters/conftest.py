@@ -19,6 +19,7 @@ from cuadre.tax import Standing
 from tests.rls.expenses_support import insert, manual, params
 from tests.rls.invoices_support import issue, made, ready, rectify, series
 from tests.support import Cast, Pool, make_cast, new_document
+from tests.tax.test_modelo_130_cases import CASES as CASES_130
 from tests.tax.test_modelo_303_cases import CASES
 
 # Qué factura rectifica cada rectificativa y la base que queda (Anexo B.1, columna «Cuenta de la cuota»).
@@ -134,3 +135,75 @@ def seed(admin: Connection[DictRow], pool: Pool) -> Seeded:
 @pytest.fixture(scope="module")
 def seeded(admin: Connection[DictRow], app_pool: Pool) -> Iterator[Seeded]:
     yield seed(admin, app_pool)
+
+
+# --- SPEC-W-009 (modelo 130): los 23 documentos de su Anexo B.1 en la base ---------------------------------------------------------------
+
+
+def _expense_130(admin: Connection[DictRow], pool: Pool, cast: Cast, d: dict[str, Any]) -> str:
+    day = date.fromisoformat(d["fecha"])
+    if d["iva"] == 0 and not d["iva_deducible"]:  # sin IVA y sin deducirlo: un gasto sin factura, que vale su importe
+        return str(insert(admin, manual(cast.alicia, date=day, name=d["id"], base=d["base"], total=d["base"])))
+    lines = [{"vat_rate": "21", "base_cents": d["base"], "vat_cents": d["iva"]}]
+    values = params(
+        cast.alicia,
+        new_document(pool, cast.alicia),
+        date=day,
+        name=d["id"],
+        number=f"N-{d['id']}",
+        base=d["base"],
+        vat=d["iva"],
+        total=d["base"] + d["iva"],
+        lines=lines,
+        deductible=d["iva_deducible"],
+        voided=datetime.now(UTC) if d["anulado"] else None,
+    )
+    return str(insert(admin, values))
+
+
+def seed_130(admin: Connection[DictRow], pool: Pool) -> Seeded:
+    """Las facturas, la rectificativa y los gastos de B.1 de SPEC-W-009, emitidos por las funciones de la base (la misma vía que la API)."""
+    cast = make_cast(admin)
+    r = ready(admin, cast.alicia)
+    by_year = {2026: r.series, 2025: series(admin, cast.alicia, "2025")}
+    documents = CASES_130["documentos"]
+    by_id = {d["id"]: d for d in documents}
+    to_db: dict[str, str] = {}
+
+    for d in sorted((d for d in documents if d["tipo"] == "factura"), key=lambda d: (d["fecha"], d["id"])):
+        scope = d["ambito"]
+        out = issue(
+            pool,
+            cast.alicia,
+            r.clients[(scope, "business")],
+            by_year[int(d["fecha"][:4])],
+            when=date.fromisoformat(d["fecha"]),
+            base=d["base"],
+            scope=scope,
+            kind="business",
+            vat="21" if scope == "national" else None,
+        )
+        to_db[d["id"]] = str(made(out))
+
+    for d in sorted((d for d in documents if d["tipo"] == "rectificativa"), key=lambda d: (d["fecha"], d["id"])):
+        original = by_id[d["rectifica"]]
+        out = rectify(
+            pool,
+            cast.alicia,
+            to_db[original["id"]],
+            corrected=original["base"] + d["base"],  # la diferencia de B.1 lleva su signo
+            when=date.fromisoformat(d["fecha"]),
+            standing=standing_of(admin, to_db[original["id"]]),
+            vat="21",
+            irpf="15",
+        )
+        to_db[d["id"]] = str(made(out))
+
+    for d in sorted((d for d in documents if d["tipo"] == "gasto"), key=lambda d: (d["fecha"], d["id"])):
+        to_db[d["id"]] = _expense_130(admin, pool, cast, d)
+    return Seeded(cast, to_db)
+
+
+@pytest.fixture(scope="module")
+def seeded_130(admin: Connection[DictRow], app_pool: Pool) -> Iterator[Seeded]:
+    yield seed_130(admin, app_pool)

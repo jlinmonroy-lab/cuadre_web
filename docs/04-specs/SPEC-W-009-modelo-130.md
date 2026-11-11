@@ -253,6 +253,7 @@ npm --prefix frontend exec -- playwright test e2e/modelo-130.spec.ts   # AC-19 a
 2. **Hito 1 · dominio puro**: `modelo_130.py` y `types_130.py` con pruebas de los ejercicios a mano, propiedades de `items` y mutaciones.
    **Hecho el 2026-11-11** (`types_130.py` y `modelo_130.py` puros, `year_start` en `periods.py`; 69 pruebas nuevas y 3.897 sin RLS; los cinco ejercicios simulados y la comprobación adicional reproducidos al céntimo desde el bloque JSON de B.1; 63 mutaciones: 62 detectadas y 1 equivalente; D-12 resuelta con tipos propios; Anexo B.2).
 3. **Hito 2 · lectura de datos**: lectura de `IncomeRow` y `CostRow` (D-12) y lectura por rango desde el 1 de enero, con la prueba del límite y las del 303 en verde.
+   **Hecho el 2026-11-11** (`income_rows` y `cost_rows` en `cuadre/quarters/repository.py`, con `INCOME_SQL`, `COST_SQL` y `YEAR_DEFAULT_LIMIT`; los 23 documentos de B.1 sembrados en la base con las funciones `app.*`; 27 pruebas nuevas contra la base y 3.924 sin RLS; 1.561 RLS en verde; los cinco ejercicios y la comprobación adicional reproducidos al céntimo desde la base; 20 mutaciones detectadas; Anexo B.3). El servicio y los modelos van en el hito 3.
 4. **Hito 3 · API**: `get_modelo_130`, modelos, errores, OpenAPI y cliente, con las pruebas de la API.
 5. **Hito 4 · frontend**: la pestaña, la hoja del 130, `lib/tax.ts` ampliado con sus unitarias y la comprobación visual en tres motores.
 6. **Hito 5 · E2E y cierre**: `modelo-130.spec.ts`, ajustes de `roles.spec.ts` y `responsive.spec.ts`, mutaciones de la interfaz, Anexo B, `tasks.json` y, si llegan, los ejercicios externos de DEP-01.
@@ -899,3 +900,43 @@ Periodo: del 1 de enero de 2026 al 30 de junio de 2026.
 - Rellenar `IncomeRow` desde `public.invoices` (`id`, `{serie}-{NNN}` como `label` con `display_number`, `issue_date`, `base_cents`, `irpf_cents`; las rectificativas ya traen la diferencia con signo) y `CostRow` desde `public.expenses` (`id`, `supplier_name`, `expense_date`, `base_cents`, `vat_cents`, `deductible_vat`; los anulados se pueden dejar sin leer, `voided = False`).
 - Leer por el rango `[year_start(year), fin del trimestre)` con la misma consulta por dueño y los mismos índices (`invoices_owner_date`, `expenses_by_owner_date`), con el límite de filas por consulta; los gastos manuales llegan sin IVA.
 - Sembrar con los ayudantes de `tests/rls` los cinco ejercicios de B.1 y comprobar que, de la base de datos a la casilla, salen las mismas cifras (de paso, contrasta lo que calcula la base con las retenciones de B.1).
+
+### B.3 Hito 2 · lectura de datos del modelo 130 · 2026-11-11
+
+**Qué hay.** Solo se **añade** a `backend/src/cuadre/quarters/repository.py` (el 303 no se ha tocado y sus pruebas siguen igual): `INCOME_SQL` y `COST_SQL`, `income_rows` y `cost_rows`, y `YEAR_DEFAULT_LIMIT = YEAR_MAX_DOCUMENTS + 1`. Sin migración (D-10), sin servicio, sin modelos Pydantic y sin ruta: eso es el hito 3.
+
+| Pieza | Contenido |
+|---|---|
+| `income_rows(conn, start, end, *, limit)` | Facturas de `public.invoices` con `owner_id = (SELECT auth.uid())` y `issue_date` en `[start, end)`: `id`, número que se enseña (`display_number`), fecha, `base_cents` e `irpf_cents`. Las rectificativas ya traen la diferencia con signo (B3: −50.000 y −7.500) |
+| `cost_rows(conn, start, end, *, limit)` | Gastos no anulados de `public.expenses` en `[start, end)`: `id`, proveedor, fecha, `base_cents`, `vat_cents` y `deductible_vat`. Los manuales llegan con IVA 0 y no deducible (restricción de la tabla) |
+| Límite | Cada consulta corta en 10.001 filas (`YEAR_DEFAULT_LIMIT`); el dominio decide `QuarterTooLarge`, como en el 303 |
+
+**Decisiones al implementar:**
+
+| Tema | Decisión |
+|---|---|
+| **No lee `tax_breakdown`** | El 130 solo necesita `base_cents` y `vat_cents` del gasto. Un tipo de IVA ilegible en las líneas (dato corrupto) rompe el 303 con `unsupported_vat_rate`, pero **no** el 130; hay una prueba que lo fija |
+| **Rango, no trimestre** | Como las del 303, las funciones reciben `[start, end)`; el servicio del hito 3 pasará `year_start(year)` y el fin del trimestre |
+| **Siembra de B.1** | Se emiten con las funciones `app.*` (la misma vía que la API): las ordinarias por orden cronológico en las series 2025 y 2026 (nacional con IVA 21 % y retención 15 %; UE y fuera de la UE sin retención); B3 rectifica A1 con la base vigente más la diferencia; los gastos con IVA, como documento con una línea al 21 %; los de IVA 0 sin deducir (G3, G7, G12), como **gastos manuales** (sin factura) |
+| **Quién calcula qué** | Las retenciones y las diferencias de la rectificativa las calcula la base con `cuadre.tax`; la prueba las compara con las que la persona calculó a mano en B.1. Coinciden |
+
+**Pruebas.** **27 nuevas** en `backend/tests/quarters/test_modelo_130_repository.py` (con la siembra `seed_130` en `conftest.py`); **3.924 sin RLS** (3.897 + 27) y **1.561 RLS**, todo en verde:
+- AC-15: los cinco ejercicios y la comprobación adicional, de la base de datos a la casilla (siete casillas, resultado, porcentaje) y los documentos de cada casilla (ids de B.1 por el mapa de la siembra).
+- Lo que guarda la base: base y retención de cada factura, base, IVA y deducibilidad de cada gasto, número y proveedor que se enseñan, los anulados nunca se leen y el orden de lectura (fecha, id).
+- AC-12: primer día incluido, final exclusivo, 31/12 y 1/1, rango vacío o invertido, T1 de 2026 vacío.
+- AC-16/T9-05: Beto, Gina (también con vínculo activo), Gus y Adán no leen nada de Alicia; cada persona solo lo suyo.
+- Cada consulta respeta su `limit`; el valor por defecto es 10.001.
+- T9-07: pedir los cuatro trimestres no cambia el recuento de facturas, gastos ni registro de actividad.
+- Los índices `invoices_owner_date` y `expenses_by_owner_date` los usa el plan (`enable_seqscan = off`).
+
+**Mutaciones.** **20 mutaciones** del SQL y de las funciones (dueño, anulados, cada frontera de fecha, columnas equivocadas, etiqueta, límite, orden, `voided`, IVA y deducibilidad) con un ejecutor desechable fuera del repositorio: la primera tanda dejó viva una (el orden de la consulta de ingresos, que el dominio reordena y por eso no cambiaba ningún resultado); se añadió una prueba del orden de lectura y **20 de 20 quedan detectadas**.
+
+**Lo que no se ha comprobado:**
+- **Contra la AEAT o una gestoría**: los ejercicios siguen siendo simulados (DEP-01 pendiente).
+- **El límite con 10.001 filas reales**: se prueba el parámetro `limit` y la constante; el dominio ya cubre 10.000/10.001 y la API lo hará en el hito 3.
+- **Rendimiento con un año grande**: se comprueba que los índices pueden usarse, no el tiempo.
+
+**Para el hito 3** (API):
+- `QuarterService.modelo_130(user, year, quarter)` como el del 303: validar el periodo antes de abrir transacción, leer `income_rows` y `cost_rows` en `[year_start(year), fin del trimestre)` con `user_transaction`, construir con `build_modelo_130` y presentar; `QuarterTooLarge` → `errors.quarter_too_large()` (con texto propio del 130 según §5.1).
+- Modelos Pydantic del 130 en `cuadre/quarters/models.py` (casillas con `items` y `components`, `result_kind`, `withheld_share_percent`, `notes`), ruta `GET /api/tax/130` con `operation_id` `get_modelo_130` en `routes_tax.py`, `Cache-Control: private, no-store`, 401/403, y regenerar `backend/openapi.json` y `frontend/src/api/schema.d.ts` con sus scripts.
+- `test_modelo_130_api.py` con la secuencia de B.1 por HTTP (AC-15), AC-13, AC-14, AC-16, AC-17 y AC-18 (el límite se puede probar bajando `YEAR_MAX_DOCUMENTS` con `monkeypatch`).

@@ -48,7 +48,10 @@ export async function handlePreview(request: Request): Promise<Response> {
     const problem = describeProblem({ status: result.response.status, body: result.error, retryAfter: result.response.headers.get("retry-after") });
     // La API rechazó el token: para el navegador es «sesión caducada» (no se puede reintentar sin volver a entrar).
     if (result.response.status === 401) return failure(401, "session", SESSION_EXPIRED);
-    return reply(previewError(problem), problem.status, problem.retryAfter);
+    // Que falte el perfil, el domicilio o el importe NO es un fallo de la petición: es lo que la vista previa viene a decir. Se contesta 200 con el
+    // problema en el cuerpo (un 4xx lo registra el navegador como error de consola en cada aviso normal); solo los fallos de verdad llevan su estado.
+    const outcome = problem.status >= 500 || problem.status === 403 ? problem.status : 200;
+    return reply(previewError(problem), outcome, problem.retryAfter);
   } catch {
     return reply(previewError(SERVICE_UNAVAILABLE), 503);
   }

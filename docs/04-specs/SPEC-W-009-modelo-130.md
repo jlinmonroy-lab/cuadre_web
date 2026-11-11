@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-009
 titulo: Modelo 130: borrador orientativo del pago fraccionado del IRPF, acumulado desde enero y con cada casilla enlazada a sus facturas y gastos
-estado: en-progreso
+estado: en-revision
 prioridad: must
 riesgo: medio
 historias: [US-003]
@@ -238,13 +238,13 @@ npm --prefix frontend exec -- playwright test e2e/modelo-130.spec.ts   # AC-19 a
 
 ### 8.4 Definición de hecho
 
-- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001, 002, 003, 005, 006, 007 y 008 §8.2 siguen en verde.
-- [ ] Los **cinco ejercicios simulados** del Anexo B.1 coinciden al céntimo (NFR-03, P-05). La **validación externa de DEP-01** queda como mejora pendiente y se anota en el Anexo B al cerrar; si la persona la exige antes de cerrar, la spec no pasa de `en-revision`.
-- [ ] El 100 % de las casillas con documentos enumera sus items y su suma es la casilla (NFR-08).
-- [ ] La pestaña «Modelo 130» de `/trimestres` está activa y hace todo lo de AC-19 a AC-23; el 303 no ha cambiado (AC-20).
-- [ ] `docs/04-specs/tasks.json` actualizado; los ADR 0003, 0006, 0011, 0015 y 0016 enlazados.
-- [ ] Las preguntas P-01 a P-05 están resueltas o anotadas en el Anexo B.
-- [ ] Sin secretos, NIF, IBAN reales ni datos de terceros en el cambio; `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
+- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001, 002, 003, 005, 006, 007 y 008 §8.2 siguen en verde. *(Local, verificado el 2026-11-11 —Anexo B.6— con la batería completa en los tres motores; el CI lo confirma la persona.)*
+- [x] Los **cinco ejercicios simulados** del Anexo B.1 coinciden al céntimo (NFR-03, P-05). La **validación externa de DEP-01** queda como mejora pendiente y se anota en el Anexo B al cerrar; si la persona la exige antes de cerrar, la spec no pasa de `en-revision`. *(Simulados, no externos: Anexo B.6.)*
+- [x] El 100 % de las casillas con documentos enumera sus items y su suma es la casilla (NFR-08).
+- [x] La pestaña «Modelo 130» de `/trimestres` está activa y hace todo lo de AC-19 a AC-23; el 303 no ha cambiado (AC-20).
+- [x] `docs/04-specs/tasks.json` actualizado; los ADR 0003, 0006, 0011, 0015 y 0016 enlazados.
+- [x] Las preguntas P-01 a P-05 están resueltas o anotadas en el Anexo B.
+- [x] Sin secretos, NIF, IBAN reales ni datos de terceros en el cambio; `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
 
 ## Anexo A · Orden de implementación sugerido (un plan y un commit por hito)
 
@@ -259,6 +259,7 @@ npm --prefix frontend exec -- playwright test e2e/modelo-130.spec.ts   # AC-19 a
 5. **Hito 4 · frontend**: la pestaña, la hoja del 130, `lib/tax.ts` ampliado con sus unitarias y la comprobación visual en tres motores.
    **Hecho el 2026-11-11** (pestaña «Modelo 130» activa con `?model=130`, `Modelo130Sheet`, `BoxLine` compartido con el 303, `lib/tax.ts` y `lib/tax-api.ts` ampliados; 12 unitarias nuevas y 260 en verde; E2E del 303 en Chromium 14 de 14; comprobación visual desechable en tres motores y dos anchos; 41 mutaciones de la lógica detectadas; Anexo B.5).
 6. **Hito 5 · E2E y cierre**: `modelo-130.spec.ts`, ajustes de `roles.spec.ts` y `responsive.spec.ts`, mutaciones de la interfaz, Anexo B, `tasks.json` y, si llegan, los ejercicios externos de DEP-01.
+   **Hecho el 2026-11-11** (`modelo-130.spec.ts` con 12 pruebas por proyecto, oráculo `TaxApi.modelo130`, ajustes de `roles.spec.ts` y `responsive.spec.ts`; 21 mutaciones de los componentes detectadas; baterías completas: Chromium 305, Firefox 297 y WebKit 297 correctas, con 6 omitidas en los dos últimos; backend 3.960 y RLS 1.561; ningún defecto de producto; Anexo B.6).
 
 ## Anexo B · Decisiones que esta spec deja a la implementación
 
@@ -1029,3 +1030,40 @@ Periodo: del 1 de enero de 2026 al 30 de junio de 2026.
 - Cobertura de AC-19 a AC-23: pestaña y dirección (`?model=130&year=&quarter=`), enlaces de factura y de trimestre anterior, trimestre futuro, dirección ilegible, interfaz (sin scroll horizontal, etiquetas, teclado, foco y consola) y aislamiento por cuenta.
 - Ajustes de `roles.spec.ts` (el gestor y el administrador no ven `/trimestres?model=130`, van a `/403`) y de `responsive.spec.ts` (también el 130).
 - Mutaciones de los componentes (`box-row`, `modelo-130`, `quarter-picker`, `notes`, `page`), batería completa en tres motores y dos anchos, Anexo B final y cierre de `tasks.json`; si llegan ejercicios externos de DEP-01, se añaden.
+
+### B.6 Hito 5 · E2E y cierre · 2026-11-11
+
+**Qué hay.** `e2e/modelo-130.spec.ts` (12 pruebas por proyecto, seis proyectos), `TaxApi.modelo130(year?, quarter?)` y los tipos `Tax130`, `Tax130Box` y `TaxItem130` en `e2e/helpers/tax.ts` (el oráculo: lee el borrador por la API con el token de GoTrue de la cuenta, nunca la service key; `amountsOf` y `deltas` aceptan cualquier modelo). Tres pruebas nuevas en `roles.spec.ts` (el autónomo llega a la pestaña; el gestor y el administrador van a `/403` también con `?model=130`) y una en `responsive.spec.ts` (`/trimestres?model=130`). Ningún cambio de producción: las pruebas no encontraron ningún defecto.
+
+**Decisiones.**
+- Como en SPEC-W-008, **ninguna prueba espera cifras absolutas**: la cuenta del worker acumula facturas (RES-03). Cada una lee el oráculo (`tax.modelo130()`), comprueba que la pantalla enseña lo mismo y, si emite, que la **diferencia** es la esperada y que sus documentos salen en su casilla. La regla del 20 %, el acumulado y los pagos anteriores los fijan las pruebas del backend.
+- Los gastos sin factura salen de `ledger.seed` (1 y 2 de enero de 2026, 10,01 € y 10,02 €) y se piden con `?year=2026&quarter=4`; el gasto con IVA deducible es el de ejemplo del servidor de agentes (`fixture:invoice_ok`, 28/10/2026). Ambas pruebas se omiten si hoy es anterior al 1/10/2026.
+- Los avisos y fechas se buscan con `text()` (solo lo visible): Next conserva oculta la hoja del otro modelo al navegar con enlaces.
+
+**Pruebas por proyecto:** la hoja (menú, pestaña, plazo y avisos); lo que enseña la pantalla frente al servidor (siete casillas, derivadas, resúmenes y filas de cada desplegable, resultado, porcentaje, ids de avisos); facturas y una rectificativa (01 +265.000 y 06 +30.000 exactos, enlaces, retención de la rectificativa); gastos (la 02 sube 2.003 y, anulados, baja); un gasto con IVA deducible suma solo su base (2.479); pagos de los trimestres anteriores (cada uno `max(0, 07)` y su enlace al 130 de ese trimestre); un periodo sin actividad; el selector (trimestre, año y pestañas conservan el modelo; el 303 sigue ahí; `?model=abc` enseña el 303); futuro y direcciones raras; interfaz (sin scroll horizontal, etiquetas, teclado, foco y consola); sin red; cada persona, lo suyo.
+
+**Resultados** (`--workers=1`, un motor por invocación):
+
+| Qué | Resultado |
+|---|---|
+| `modelo-130.spec.ts`, Chromium a 1.440 px | 15 correctas (12 y las 3 de inicio de sesión) |
+| Batería completa, Chromium (390 y 1.440 px) | **305 correctas** |
+| Batería completa, Firefox | **297 correctas**, 6 omitidas |
+| Batería completa, WebKit | **297 correctas**, 6 omitidas |
+| Backend sin RLS | 3.960 correctas |
+| RLS (con la base recién reiniciada) | 1.561 correctas |
+| `ruff`, `export_openapi --check`, `gen:api --check`, `lint`, `typecheck`, `build` y `check:bundle` | código 0 |
+| Pruebas unitarias del frontend | 260 correctas |
+
+La batería incluye W-001, 002, 003, 005, 006, 007 y 008. **Primera pasada con dos fallos intermitentes, ajenos al 130:** Chromium (restablecer contraseña a 390 px: dos 404 de recursos en consola) y WebKit (`gastos-registro`: campos de la revisión sin etiqueta asociada). Cada uno repitió 4 de 4 en verde aislado y las segundas pasadas de Chromium y WebKit salieron limpias; Firefox salió limpia a la primera. **RLS dio un fallo la primera vez** (`test_nobody_else_has_any_invoice_or_pdf`): la batería E2E deja PDFs a la Alicia sembrada y ese test exige que no tenga ninguno; con `supabase db reset` pasa, como en SPEC-W-008.
+
+**Mutaciones de la interfaz.** **21 mutaciones** de `box-row`, `modelo-130`, `quarter-picker`, `notes`, la página y `tax-api` (con `next build` y `modelo-130.spec.ts` en Chromium a 1.440 px por mutante, restauración por huella): **21 detectadas, ninguna equivalente**. Dos no compilaron: una se rehízo (C02, detectada) y la del 303 leyendo otra cosa (C19) no es del 130 y la cubre `trimestres.spec.ts`. Se añadió una aserción (los avisos de cada modelo llevan su propio id) porque una mutación sobre ese id habría sobrevivido.
+
+**Lo que no se ha comprobado:**
+- **El CI de GitHub**: la verificación es local; la spec queda en `en-revision` hasta que la persona lo confirme.
+- **Validación externa (DEP-01)**: los cinco ejercicios de B.1 son **simulados, no externos**; solo prueban que el código reproduce un cálculo manual con las mismas reglas (D-02 a D-07). Sigue siendo una mejora pendiente.
+- **Los seis proyectos en paralelo**: un worker y un motor por vez, no la configuración del CI.
+- **Lectores de pantalla reales** y **periodos con miles de documentos** en el navegador (la respuesta máxima mide 2,51 MB en la API).
+- **Un 07 negativo en el E2E**: la cuenta del worker acumula facturas y no se puede garantizar; lo cubren el dominio, la API y los ejercicios de B.1.
+
+**Estado de la spec.** Todos los hitos hechos y la verificación local en verde: `en-revision`. Pasará a `hecha` cuando la persona confirme el CI (como W-005 a W-007) y deje escrito si da por buena la validación simulada o exige la externa de DEP-01.

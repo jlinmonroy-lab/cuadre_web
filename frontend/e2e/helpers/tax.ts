@@ -1,4 +1,4 @@
-// El borrador del 303 de una cuenta de E2E, por la API (SPEC-W-008 hito 5): el ORÁCULO de `trimestres.spec.ts`.
+// El borrador del 303 y del 130 de una cuenta de E2E, por la API (SPEC-W-008 hito 5 y SPEC-W-009 hito 5): el ORÁCULO de `trimestres.spec.ts` y de `modelo-130.spec.ts`.
 //
 // La cuenta del worker acumula facturas (no se pueden borrar, RES-03) y las comparte con otras pruebas, así que ninguna puede esperar cifras absolutas
 // del trimestre en curso: lee aquí lo que dice el servidor antes y después de emitir y comprueba que la pantalla enseña lo mismo y que la diferencia es la
@@ -31,6 +31,26 @@ export type Tax303 = {
   result_kind: string;
   notes: string[];
 };
+
+/** Un documento (o un trimestre anterior, en la casilla 05) del 130: `amount_cents` es lo que aporta a ESA casilla; `id` es de texto (`T1` en un trimestre). */
+export type TaxItem130 = { kind: "invoice" | "expense" | "quarter"; id: string; label: string; date: string; amount_cents: number };
+export type Tax130Box = { code: string; label: string; group: string; amount_cents: number; items: TaxItem130[]; components: string[] };
+export type Tax130 = {
+  year: number;
+  quarter: number;
+  period_start: string;
+  period_end: string;
+  deadline: string;
+  deadline_status: string;
+  boxes: Tax130Box[];
+  result_cents: number;
+  result_kind: "a_ingresar" | "nada_que_ingresar" | "sin_actividad";
+  withheld_share_percent: number | null;
+  notes: string[];
+};
+
+/** Lo que tienen en común los dos borradores para sumar y restar casillas. */
+type HasBoxes = { boxes: { code: string; amount_cents: number }[] };
 
 export class TaxApi {
   private token: string | undefined;
@@ -74,13 +94,28 @@ export class TaxApi {
     }
     return (await response.json()) as Tax303;
   }
+
+  /** El borrador del 130 del trimestre pedido (acumulado desde enero); sin parámetros, el trimestre en curso (Europe/Madrid), como la pantalla. */
+  async modelo130(year?: number, quarter?: number): Promise<Tax130> {
+    const query = new URLSearchParams();
+    if (year !== undefined) query.set("year", String(year));
+    if (quarter !== undefined) query.set("quarter", String(quarter));
+    const response = await this.request.fetch(`${this.apiUrl}/api/tax/130${query.size ? `?${query}` : ""}`, {
+      headers: { Authorization: `Bearer ${await this.bearer()}` },
+    });
+    if (!response.ok()) {
+      const problem = (await response.json().catch(() => ({}))) as { code?: string };
+      throw new Error(`GET /api/tax/130 respondió ${response.status()}${problem.code ? ` (${problem.code})` : ""}.`);
+    }
+    return (await response.json()) as Tax130;
+  }
 }
 
 /** Los importes del borrador por número de casilla. */
-export const amountsOf = (model: Tax303): Record<string, number> => Object.fromEntries(model.boxes.map((box) => [box.code, box.amount_cents]));
+export const amountsOf = (model: HasBoxes): Record<string, number> => Object.fromEntries(model.boxes.map((box) => [box.code, box.amount_cents]));
 
 /** Lo que subió cada casilla entre dos lecturas del mismo trimestre. */
-export function deltas(before: Tax303, after: Tax303): Record<string, number> {
+export function deltas(before: HasBoxes, after: HasBoxes): Record<string, number> {
   const a = amountsOf(before);
   return Object.fromEntries(Object.entries(amountsOf(after)).map(([code, cents]) => [code, cents - (a[code] ?? 0)]));
 }

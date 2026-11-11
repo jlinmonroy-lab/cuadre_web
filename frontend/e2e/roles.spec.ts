@@ -108,6 +108,27 @@ for (const role of ["gina", "adan"] as const) {
   });
 }
 
+// SPEC-W-009 · La pestaña «Modelo 130» de «Trimestres» es del autónomo igual que el 303: el gestor y el administrador van a /403 también con `?model=130`.
+test("Trimestres · el autónomo llega al Modelo 130 desde su pestaña", async ({ pageAs }) => {
+  const page = await pageAs("alicia");
+  await page.goto("/trimestres");
+  await page.getByRole("navigation", { name: "Modelo", exact: true }).getByRole("link", { name: "Modelo 130", exact: true }).click();
+  await expect(page).toHaveURL(/\/trimestres\?model=130&year=\d{4}&quarter=[1-4]$/);
+  await expect(page.getByRole("heading", { level: 2, name: /Modelo 130/ })).toBeVisible();
+});
+
+for (const role of ["gina", "adan"] as const) {
+  test(`Trimestres · ${role} no ve el Modelo 130 y /trimestres?model=130 lo lleva a /403`, async ({ pageAs }) => {
+    const page = await pageAs(role);
+    await page.goto(PEOPLE[role].home);
+    await settle(page);
+    await page.goto("/trimestres?model=130&year=2025&quarter=1");
+    await expect(page).toHaveURL("/403");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("No tienes acceso a esta sección");
+    await expect(page.getByText("IRPF, pago fraccionado")).toHaveCount(0);
+  });
+}
+
 // SPEC-W-005 AC-20 · «Perfil» es solo del autónomo: el gestor y el administrador no lo ven y /perfil los lleva a /403.
 test("Perfil · el autónomo lo ve activo en el menú y llega a su pantalla", async ({ pageAs }) => {
   const page = await pageAs("alicia");

@@ -154,3 +154,13 @@ def test_the_domain_reaches_other_domains_only_through_their_pure_types_and_limi
         if bad:
             offenders[rel(p)] = bad
     assert offenders == {}
+
+
+def test_the_tax_package_does_not_depend_on_the_quarters_package() -> None:
+    """SPEC-W-008 hito 2: `cuadre.quarters` (la lectura de la base) usa `cuadre.tax` y `cuadre.invoicing`, nunca al revés."""
+    offenders = {
+        rel(p): [m for m in imported_modules(p.read_text(encoding="utf-8")) if m.startswith("cuadre.quarters")]
+        for root in (TAX, INVOICING)
+        for p in python_files(root)
+    }
+    assert {k: v for k, v in offenders.items() if v} == {}

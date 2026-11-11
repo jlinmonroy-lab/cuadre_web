@@ -63,7 +63,7 @@ Que la persona abra **«Trimestres»**, elija un trimestre y vea su **borrador d
 Función pura `build_modelo_303(year, quarter, invoices, expenses, today)` que recibe documentos ya leídos (tipos inmutables, sin base de datos ni reloj), clasifica cada factura por `tax_treatment` y tipo y cada gasto por línea con cuota, suma en céntimos enteros y devuelve las casillas con sus `items`, el resultado, el plazo y el estado. Errores explícitos (`unsupported_vat_rate`, `quarter_too_large`, `invalid_period`, `period_in_future`). Módulos puros: `periods.py`, `types_303.py` y `modelo_303.py`. Funciones de periodo: inicio y fin de cada trimestre natural, trimestre de una fecha y plazo de presentación (1-20 de abril, julio y octubre; 1-30 de enero).
 
 ### 3.2 Base de datos
-Sin migraciones previstas (D-09). Una consulta por tabla con el rango `[inicio, fin)` del trimestre y `voided_at is null` en gastos. Si el hito 2 añade una función SQL o un índice, va en su propia migración, entra en `rls_matrix.yaml` y tiene sus pruebas de RLS.
+**Sin migraciones** (D-09; confirmado en el hito 2: los índices `invoices_owner_date` y `expenses_by_owner_date` cubren la consulta). Una consulta por tabla con el rango `[inicio, fin)` del trimestre y `voided_at is null` en gastos. Si un hito posterior añade una función SQL o un índice, va en su propia migración, entra en `rls_matrix.yaml` y tiene sus pruebas de RLS.
 
 ### 3.3 Backend (FastAPI)
 `GET /api/tax/303?year=&quarter=` (`operation_id: get_modelo_303`), solo rol `usuario`; servicio y repositorio de lectura; modelos Pydantic estrictos; errores `application/problem+json`; OpenAPI regenerado; sin registro de datos personales.
@@ -121,7 +121,7 @@ Sin cambios (D-09). Las lecturas pasan por la sesión de la persona: RLS ya limi
 `Cache-Control: private, no-store`. Solo lee: no crea ni cambia nada (T8-07).
 
 ### 5.4 Backend
-`cuadre/tax/modelo_303.py` (puro) y `cuadre/tax/periods.py` (trimestres y plazos, puro); `cuadre/tax/models_303.py` (modelos de respuesta); `cuadre/api/routes_tax.py`; servicio y repositorio de lectura en el mismo paquete que los demás (`cuadre.db`, sin conexiones fuera). `cuadre.core.clock` aporta «hoy en Madrid».
+`cuadre/tax/modelo_303.py` (puro), `cuadre/tax/periods.py` (trimestres y plazos, puro) y `cuadre/tax/types_303.py` (tipos); **`cuadre/quarters/`** (paquete de lectura compartido con SPEC-W-009: `repository.py` desde el hito 2 y, en el hito 3, `service.py`, `models.py` —respuesta Pydantic— y `errors.py`; sin conexiones fuera de `cuadre.db`); `cuadre/api/routes_tax.py`. La lectura **no va en `cuadre.tax`** porque necesita el número de factura de `cuadre.invoicing` y `cuadre.tax` no depende de ese paquete (lo vigila `test_invoicing_boundary.py`). `cuadre.core.clock` aporta «hoy en Madrid».
 
 ### 5.5 Frontend
 `lib/tax-api.ts` (lectura de servidor), `lib/tax.ts` (puro: formato de periodo, textos de estado y de resultado, enlaces de cada item), `app/(app)/trimestres/page.tsx`, `components/tax/*` (selector de trimestre, grupo de casillas, fila con detalle desplegable y badge de estado). Ninguna cuenta ni regla fiscal en el navegador (D-08).
@@ -241,6 +241,7 @@ npm --prefix frontend exec -- playwright test e2e/trimestres.spec.ts   # AC-17 a
 2. **Hito 1 · dominio puro**: `periods.py` y `modelo_303.py` con sus tipos, pruebas de los casos a mano, propiedades de `items` y mutaciones.
    **Hecho el 2026-11-11** (`periods.py`, `types_303.py` y `modelo_303.py` puros; 113 pruebas nuevas, 3.768 sin RLS; los cinco trimestres simulados reproducidos al céntimo desde el bloque JSON de B.1; 75 mutaciones: 73 detectadas y 2 equivalentes por diseño; el resultado `a_cero` y el campo `measure` corrigieron §5.1 y D-06; Anexo B.2).
 3. **Hito 2 · lectura de datos**: consultas de trimestre para facturas y gastos (SQL explícito) y, solo si hace falta, una migración con su matriz RLS y sus pruebas; prueba del límite de documentos.
+   **Hecho el 2026-11-11** (paquete `cuadre.quarters` con `invoice_rows` y `expense_rows`, sin migración ni cambios de RLS; los cinco trimestres de B.1 sembrados con las funciones reales de la base y reproducidos al céntimo desde la base de datos hasta la casilla; 25 pruebas nuevas y 3.793 sin RLS; 23 mutaciones del repositorio: 22 detectadas y 1 equivalente; Anexo B.3).
 4. **Hito 3 · API**: `get_modelo_303`, modelos, errores, OpenAPI y pruebas de la API (incluidas las de sin escrituras y sin datos personales).
 5. **Hito 4 · frontend**: `gen:api`, `/trimestres`, el menú, `lib/tax.ts` con sus unitarias y la comprobación visual en tres motores.
 6. **Hito 5 · E2E y cierre**: `trimestres.spec.ts`, ajustes de `roles.spec.ts` y `responsive.spec.ts`, mutaciones de la interfaz, Anexo B, `tasks.json` y, si llegan, los trimestres externos de DEP-01.
@@ -944,3 +945,35 @@ npm --prefix frontend exec -- playwright test e2e/trimestres.spec.ts   # AC-17 a
 - Rellenar `InvoiceRow` desde `public.invoices` (`id`, el número `{serie}-{NNN}` como `label`, `issue_date`, `tax_treatment`, `vat_rate`, `base_cents`, `vat_cents`; las rectificativas ya traen la diferencia con signo y el tipo de la original) y `ExpenseRow` desde `public.expenses` (`id`, `supplier_name` como `label`, `expense_date`, `deductible_vat`, `voided_at is not null` como `voided` y las líneas de `tax_breakdown`, cuyo `vat_rate` es un `str`: convertir a `Decimal`).
 - Acotar la consulta al rango `[inicio, fin)` del trimestre (`quarter_bounds`) y, si hace falta, un índice; pasar el «hoy» de `today_in_madrid`.
 - La fecha de un gasto de documento es la de la factura; la de uno manual, la que anotó la persona.
+
+### B.3 Hito 2 · lectura de los documentos de un trimestre · 2026-11-11
+
+**Qué hay.** El paquete `backend/src/cuadre/quarters/` con `repository.py`: `invoice_rows(conn, start, end)` y `expense_rows(conn, start, end)`, que devuelven las filas de entrada del dominio (`InvoiceRow`, `ExpenseRow`). Sin migración, sin cambios en `rls_matrix.yaml`, en `openapi.json` ni en el frontend.
+
+| Tema | Decisión |
+|---|---|
+| **Dónde vive** | Un paquete aparte y no `cuadre.tax`: la etiqueta de una factura es su número (`display_number`, de `cuadre.invoicing`) y `cuadre.tax` no puede depender de `cuadre.invoicing`. `cuadre.quarters` depende de los dos y ninguno de ellos de él (lo vigila `test_invoicing_boundary.py`). Lo compartirá el 130 de SPEC-W-009 |
+| **Rango, no trimestre** | Las funciones reciben `[start, end)`; quien llama pasa `quarter_bounds`. El 130 usará un rango desde enero sin tocar nada |
+| **Quién lee** | Siempre `owner_id = (SELECT auth.uid())` además de la RLS, como el resto de lecturas: un gestor con vínculo activo **no** ve nada por esta vía (su pantalla es SPEC-W-010) |
+| **Límite en SQL** | Cada consulta corta en `QUARTER_MAX_DOCUMENTS + 1` (5.001) filas: la memoria queda acotada y el dominio sigue decidiendo `QuarterTooLarge` con la suma de las dos listas |
+| **Gastos anulados** | No se leen (`voided_at IS NULL`); `voided` llega siempre `False` |
+| **Etiquetas** | Factura: `{serie}-{NNN}` (`2025-001`, `R-2025-001`); gasto: el nombre del proveedor tal como lo registró la persona |
+| **Líneas de gasto** | `tax_breakdown` trae el tipo como **texto**; se lee con `parse_rate`. Un tipo ilegible es un dato corrupto: `UnsupportedVatRate` sin repetir lo que había. Un gasto manual llega con `lines == ()` y no deducible |
+| **Orden de lectura** | `ORDER BY fecha, id`; dos documentos del mismo día salen en el orden de su `id` (aleatorio). El orden que ve la persona lo da el dominio (fecha, etiqueta, id), no la consulta |
+
+**Pruebas.** **25 nuevas** (24 en `backend/tests/quarters/` y 1 de reglas) y **3.793 sin RLS** en total; las **1.561 de RLS** siguen igual. Las de `tests/quarters` usan la base real y no llevan el marcador `rls`:
+- **De la base de datos a la casilla.** Los 33 documentos de B.1 (18 facturas, 6 rectificativas y 9 gastos) se siembran **una vez por módulo** con las funciones reales de la base (`app.issue_invoice`, `app.issue_rectifying_invoice`) y la inserción directa de gastos; se lee con el repositorio, se pasa a `build_modelo_303` y las 13 casillas, el resultado y los documentos de cada casilla de los cinco trimestres coinciden con B.1. **Además contrastan a B.1 con la base**: las diferencias y las cuotas de las seis rectificativas que calcula `cuadre.tax` dentro de la función son exactamente las calculadas a mano; no hizo falta corregir ninguna cifra de B.1.
+- Fronteras de la consulta (inclusivo/exclusivo, rango vacío o invertido), etiquetas, gasto manual y anulados, aislamiento (otro autónomo, gestor con vínculo activo, segundo gestor y administrador no leen nada), dato corrupto, límites, solo lectura (recuento de `invoices`, `expenses` y `activity_log` antes y después) y un `EXPLAIN` con `enable_seqscan = off` que comprueba que las dos consultas pueden usar `invoices_owner_date` y `expenses_by_owner_date`.
+
+**Mutaciones.** **23 mutaciones** del repositorio con un ejecutor desechable fuera del repositorio (borra `__pycache__` antes de cada una): **22 detectadas y 1 equivalente** (Q22: una línea de `tax_breakdown` que no sea un objeto; la tabla lo impide con un CHECK, así que no puede llegar). La primera tanda dejó viva Q04 (el último día del rango entraba en los gastos): ningún gasto de B.1 caía en el día del límite; se añadió la comprobación del 31/12 como final exclusivo.
+
+**Lo que no se ha comprobado:**
+- **Rendimiento con miles de filas**: se comprueba que los índices pueden usarse, no el tiempo con 5.000 documentos.
+- **Concurrencia**: una lectura no toma cerrojos y se hace en una sola transacción; no se probó con emisiones simultáneas.
+- **Una factura de otro año en la misma serie** o fechas fuera de orden: las fechas de B.1 respetan el orden de las series, que es lo que exige la base.
+
+**Para el hito 3** (API):
+- `service.py` abre `user_transaction` con el id de la persona, calcula `quarter_bounds`, lee con `invoice_rows` y `expense_rows` y llama a `build_modelo_303` con `today_in_madrid(clock)`.
+- Traducir las excepciones del dominio: `InvalidPeriod` y `PeriodInFuture` (422 con su `code`), `QuarterTooLarge` (422) y `UnsupportedVatRate` (un dato corrupto: 422 con `unsupported_vat_rate`, sin datos del documento, y aviso en el registro con ids y sin importes).
+- `models.py` (Pydantic): `Modelo303`, `Box` (con `measure`), `Item`, `deadline_status`, `result_kind` (con `a_cero`) y `notes`; `operation_id: get_modelo_303`, solo rol `usuario`, `Cache-Control: private, no-store`.
+- Las dos consultas cortan a 5.001 por separado: una persona con 5.001 facturas y 0 gastos recibe `quarter_too_large` igualmente.

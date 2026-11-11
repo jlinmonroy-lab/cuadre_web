@@ -390,7 +390,7 @@
     {
       "id": "SPEC-W-009",
       "title": "Modelo 130",
-      "file": null,
+      "file": "docs/04-specs/SPEC-W-009-modelo-130.md",
       "status": "propuesta",
       "priority": "must",
       "risk": "medio",
@@ -424,7 +424,7 @@
       "verification": [
         "pytest backend/tests/tax -k modelo_130"
       ],
-      "notes": "Importes acumulados desde enero; pagos fraccionados anteriores y retenciones soportadas."
+      "notes": "Importes acumulados desde enero; pagos fraccionados anteriores y retenciones soportadas. Spec escrita el 2026-11-11 con trece decisiones por defecto (D-01 a D-13) y cinco preguntas abiertas pendientes de la persona (P-01 a P-05): vivienda afecta (home_pct), criterio de fecha, retenciones de gastos, resultado negativo y cómo demostrar NFR-03 mientras DEP-01 siga pendiente (cinco ejercicios simulados, no externos). Sin tablas nuevas, solo lectura sobre invoices y expenses; la pestaña del 130 de /trimestres se activa en el hito 4. Seis hitos en el Anexo A."
     },
     {
       "id": "SPEC-W-010",

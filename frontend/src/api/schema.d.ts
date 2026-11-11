@@ -491,6 +491,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tax/303": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Borrador orientativo del modelo 303 de un trimestre, con cada casilla enlazada a sus facturas y gastos */
+        get: operations["get_modelo_303"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -519,6 +536,44 @@ export interface components {
         ArchivedInput: {
             /** Archived */
             archived: boolean;
+        };
+        /**
+         * Box303
+         * @description Una casilla del modelo 303. Las derivadas (27, 45 y 46) no llevan documentos: enumeran en `components` las casillas que las componen.
+         */
+        Box303: {
+            /**
+             * Amount Cents
+             * @description Importe de la casilla, en céntimos y con signo
+             */
+            amount_cents: number;
+            /**
+             * Code
+             * @description Número de casilla: 01, 03, 04, 06, 07, 09, 27, 28, 29, 45, 46, 59 o 120
+             */
+            code: string;
+            /**
+             * Components
+             * @description Casillas que componen una derivada; vacío en las demás
+             */
+            components: string[];
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "devengado" | "deducible" | "resultado" | "adicional";
+            /**
+             * Items
+             * @description Los documentos que la componen, por fecha; su suma (según `measure`) es la casilla
+             */
+            items: components["schemas"]["Item303"][];
+            /** Label */
+            label: string;
+            /**
+             * Measure
+             * @description Qué importe de cada documento suma en la casilla; `null` en las derivadas
+             */
+            measure: ("base" | "vat") | null;
         };
         /**
          * CheckCode
@@ -1124,6 +1179,38 @@ export interface components {
             /** Next Number */
             next_number: number;
         };
+        /**
+         * Item303
+         * @description Un documento que compone una casilla, con lo que aporta (negativo en una rectificativa).
+         */
+        Item303: {
+            /** Base Cents */
+            base_cents: number;
+            /**
+             * Date
+             * Format: date
+             * @description Fecha de expedición de la factura o del gasto
+             */
+            date: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description Factura emitida o gasto registrado
+             * @enum {string}
+             */
+            kind: "invoice" | "expense";
+            /**
+             * Label
+             * @description Número de factura o proveedor del gasto
+             */
+            label: string;
+            /** Vat Cents */
+            vat_cents: number;
+        };
         /** LogoUploadInstructions */
         LogoUploadInstructions: {
             /** Headers */
@@ -1191,6 +1278,63 @@ export interface components {
             field: "legal_name" | "tax_id" | "fiscal_address";
             /** Label */
             label: string;
+        };
+        /**
+         * Modelo303
+         * @description El borrador orientativo del 303 de un trimestre natural. No se presenta ante la AEAT desde la aplicación.
+         */
+        Modelo303: {
+            /**
+             * Boxes
+             * @description Siempre las trece casillas, en el orden de la pantalla, también a cero
+             */
+            boxes: components["schemas"]["Box303"][];
+            /**
+             * Deadline
+             * Format: date
+             * @description Último día de presentación según el calendario (la AEAT lo traslada si cae en un día inhábil)
+             */
+            deadline: string;
+            /**
+             * Deadline Status
+             * @enum {string}
+             */
+            deadline_status: "en_curso" | "plazo_abierto" | "plazo_cerrado";
+            /**
+             * Notes
+             * @description Avisos fijos: orientativo, lo que no incluye, Canarias, Ceuta y Melilla y, con la casilla 59, el modelo 349
+             */
+            notes: string[];
+            /**
+             * Period End
+             * Format: date
+             * @description Primer día del trimestre siguiente (el final es exclusivo)
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * Format: date
+             * @description Primer día del trimestre
+             */
+            period_start: string;
+            /**
+             * Quarter
+             * @description 1 a 4
+             */
+            quarter: number;
+            /**
+             * Result Cents
+             * @description Casilla 46: 27 − 45
+             */
+            result_cents: number;
+            /**
+             * Result Kind
+             * @description `a_cero` si hay documentos pero el resultado es 0; `sin_actividad` solo si el trimestre no tiene ningún documento
+             * @enum {string}
+             */
+            result_kind: "a_ingresar" | "a_compensar" | "a_cero" | "sin_actividad";
+            /** Year */
+            year: number;
         };
         /**
          * PaymentInput
@@ -3935,6 +4079,58 @@ export interface operations {
             };
             /** @description Almacenamiento no disponible */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_modelo_303: {
+        parameters: {
+            query?: {
+                /** @description Trimestre (1 a 4); por defecto el actual (Europe/Madrid) */
+                quarter?: number | null;
+                /** @description Año; por defecto el actual (Europe/Madrid) */
+                year?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Modelo303"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede ver el borrador (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Periodo que no existe (`invalid_period`), trimestre futuro (`period_in_future`), trimestre con demasiados documentos (`quarter_too_large`) o un documento con un tipo de IVA que no se puede interpretar (`unsupported_vat_rate`) */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

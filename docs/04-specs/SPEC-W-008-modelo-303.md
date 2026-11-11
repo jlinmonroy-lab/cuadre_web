@@ -118,6 +118,8 @@ Sin cambios (D-09). Las lecturas pasan por la sesión de la persona: RLS ya limi
 |---|---|---|
 | `get_modelo_303` | `GET /api/tax/303?year=&quarter=` | `200` con `Modelo303` (periodo, plazo y estado, casillas con items, resultado y avisos). `422` `invalid_period` / `period_in_future` / `unsupported_vat_rate` / `quarter_too_large`; `401`; `403` (no es `usuario`) |
 
+`year` y `quarter` son **opcionales**: sin ellos se usan los de hoy en Europe/Madrid (cada uno por su cuenta). La ruta no los limita con `ge`/`le` para que un periodo que no existe dé el `invalid_period` propio y no un `validation_error` genérico; un valor que no sea entero sí es `validation_error`. El periodo se valida **antes** de leer la base. Los cuatro `422` llevan `application/problem+json` con `code` estable y un `detail` en español que no repite lo enviado ni datos de los documentos.
+
 `Cache-Control: private, no-store`. Solo lee: no crea ni cambia nada (T8-07).
 
 ### 5.4 Backend
@@ -243,6 +245,7 @@ npm --prefix frontend exec -- playwright test e2e/trimestres.spec.ts   # AC-17 a
 3. **Hito 2 · lectura de datos**: consultas de trimestre para facturas y gastos (SQL explícito) y, solo si hace falta, una migración con su matriz RLS y sus pruebas; prueba del límite de documentos.
    **Hecho el 2026-11-11** (paquete `cuadre.quarters` con `invoice_rows` y `expense_rows`, sin migración ni cambios de RLS; los cinco trimestres de B.1 sembrados con las funciones reales de la base y reproducidos al céntimo desde la base de datos hasta la casilla; 25 pruebas nuevas y 3.793 sin RLS; 23 mutaciones del repositorio: 22 detectadas y 1 equivalente; Anexo B.3).
 4. **Hito 3 · API**: `get_modelo_303`, modelos, errores, OpenAPI y pruebas de la API (incluidas las de sin escrituras y sin datos personales).
+   **Hecho el 2026-11-11** (`GET /api/tax/303` con `QuarterService`, modelos Pydantic y los cuatro errores 422; `openapi.json` y el cliente del frontend regenerados; los cinco trimestres de B.1 reproducidos al céntimo por HTTP; 35 pruebas nuevas y 3.828 sin RLS; 37 mutaciones de la capa de API: 36 detectadas y 1 equivalente; Anexo B.4).
 5. **Hito 4 · frontend**: `gen:api`, `/trimestres`, el menú, `lib/tax.ts` con sus unitarias y la comprobación visual en tres motores.
 6. **Hito 5 · E2E y cierre**: `trimestres.spec.ts`, ajustes de `roles.spec.ts` y `responsive.spec.ts`, mutaciones de la interfaz, Anexo B, `tasks.json` y, si llegan, los trimestres externos de DEP-01.
 
@@ -977,3 +980,41 @@ npm --prefix frontend exec -- playwright test e2e/trimestres.spec.ts   # AC-17 a
 - Traducir las excepciones del dominio: `InvalidPeriod` y `PeriodInFuture` (422 con su `code`), `QuarterTooLarge` (422) y `UnsupportedVatRate` (un dato corrupto: 422 con `unsupported_vat_rate`, sin datos del documento, y aviso en el registro con ids y sin importes).
 - `models.py` (Pydantic): `Modelo303`, `Box` (con `measure`), `Item`, `deadline_status`, `result_kind` (con `a_cero`) y `notes`; `operation_id: get_modelo_303`, solo rol `usuario`, `Cache-Control: private, no-store`.
 - Las dos consultas cortan a 5.001 por separado: una persona con 5.001 facturas y 0 gastos recibe `quarter_too_large` igualmente.
+
+### B.4 Hito 3 · la API del borrador del 303 · 2026-11-11
+
+**Qué hay.** `GET /api/tax/303?year=&quarter=` (`operation_id: get_modelo_303`, solo el rol `usuario`) en `backend/src/cuadre/api/routes_tax.py`, registrada en `main.py`. En `cuadre/quarters/`: `service.py` (`QuarterService`), `models.py` (`Modelo303`, `Box303` e `Item303` con `present`, que pasa el dominio a Pydantic) y `errors.py`. Regenerados, sin tocar a mano: `backend/openapi.json` y `frontend/src/api/schema.d.ts` (solo líneas añadidas). Ninguna pantalla usa aún el cliente.
+
+| Tema | Decisión |
+|---|---|
+| **Periodo opcional** | Sin `year` o sin `quarter` se usa el de hoy en Europe/Madrid, cada uno por su cuenta (`year=2025` sin trimestre da el trimestre en el que estamos, del 2025). A las 23:30 UTC del 31 de marzo ya es 1 de abril |
+| **Sin `ge`/`le` en la ruta** | `quarter=5` o un año fuera de 2000-9998 llegan al dominio y dan `invalid_period` (AC-11); un valor que no es entero (`abc`, `1.5`, vacío) es el `validation_error` de siempre |
+| **Validar antes de leer** | `validate_period` va antes de abrir la transacción: un periodo inválido o futuro no toca la base (probado haciendo fallar `user_transaction`) |
+| **Errores** | Los cuatro son 422 con `code` estable: `invalid_period`, `period_in_future`, `quarter_too_large` y `unsupported_vat_rate`. Ninguno repite lo enviado (el año, por ejemplo) ni datos de documentos |
+| **Dato corrupto** | `unsupported_vat_rate` deja además un `WARNING` (`modelo_303_unsupported_vat_rate`) con el año y el trimestre y nada más: ni proveedor, ni importe, ni el texto del tipo |
+| **Contrato** | `Cache-Control: private, no-store`; enumerados como `Literal` (`group`, `deadline_status`, `result_kind` con `a_cero`, `measure`); `id` de cada documento como UUID; fechas ISO |
+| **Peor caso** | Un trimestre de 5.000 facturas (el máximo) mide **1,4 MB** de JSON, lejos de los 4,5 MB de una Vercel Function (T8-08); un test lo comprueba en memoria |
+
+**Pruebas.** **35 nuevas** en `backend/tests/quarters/test_modelo_303_api.py` y **3.828 sin RLS** en total; las **1.561 de RLS** siguen igual. Con la aplicación real y la base real, sobre los cinco trimestres sembrados de B.1:
+- Los cinco trimestres por HTTP: las 13 casillas, el resultado, los documentos de cada casilla (por id) y «suma de documentos = casilla» sobre el JSON (NFR-08).
+- Forma de la respuesta y cabeceras, grupos y medidas de cada casilla, un gasto completo y un número de factura.
+- Plazo y estado en los días de borde con relojes inyectados; periodo por defecto y cada parámetro por su cuenta.
+- Periodo inválido (siete combinaciones, incluidas cifras enormes), valores que no son enteros, trimestre futuro, trimestre grande y tipo de IVA corrupto.
+- Gestores (también con vínculo activo) y administrador → 403; sin sesión → 401; otro autónomo no ve nada.
+- Una lectura no escribe (recuento de `invoices`, `expenses` y `activity_log`) y los registros no contienen ni un número de factura, ni un proveedor, ni un importe.
+- Avisos (AC-21) y presencia de la operación en el contrato.
+
+**Mutaciones.** **37 mutaciones** de `service.py`, `models.py`, `errors.py` y `routes_tax.py` con un ejecutor desechable fuera del repositorio: **36 detectadas y 1 equivalente** (S13: poner `str(exc)` en el aviso del registro; el mensaje de la excepción es un texto fijo sin datos). La primera tanda dejó vivas tres cosas de la forma de la respuesta que ninguna prueba miraba (los grupos de casilla, el tipo de documento y la fecha de cada item); ahora hay un caso que las fija.
+
+**Lo que no se ha comprobado:**
+- **Con el cliente generado desde una pantalla**: el hito 4 lo estrena; aquí solo se comprueba que `typecheck`, `lint` y las 232 unitarias siguen en verde con el esquema nuevo.
+- **Carga y concurrencia**: ni muchas peticiones a la vez ni una base grande.
+- **El reloj real**: todas las pruebas de la ruta fijan el reloj; el camino con `SystemClock` (el de producción) no se ejercita en ninguna.
+- **Los cinco trimestres siguen siendo simulados, no externos.**
+
+**Para el hito 4** (pantalla):
+- `lib/tax-api.ts` (lectura de servidor con el JWT de la sesión, como `invoices-api.ts`); `/trimestres` con el selector de trimestre en la dirección (`?año=&trimestre=` o los nombres que se elijan), sin cálculos en el navegador.
+- Mostrar solo las casillas con importe o con documentos en los grupos de 01-03 y 04-06 (las 13 vienen siempre); 27, 45 y 46 muestran sus componentes; `result_kind` con texto además de color (`a_ingresar`, `a_compensar`, `a_cero`, `sin_actividad`); el plazo y su estado; los cuatro avisos de `notes`.
+- Enlaces: un `Item303` de tipo `invoice` lleva a `/facturas/{id}`; uno de tipo `expense`, a `/gastos` (no hay detalle de gasto por ruta).
+- Errores 422: `period_in_future` (el selector no debería ofrecerlo), `quarter_too_large` y `unsupported_vat_rate` con su texto en español; 403 → `/403`.
+- Activar «Trimestres» en el menú del autónomo (hoy `FUTURE("Trimestres")` en `roles.ts`) y dejar la pestaña del 130 desactivada con «Disponible con SPEC-W-009» (P-05).

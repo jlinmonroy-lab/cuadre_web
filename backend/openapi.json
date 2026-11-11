@@ -16,6 +16,78 @@
         "title": "ArchivedInput",
         "type": "object"
       },
+      "Box303": {
+        "description": "Una casilla del modelo 303. Las derivadas (27, 45 y 46) no llevan documentos: enumeran en `components` las casillas que las componen.",
+        "properties": {
+          "amount_cents": {
+            "description": "Importe de la casilla, en céntimos y con signo",
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "code": {
+            "description": "Número de casilla: 01, 03, 04, 06, 07, 09, 27, 28, 29, 45, 46, 59 o 120",
+            "title": "Code",
+            "type": "string"
+          },
+          "components": {
+            "description": "Casillas que componen una derivada; vacío en las demás",
+            "items": {
+              "type": "string"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "group": {
+            "enum": [
+              "devengado",
+              "deducible",
+              "resultado",
+              "adicional"
+            ],
+            "title": "Group",
+            "type": "string"
+          },
+          "items": {
+            "description": "Los documentos que la componen, por fecha; su suma (según `measure`) es la casilla",
+            "items": {
+              "$ref": "#/components/schemas/Item303"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "measure": {
+            "anyOf": [
+              {
+                "enum": [
+                  "base",
+                  "vat"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Qué importe de cada documento suma en la casilla; `null` en las derivadas",
+            "title": "Measure"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "group",
+          "measure",
+          "amount_cents",
+          "items",
+          "components"
+        ],
+        "title": "Box303",
+        "type": "object"
+      },
       "CheckCode": {
         "description": "Las comprobaciones, en el orden en que se muestran. Son una lista cerrada (§5.1).",
         "enum": [
@@ -1719,6 +1791,54 @@
         "title": "InvoiceSeries",
         "type": "object"
       },
+      "Item303": {
+        "description": "Un documento que compone una casilla, con lo que aporta (negativo en una rectificativa).",
+        "properties": {
+          "base_cents": {
+            "title": "Base Cents",
+            "type": "integer"
+          },
+          "date": {
+            "description": "Fecha de expedición de la factura o del gasto",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "description": "Factura emitida o gasto registrado",
+            "enum": [
+              "invoice",
+              "expense"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "description": "Número de factura o proveedor del gasto",
+            "title": "Label",
+            "type": "string"
+          },
+          "vat_cents": {
+            "title": "Vat Cents",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "label",
+          "date",
+          "base_cents",
+          "vat_cents"
+        ],
+        "title": "Item303",
+        "type": "object"
+      },
       "LogoUploadInstructions": {
         "properties": {
           "headers": {
@@ -1860,6 +1980,93 @@
           "label"
         ],
         "title": "MissingField",
+        "type": "object"
+      },
+      "Modelo303": {
+        "description": "El borrador orientativo del 303 de un trimestre natural. No se presenta ante la AEAT desde la aplicación.",
+        "properties": {
+          "boxes": {
+            "description": "Siempre las trece casillas, en el orden de la pantalla, también a cero",
+            "items": {
+              "$ref": "#/components/schemas/Box303"
+            },
+            "title": "Boxes",
+            "type": "array"
+          },
+          "deadline": {
+            "description": "Último día de presentación según el calendario (la AEAT lo traslada si cae en un día inhábil)",
+            "format": "date",
+            "title": "Deadline",
+            "type": "string"
+          },
+          "deadline_status": {
+            "enum": [
+              "en_curso",
+              "plazo_abierto",
+              "plazo_cerrado"
+            ],
+            "title": "Deadline Status",
+            "type": "string"
+          },
+          "notes": {
+            "description": "Avisos fijos: orientativo, lo que no incluye, Canarias, Ceuta y Melilla y, con la casilla 59, el modelo 349",
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "period_end": {
+            "description": "Primer día del trimestre siguiente (el final es exclusivo)",
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "description": "Primer día del trimestre",
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "quarter": {
+            "description": "1 a 4",
+            "title": "Quarter",
+            "type": "integer"
+          },
+          "result_cents": {
+            "description": "Casilla 46: 27 − 45",
+            "title": "Result Cents",
+            "type": "integer"
+          },
+          "result_kind": {
+            "description": "`a_cero` si hay documentos pero el resultado es 0; `sin_actividad` solo si el trimestre no tiene ningún documento",
+            "enum": [
+              "a_ingresar",
+              "a_compensar",
+              "a_cero",
+              "sin_actividad"
+            ],
+            "title": "Result Kind",
+            "type": "string"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year",
+          "quarter",
+          "period_start",
+          "period_end",
+          "deadline",
+          "deadline_status",
+          "boxes",
+          "result_cents",
+          "result_kind",
+          "notes"
+        ],
+        "title": "Modelo303",
         "type": "object"
       },
       "PaymentInput": {
@@ -6312,6 +6519,100 @@
         "summary": "Comprobar el logo subido, guardarlo y borrar el anterior",
         "tags": [
           "perfil"
+        ]
+      }
+    },
+    "/api/tax/303": {
+      "get": {
+        "operationId": "get_modelo_303",
+        "parameters": [
+          {
+            "description": "Año; por defecto el actual (Europe/Madrid)",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Año; por defecto el actual (Europe/Madrid)",
+              "title": "Year"
+            }
+          },
+          {
+            "description": "Trimestre (1 a 4); por defecto el actual (Europe/Madrid)",
+            "in": "query",
+            "name": "quarter",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Trimestre (1 a 4); por defecto el actual (Europe/Madrid)",
+              "title": "Quarter"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Modelo303"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede ver el borrador (solo `usuario`) o la cuenta está suspendida"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Periodo que no existe (`invalid_period`), trimestre futuro (`period_in_future`), trimestre con demasiados documentos (`quarter_too_large`) o un documento con un tipo de IVA que no se puede interpretar (`unsupported_vat_rate`)"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Borrador orientativo del modelo 303 de un trimestre, con cada casilla enlazada a sus facturas y gastos",
+        "tags": [
+          "impuestos"
         ]
       }
     },

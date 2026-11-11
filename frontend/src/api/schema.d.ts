@@ -491,6 +491,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tax/130": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Borrador orientativo del modelo 130 de un trimestre, acumulado desde enero y con cada casilla enlazada a sus facturas y gastos */
+        get: operations["get_modelo_130"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tax/303": {
         parameters: {
             query?: never;
@@ -536,6 +553,39 @@ export interface components {
         ArchivedInput: {
             /** Archived */
             archived: boolean;
+        };
+        /**
+         * Box130
+         * @description Una casilla del modelo 130. Las derivadas (03, 04 y 07) no llevan documentos: enumeran en `components` las casillas que las componen.
+         */
+        Box130: {
+            /**
+             * Amount Cents
+             * @description Importe de la casilla, en céntimos y con signo
+             */
+            amount_cents: number;
+            /**
+             * Code
+             * @description Número de casilla: 01, 02, 03, 04, 05, 06 o 07
+             */
+            code: string;
+            /**
+             * Components
+             * @description Casillas que componen una derivada; vacío en las demás
+             */
+            components: string[];
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "rendimiento" | "pagos" | "resultado";
+            /**
+             * Items
+             * @description Los documentos que la componen, por fecha; su suma es la casilla
+             */
+            items: components["schemas"]["Item130"][];
+            /** Label */
+            label: string;
         };
         /**
          * Box303
@@ -1180,6 +1230,39 @@ export interface components {
             next_number: number;
         };
         /**
+         * Item130
+         * @description Un documento (o un trimestre anterior, en la casilla 05) que compone una casilla, con lo que aporta a ESA casilla (con signo).
+         */
+        Item130: {
+            /**
+             * Amount Cents
+             * @description Lo que aporta a esta casilla, en céntimos y con signo (negativo en una rectificativa)
+             */
+            amount_cents: number;
+            /**
+             * Date
+             * Format: date
+             * @description Fecha de expedición de la factura o del gasto; el último día del trimestre en un `quarter`
+             */
+            date: string;
+            /**
+             * Id
+             * @description Identificador de la factura o del gasto; en un trimestre anterior, `T1`, `T2` o `T3`
+             */
+            id: string;
+            /**
+             * Kind
+             * @description Factura emitida, gasto registrado o trimestre anterior del año (solo en la casilla 05)
+             * @enum {string}
+             */
+            kind: "invoice" | "expense" | "quarter";
+            /**
+             * Label
+             * @description Número de factura, proveedor del gasto o «T1 de 2026»
+             */
+            label: string;
+        };
+        /**
          * Item303
          * @description Un documento que compone una casilla, con lo que aporta (negativo en una rectificativa).
          */
@@ -1278,6 +1361,68 @@ export interface components {
             field: "legal_name" | "tax_id" | "fiscal_address";
             /** Label */
             label: string;
+        };
+        /**
+         * Modelo130
+         * @description El borrador orientativo del 130 de un trimestre, con importes acumulados desde el 1 de enero. No se presenta ante la AEAT desde la aplicación.
+         */
+        Modelo130: {
+            /**
+             * Boxes
+             * @description Siempre las siete casillas, en el orden de la pantalla, también a cero
+             */
+            boxes: components["schemas"]["Box130"][];
+            /**
+             * Deadline
+             * Format: date
+             * @description Último día de presentación según el calendario (la AEAT lo traslada si cae en un día inhábil)
+             */
+            deadline: string;
+            /**
+             * Deadline Status
+             * @enum {string}
+             */
+            deadline_status: "en_curso" | "plazo_abierto" | "plazo_cerrado";
+            /**
+             * Notes
+             * @description Avisos fijos: orientativo, lo que no incluye y la regla del 70 %
+             */
+            notes: string[];
+            /**
+             * Period End
+             * Format: date
+             * @description Primer día del trimestre siguiente (el final es exclusivo)
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * Format: date
+             * @description Primer día del año: el 130 acumula desde el 1 de enero
+             */
+            period_start: string;
+            /**
+             * Quarter
+             * @description 1 a 4
+             */
+            quarter: number;
+            /**
+             * Result Cents
+             * @description Casilla 07: 04 − 05 − 06
+             */
+            result_cents: number;
+            /**
+             * Result Kind
+             * @description `nada_que_ingresar` si hay documentos pero el resultado es 0 o negativo (no se arrastra); `sin_actividad` solo si no hay ningún documento
+             * @enum {string}
+             */
+            result_kind: "a_ingresar" | "nada_que_ingresar" | "sin_actividad";
+            /**
+             * Withheld Share Percent
+             * @description Porcentaje de la casilla 01 que lleva retención, redondeado al entero; `null` si la 01 no es positiva. Solo informativo
+             */
+            withheld_share_percent: number | null;
+            /** Year */
+            year: number;
         };
         /**
          * Modelo303
@@ -4079,6 +4224,58 @@ export interface operations {
             };
             /** @description Almacenamiento no disponible */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_modelo_130: {
+        parameters: {
+            query?: {
+                /** @description Trimestre (1 a 4); por defecto el actual (Europe/Madrid) */
+                quarter?: number | null;
+                /** @description Año; por defecto el actual (Europe/Madrid) */
+                year?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Modelo130"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede ver el borrador (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Periodo que no existe (`invalid_period`), trimestre futuro (`period_in_future`) o periodo acumulado con demasiados documentos (`quarter_too_large`) */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

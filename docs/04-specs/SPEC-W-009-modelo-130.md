@@ -149,7 +149,7 @@ Los parámetros, los errores y el valor por defecto son los de `get_modelo_303`.
 | T9-08 | **Cabe en una Vercel Function** (ADR-0016): respuesta < 4,5 MB (de ahí el límite de 10.000 documentos de §5.1), sin trabajo posterior a la respuesta, `test_vercel_compat` en verde |
 | T9-09 | **Borrador orientativo**: la API y la pantalla lo dicen siempre, junto con las exclusiones; la pantalla no ofrece «presentar» ni «descargar para la AEAT» |
 | T9-10 | **Interfaz** como T8-10: tokens del prototipo, etiquetas, foco visible, estado con texto además de color, desplegables nativos, sin scroll horizontal a 390 y 1.440 px en los tres motores |
-| T9-11 | **El 303 no cambia de comportamiento**: sus pruebas (dominio, API, pantalla y E2E) siguen en verde sin tocarlas más que para añadir los campos opcionales de D-12 |
+| T9-11 | **El 303 no cambia de comportamiento**: sus pruebas (dominio, API, pantalla y E2E) siguen en verde **sin tocarlas** (D-12 se resolvió con tipos propios, así que no hizo falta ampliar sus filas) |
 | T9-12 | **Datos sintéticos** (RES-07) y las pruebas E2E **no borran** facturas ni archivan gastos emitidos (T7-13): usan la cuenta de cada worker y comparan contra lo que dice el servidor |
 
 ## 7. Criterios de aceptación (Given-When-Then)
@@ -255,6 +255,7 @@ npm --prefix frontend exec -- playwright test e2e/modelo-130.spec.ts   # AC-19 a
 3. **Hito 2 · lectura de datos**: lectura de `IncomeRow` y `CostRow` (D-12) y lectura por rango desde el 1 de enero, con la prueba del límite y las del 303 en verde.
    **Hecho el 2026-11-11** (`income_rows` y `cost_rows` en `cuadre/quarters/repository.py`, con `INCOME_SQL`, `COST_SQL` y `YEAR_DEFAULT_LIMIT`; los 23 documentos de B.1 sembrados en la base con las funciones `app.*`; 27 pruebas nuevas contra la base y 3.924 sin RLS; 1.561 RLS en verde; los cinco ejercicios y la comprobación adicional reproducidos al céntimo desde la base; 20 mutaciones detectadas; Anexo B.3). El servicio y los modelos van en el hito 3.
 4. **Hito 3 · API**: `get_modelo_130`, modelos, errores, OpenAPI y cliente, con las pruebas de la API.
+   **Hecho el 2026-11-11** (`QuarterService.modelo_130`, `Modelo130`/`Box130`/`Item130` y `present_130`, `period_too_large` con el código estable `quarter_too_large`, ruta `GET /api/tax/130` y OpenAPI y cliente regenerados; 36 pruebas nuevas por HTTP y 3.960 sin RLS; 1.561 RLS en verde; 27 mutaciones detectadas; respuesta máxima medida 2,51 MB; Anexo B.4).
 5. **Hito 4 · frontend**: la pestaña, la hoja del 130, `lib/tax.ts` ampliado con sus unitarias y la comprobación visual en tres motores.
 6. **Hito 5 · E2E y cierre**: `modelo-130.spec.ts`, ajustes de `roles.spec.ts` y `responsive.spec.ts`, mutaciones de la interfaz, Anexo B, `tasks.json` y, si llegan, los ejercicios externos de DEP-01.
 
@@ -940,3 +941,46 @@ Periodo: del 1 de enero de 2026 al 30 de junio de 2026.
 - `QuarterService.modelo_130(user, year, quarter)` como el del 303: validar el periodo antes de abrir transacción, leer `income_rows` y `cost_rows` en `[year_start(year), fin del trimestre)` con `user_transaction`, construir con `build_modelo_130` y presentar; `QuarterTooLarge` → `errors.quarter_too_large()` (con texto propio del 130 según §5.1).
 - Modelos Pydantic del 130 en `cuadre/quarters/models.py` (casillas con `items` y `components`, `result_kind`, `withheld_share_percent`, `notes`), ruta `GET /api/tax/130` con `operation_id` `get_modelo_130` en `routes_tax.py`, `Cache-Control: private, no-store`, 401/403, y regenerar `backend/openapi.json` y `frontend/src/api/schema.d.ts` con sus scripts.
 - `test_modelo_130_api.py` con la secuencia de B.1 por HTTP (AC-15), AC-13, AC-14, AC-16, AC-17 y AC-18 (el límite se puede probar bajando `YEAR_MAX_DOCUMENTS` con `monkeypatch`).
+
+### B.4 Hito 3 · API del modelo 130 · 2026-11-11
+
+**Qué hay.** `GET /api/tax/130?year=&quarter=` (`get_modelo_130`), solo para el rol `usuario`, con `Cache-Control: private, no-store`. Se añade, sin cambiar el comportamiento del 303:
+
+| Archivo | Contenido |
+|---|---|
+| `quarters/models.py` | `Item130`, `Box130`, `Modelo130` y `present_130` (del dominio al modelo de la API; de ellos sale el cliente TypeScript) |
+| `quarters/errors.py` | `period_too_large()`: `422` con el código estable `quarter_too_large` y el texto del periodo acumulado |
+| `quarters/service.py` | `QuarterService.modelo_130` y el ayudante privado `_period`, compartido con el 303 |
+| `api/routes_tax.py` | La ruta, con sus respuestas 401, 403 y 422 |
+| `backend/openapi.json` y `frontend/src/api/schema.d.ts` | Regenerados con sus scripts (solo líneas añadidas; nada del 303 cambia) |
+
+**Decisiones al implementar:**
+
+| Tema | Decisión |
+|---|---|
+| **`id` es texto** | En `Item130`, `id` es `str`: UUID en facturas y gastos y `T1`, `T2`, `T3` en los trimestres anteriores de la casilla 05. El 303 mantiene `UUID` |
+| **Mismo código, texto propio** | El límite responde `quarter_too_large` (el cliente no tiene que conocer otro código) con «El periodo acumulado desde el 1 de enero tiene más de 10.000 documentos…» |
+| **`_period` compartido** | Se extrajo del 303 la resolución del periodo (por defecto el de hoy en Europe/Madrid, validación antes de abrir ninguna transacción) para no duplicarla. Las 59 pruebas del 303 y de su lectura siguen en verde sin tocarlas |
+| **Sin `unsupported_vat_rate`** | El 130 no lee las líneas de IVA: una línea corrupta da `422` en el 303 y `200` en el 130 (hay una prueba que pide los dos a la vez) |
+| **Solo lee** | Ninguna escritura, ni siquiera `activity_log`; ningún registro del servicio guarda números de factura, proveedores ni importes |
+
+**Pruebas.** **36 nuevas** en `backend/tests/quarters/test_modelo_130_api.py` (aplicación y base reales, con `seeded_130`); **3.960 sin RLS**, **1.561 RLS**, frontend (typecheck, lint y 248 unitarias) y `export_openapi.py --check` y `gen:api --check`, todo en verde:
+- AC-15 por HTTP: los cinco ejercicios y la comprobación adicional (siete casillas en orden, resultado, porcentaje y los documentos de cada casilla, con la suma de lo que aporta cada documento igual a la casilla).
+- Forma de la respuesta (claves exactas, grupos, componentes, un item de factura, uno de gasto y uno de trimestre), plazo y estado según el reloj (los mismos que los del 303 del mismo trimestre, comparados por HTTP), valores por defecto (incluida la frontera de las 23:30 UTC) y avisos fijos, también en un periodo sin actividad.
+- AC-14: periodo inexistente, no entero y futuro, y que el error de periodo se responde antes de leer la base.
+- AC-18: con el límite bajado, 200 en el límite justo y `quarter_too_large` por encima, con el texto propio.
+- AC-16: gestor (también con vínculo activo), administrador → `403`; sin sesión → `401`; otra persona ve `sin_actividad` y todo a cero.
+- AC-17/T9-07: pedir los cuatro trimestres no cambia ningún recuento y los registros no contienen números de factura, proveedores ni importes.
+- T9-08: el peor caso admisible (10.000 facturas, todas con retención, así que cada una sale en la 01 y en la 06) mide **2,51 MB** frente a los 4,5 MB de una Vercel Function: el límite de 10.000 se mantiene.
+
+**Mutaciones.** **27 mutaciones** de `models.py` (campos del item, de la casilla y de la respuesta), `service.py` (inicio del rango, periodo por defecto, validación, error del límite, reloj), `errors.py` (código, estado, límite y texto) y de la ruta (rol, caché, parámetros): **27 de 27 detectadas**. Un patrón del ejecutor era ambiguo y se afinó.
+
+**Lo que no se ha comprobado:**
+- **Contra la AEAT o una gestoría**: los ejercicios siguen siendo simulados (DEP-01 pendiente).
+- **La pantalla**: la dirección `?model=130` y la hoja son del hito 4; el cliente generado ya trae `get_modelo_130`.
+- **Rendimiento**: se mide el tamaño de la respuesta, no el tiempo con 10.000 documentos.
+
+**Para el hito 4** (frontend):
+- `lib/tax-api.ts`: `getModelo130(query)` con el mismo patrón que `getModelo303` (Server Component, token de la sesión, sin caché).
+- `lib/tax.ts` (puro, con unitarias): dirección `?model=303|130&year=&quarter=`, textos del resultado (`a_ingresar`, `nada_que_ingresar`, `sin_actividad`) y del porcentaje con retención («informativo»), casillas por grupo (`rendimiento`, `pagos`, `resultado`), y enlace de cada item (las facturas a su ficha, los gastos a su ficha; los items `quarter` no enlazan).
+- `components/tax/modelo-130.tsx` y la pestaña «Modelo 130» activa en `quarter-picker.tsx`; `app/(app)/trimestres/page.tsx` elige la hoja según `?model=`; sin JavaScript de cliente; el 303 sin cambios (AC-20).

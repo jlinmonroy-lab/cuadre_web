@@ -16,6 +16,60 @@
         "title": "ArchivedInput",
         "type": "object"
       },
+      "Box130": {
+        "description": "Una casilla del modelo 130. Las derivadas (03, 04 y 07) no llevan documentos: enumeran en `components` las casillas que las componen.",
+        "properties": {
+          "amount_cents": {
+            "description": "Importe de la casilla, en céntimos y con signo",
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "code": {
+            "description": "Número de casilla: 01, 02, 03, 04, 05, 06 o 07",
+            "title": "Code",
+            "type": "string"
+          },
+          "components": {
+            "description": "Casillas que componen una derivada; vacío en las demás",
+            "items": {
+              "type": "string"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "group": {
+            "enum": [
+              "rendimiento",
+              "pagos",
+              "resultado"
+            ],
+            "title": "Group",
+            "type": "string"
+          },
+          "items": {
+            "description": "Los documentos que la componen, por fecha; su suma es la casilla",
+            "items": {
+              "$ref": "#/components/schemas/Item130"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label",
+          "group",
+          "amount_cents",
+          "items",
+          "components"
+        ],
+        "title": "Box130",
+        "type": "object"
+      },
       "Box303": {
         "description": "Una casilla del modelo 303. Las derivadas (27, 45 y 46) no llevan documentos: enumeran en `components` las casillas que las componen.",
         "properties": {
@@ -1791,6 +1845,51 @@
         "title": "InvoiceSeries",
         "type": "object"
       },
+      "Item130": {
+        "description": "Un documento (o un trimestre anterior, en la casilla 05) que compone una casilla, con lo que aporta a ESA casilla (con signo).",
+        "properties": {
+          "amount_cents": {
+            "description": "Lo que aporta a esta casilla, en céntimos y con signo (negativo en una rectificativa)",
+            "title": "Amount Cents",
+            "type": "integer"
+          },
+          "date": {
+            "description": "Fecha de expedición de la factura o del gasto; el último día del trimestre en un `quarter`",
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "id": {
+            "description": "Identificador de la factura o del gasto; en un trimestre anterior, `T1`, `T2` o `T3`",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "description": "Factura emitida, gasto registrado o trimestre anterior del año (solo en la casilla 05)",
+            "enum": [
+              "invoice",
+              "expense",
+              "quarter"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "description": "Número de factura, proveedor del gasto o «T1 de 2026»",
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "label",
+          "date",
+          "amount_cents"
+        ],
+        "title": "Item130",
+        "type": "object"
+      },
       "Item303": {
         "description": "Un documento que compone una casilla, con lo que aporta (negativo en una rectificativa).",
         "properties": {
@@ -1980,6 +2079,105 @@
           "label"
         ],
         "title": "MissingField",
+        "type": "object"
+      },
+      "Modelo130": {
+        "description": "El borrador orientativo del 130 de un trimestre, con importes acumulados desde el 1 de enero. No se presenta ante la AEAT desde la aplicación.",
+        "properties": {
+          "boxes": {
+            "description": "Siempre las siete casillas, en el orden de la pantalla, también a cero",
+            "items": {
+              "$ref": "#/components/schemas/Box130"
+            },
+            "title": "Boxes",
+            "type": "array"
+          },
+          "deadline": {
+            "description": "Último día de presentación según el calendario (la AEAT lo traslada si cae en un día inhábil)",
+            "format": "date",
+            "title": "Deadline",
+            "type": "string"
+          },
+          "deadline_status": {
+            "enum": [
+              "en_curso",
+              "plazo_abierto",
+              "plazo_cerrado"
+            ],
+            "title": "Deadline Status",
+            "type": "string"
+          },
+          "notes": {
+            "description": "Avisos fijos: orientativo, lo que no incluye y la regla del 70 %",
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "period_end": {
+            "description": "Primer día del trimestre siguiente (el final es exclusivo)",
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "description": "Primer día del año: el 130 acumula desde el 1 de enero",
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "quarter": {
+            "description": "1 a 4",
+            "title": "Quarter",
+            "type": "integer"
+          },
+          "result_cents": {
+            "description": "Casilla 07: 04 − 05 − 06",
+            "title": "Result Cents",
+            "type": "integer"
+          },
+          "result_kind": {
+            "description": "`nada_que_ingresar` si hay documentos pero el resultado es 0 o negativo (no se arrastra); `sin_actividad` solo si no hay ningún documento",
+            "enum": [
+              "a_ingresar",
+              "nada_que_ingresar",
+              "sin_actividad"
+            ],
+            "title": "Result Kind",
+            "type": "string"
+          },
+          "withheld_share_percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Porcentaje de la casilla 01 que lleva retención, redondeado al entero; `null` si la 01 no es positiva. Solo informativo",
+            "title": "Withheld Share Percent"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year",
+          "quarter",
+          "period_start",
+          "period_end",
+          "deadline",
+          "deadline_status",
+          "boxes",
+          "result_cents",
+          "result_kind",
+          "withheld_share_percent",
+          "notes"
+        ],
+        "title": "Modelo130",
         "type": "object"
       },
       "Modelo303": {
@@ -6519,6 +6717,100 @@
         "summary": "Comprobar el logo subido, guardarlo y borrar el anterior",
         "tags": [
           "perfil"
+        ]
+      }
+    },
+    "/api/tax/130": {
+      "get": {
+        "operationId": "get_modelo_130",
+        "parameters": [
+          {
+            "description": "Año; por defecto el actual (Europe/Madrid)",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Año; por defecto el actual (Europe/Madrid)",
+              "title": "Year"
+            }
+          },
+          {
+            "description": "Trimestre (1 a 4); por defecto el actual (Europe/Madrid)",
+            "in": "query",
+            "name": "quarter",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Trimestre (1 a 4); por defecto el actual (Europe/Madrid)",
+              "title": "Quarter"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Modelo130"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede ver el borrador (solo `usuario`) o la cuenta está suspendida"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Periodo que no existe (`invalid_period`), trimestre futuro (`period_in_future`) o periodo acumulado con demasiados documentos (`quarter_too_large`)"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Borrador orientativo del modelo 130 de un trimestre, acumulado desde enero y con cada casilla enlazada a sus facturas y gastos",
+        "tags": [
+          "impuestos"
         ]
       }
     },

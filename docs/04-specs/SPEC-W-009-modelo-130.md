@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-009
 titulo: Modelo 130: borrador orientativo del pago fraccionado del IRPF, acumulado desde enero y con cada casilla enlazada a sus facturas y gastos
-estado: propuesta
+estado: en-progreso
 prioridad: must
 riesgo: medio
 historias: [US-003]
@@ -37,7 +37,7 @@ fecha: 2026-11-11
 | D-01 | **Solo el 130 de la estimación directa**, con las casillas **01 a 07** del prototipo. Las demás del formulario (minoraciones, deducciones, compensaciones) no se calculan (§4) | Más casillas: más reglas y más casos a mano; cada una es un hito propio |
 | D-02 | **Importes acumulados**: el borrador del trimestre *T* suma todo lo del año desde el **1 de enero** hasta el **último día del trimestre** (inclusive), por fecha de expedición de la factura y fecha del gasto, en Europe/Madrid. Una rectificativa cuenta, con su signo, en el periodo de **su** fecha | Fecha de cobro y de pago (P-02): otro criterio, fuera de alcance |
 | D-03 | **01 · ingresos computables** = suma de `base_cents` de las facturas del periodo, de **todos los ámbitos** (nacional, UE y fuera de la UE) y con las rectificativas restando | Excluir los ingresos del extranjero: no es una regla del 130 |
-| D-04 | **02 · gastos deducibles** = por cada gasto no anulado del periodo, su `base_cents` más el IVA que **no** se deduce (`vat_cents` si `deductible_vat = false`, nada si se deduce); los gastos sin factura valen su importe. Todas las categorías cuentan igual (P-01 decide lo de la vivienda) | Contar solo ciertas categorías: no hay base legal en el PRD |
+| D-04 | **02 · gastos deducibles** = por cada gasto no anulado del periodo, su `base_cents` más el IVA que **no** se deduce (`vat_cents` si `deductible_vat = false`, nada si se deduce); los gastos sin factura valen su importe. Todas las categorías cuentan igual: la deducción de la vivienda afecta **no** se calcula (P-01, resuelta) | Contar solo ciertas categorías: no hay base legal en el PRD |
 | D-05 | **03 · rendimiento neto** = 01 − 02 (puede ser negativo). **04 = 20 % de la 03 solo si la 03 es positiva**, con `Decimal` y `ROUND_HALF_UP`, **una vez** por casilla (ADR-0006); si no, 0 | Calcular el 20 % por documento: acumula céntimos de más |
 | D-06 | **05 · pagos fraccionados anteriores** = suma de lo ingresado en los trimestres anteriores **del mismo año**; lo de cada uno es `max(0, 04 − 05 − 06)` **de ese trimestre**, calculado con la misma regla (recursivo, como el prototipo). Sus `items` son los propios trimestres | Leer pagos reales de una tabla: no existe; el borrador solo conoce lo que calcula |
 | D-07 | **06 · retenciones soportadas** = suma de `irpf_cents` de las facturas del periodo, con signo. **07 · resultado** = 04 − 05 − 06. `result_kind`: `a_ingresar` (07 > 0), `nada_que_ingresar` (07 ≤ 0, un negativo ni se arrastra ni se compensa) y `sin_actividad` (ningún documento en todo el periodo acumulado) | Resultado negativo con compensación: fuera de alcance (P-04) |
@@ -48,15 +48,15 @@ fecha: 2026-11-11
 | D-12 | **Lectura**: se amplían las filas de entrada con campos opcionales de valor 0 por defecto (`irpf_cents` en `InvoiceRow`; `base_cents` y `vat_cents` en `ExpenseRow`) para no romper el 303, o se crean tipos propios; lo decide el hito 2 con las pruebas del 303 en verde | Tipos propios: más código, pero ningún riesgo para el 303 |
 | D-13 | **Pantalla**: la pestaña «Modelo 130» de `/trimestres` pasa a enlace (`?model=130`; sin parámetro, el 303); misma hoja del prototipo, mismo selector de año y trimestre y mismo estado del plazo; sin JavaScript de cliente | Una pantalla aparte: dos rutas y dos menús |
 
-**Preguntas abiertas** (la persona las contesta antes del hito 1; hasta entonces rige la propuesta):
+**Preguntas resueltas el 2026-11-11** (las cinco, por la persona):
 
-| ID | Pregunta | Propuesta por defecto |
+| ID | Pregunta | Respuesta |
 |---|---|---|
-| P-01 | **Vivienda afecta** (`home_pct`): SPEC-W-005 dejó para esta spec limitar la deducción de los suministros. ¿Se aplica ya? | **No** en esta spec (como el prototipo): se anota como exclusión visible («no incluye la deducción por vivienda afecta») y se deja para una spec posterior. Alternativa: aplicar `30 % × home_pct %` a los gastos de la categoría `utilities` desde el hito 1 |
-| P-02 | ¿Basta la fecha de expedición y la del gasto, o hace falta el criterio de cobro y pago? | Fecha de expedición y del gasto (D-02), como el 303 |
+| P-01 | **Vivienda afecta** (`home_pct`): SPEC-W-005 dejó para esta spec limitar la deducción de los suministros. ¿Se aplica ya? | **No**: no se calcula nada con `home_pct` (como el prototipo). Los avisos fijos dicen que el borrador **no incluye la deducción por vivienda afecta** y queda para una spec posterior; `home_pct` sigue guardándose sin usarse |
+| P-02 | ¿Basta la fecha de expedición y la del gasto, o hace falta el criterio de cobro y pago? | **Fecha de expedición y del gasto** (D-02), como el 303 |
 | P-03 | La retención que lleva un **gasto** (`withholding_cents`): ¿cuenta en algo? | **No**: la casilla 06 son las retenciones que la persona sufre en sus facturas |
 | P-04 | Un resultado negativo (los gastos superan lo ingresado): ¿se arrastra o se compensa en trimestres posteriores? | **No**: «nada que ingresar», sin compensar; se anota como límite |
-| P-05 | ¿Cómo se demuestra NFR-03 mientras DEP-01 esté pendiente? | Cinco ejercicios **simulados a mano** (Anexo B.1), calculados con cuentas escritas e independientes del código y marcados «simulados, no externos»; DEP-01 queda como mejora pendiente |
+| P-05 | ¿Cómo se demuestra NFR-03 mientras DEP-01 esté pendiente? | **Cinco ejercicios simulados a mano** (Anexo B.1), calculados con cuentas escritas e independientes del código y marcados «simulados, no externos»; DEP-01 queda como mejora pendiente |
 
 ## 2. Objetivo
 
@@ -82,7 +82,7 @@ Unitarias del dominio con los cinco ejercicios a mano y propiedades; lectura y A
 ## 4. Alcance excluido
 
 - **El 5 % de gastos de difícil justificación**, las **minoraciones** por rendimientos bajos (casillas 12 y 13 y siguientes) y las **deducciones** por vivienda habitual o por otras causas.
-- **La deducción de la vivienda afecta** (`home_pct`), salvo decisión contraria en P-01.
+- **La deducción de la vivienda afecta** (`home_pct`): no se calcula (P-01, resuelta); los avisos fijos lo dicen.
 - **Compensación de resultados negativos** de trimestres anteriores y arrastre de saldos (P-04).
 - **Estimación objetiva** (módulos), **criterio de caja**, actividades agrarias, ganaderas o forestales, Ceuta y Melilla.
 - **Presentación o envío a la AEAT** (RES-04), **XLSX** de los libros registro (SPEC-W-019) y **recordatorios** de plazo (SPEC-W-014).
@@ -104,7 +104,7 @@ Unitarias del dominio con los cinco ejercicios a mano y propiedades; lectura y A
 | `02` gastos deducibles | suma de `base_cents` + el IVA no deducible de los gastos | los gastos no anulados |
 | `03` rendimiento neto | `01 − 02` | derivada: `01`, `02` |
 | `04` 20 % del rendimiento | `20 %` de la `03` si es positiva (una vez, `ROUND_HALF_UP`); si no, 0 | derivada: `03` |
-| `05` pagos de trimestres anteriores | suma de `max(0, 07)` de cada trimestre anterior del año | los trimestres anteriores |
+| `05` pagos de trimestres anteriores | suma de `max(0, 07)` de cada trimestre anterior del año | **todos** los trimestres anteriores del año, también los que pagaron 0 (el T1 no tiene ninguno) |
 | `06` retenciones soportadas | suma de `irpf_cents` de las facturas del periodo | las facturas con retención |
 | `07` resultado | `04 − 05 − 06` | derivada: `04`, `05`, `06` |
 
@@ -112,7 +112,7 @@ Unitarias del dominio con los cinco ejercicios a mano y propiedades; lectura y A
 
 **Resultado**: `result_cents` (= casilla 07) y `result_kind` (`a_ingresar` | `nada_que_ingresar` | `sin_actividad`).
 
-**Información**: `withheld_share_percent` (entero, sobre la 01; `null` si la 01 no es positiva).
+**Información**: `withheld_share_percent` = `base de los documentos del periodo con retención distinta de cero × 100 / 01`, redondeado medio hacia arriba al entero; `null` si la 01 no es positiva. Se cuentan los documentos con retención **≠ 0** (no solo > 0) para que una rectificativa que devuelve retención reste de los dos lados (corregido en el hito 0, B.1).
 
 **Avisos fijos** (`notes`, **siempre presentes**): borrador **orientativo** y sin presentar; lo que no incluye (§4: 5 % de difícil justificación, minoraciones y deducciones, vivienda afecta, compensación de negativos); y el de la regla del 70 % (D-11): «Si en el año anterior más del 70 % de tus ingresos llevó retención, no estás obligada a presentar el 130.» El porcentaje del año en curso es solo informativo.
 
@@ -249,6 +249,7 @@ npm --prefix frontend exec -- playwright test e2e/modelo-130.spec.ts   # AC-19 a
 ## Anexo A · Orden de implementación sugerido (un plan y un commit por hito)
 
 1. **Hito 0 · decisiones y cinco ejercicios simulados**: se confirman D-01 a D-13 y se resuelven P-01 a P-05; se redactan en el Anexo B.1 **cinco ejercicios resueltos a mano**, con las cuentas escritas paso a paso y sin ejecutar el código (con acumulado y pagos encadenados T1→T4, ingresos de los tres ámbitos, rectificativa, gastos con y sin IVA deducible y sin factura, retenciones, un rendimiento negativo, un 20 % con céntimos y la frontera de año), contrastados con un script independiente fuera del repositorio y marcados «simulados, no externos».
+   **Hecho el 2026-11-11** (cinco ejercicios: T1 a T4 de 2025 con acumulado y pagos encadenados, y T1 de 2026 como frontera de año, más una comprobación adicional del T2 de 2026; los tres ámbitos, rectificativa, gastos con y sin IVA deducible, sin factura y anulados, retenciones con signo, un rendimiento negativo y un 20 % que sube y baja con céntimos; totales calculados a mano y contrastados al céntimo con un script independiente fuera del repositorio; D-01 a D-13 se confirman y P-01 a P-05 se resuelven; dos huecos de §5.1 corregidos; Anexo B.1).
 2. **Hito 1 · dominio puro**: `modelo_130.py` y `types_130.py` con pruebas de los ejercicios a mano, propiedades de `items` y mutaciones.
 3. **Hito 2 · lectura de datos**: filas ampliadas (D-12) y lectura por rango desde el 1 de enero, con la prueba del límite y las del 303 en verde.
 4. **Hito 3 · API**: `get_modelo_130`, modelos, errores, OpenAPI y cliente, con las pruebas de la API.
@@ -263,8 +264,593 @@ npm --prefix frontend exec -- playwright test e2e/modelo-130.spec.ts   # AC-19 a
 - **SPEC-W-014 (recordatorios).** El importe estimado del 130 que cita el correo sale de `build_modelo_130` con el mismo trimestre.
 - **SPEC-W-010 (gestor).** Lee el mismo borrador con las políticas de lectura que ya existen; hace falta su pantalla y el registro de cada lectura.
 - **SPEC-W-019 (XLSX).** Los libros registro salen de los mismos documentos.
-- **Vivienda afecta.** Si P-01 se resuelve en contra de aplicarla ahora, queda una deuda visible en los avisos y apuntada para una spec posterior; `home_pct` sigue guardándose sin usarse.
+- **Vivienda afecta.** P-01 se resolvió en contra de aplicarla ahora: queda una deuda visible en los avisos y apuntada para una spec posterior; `home_pct` sigue guardándose sin usarse.
 
-### B.1 Hito 0 · cinco ejercicios simulados, resueltos a mano · pendiente
+### B.1 Hito 0 · cinco ejercicios simulados, resueltos a mano · 2026-11-11
 
-**Estado: «simulados, no externos».** Se redactan en el hito 0 con una tabla por ejercicio (documento → importe → casilla), las cuentas escritas paso a paso y el bloque JSON para las pruebas del hito 1. Los cálculos son **manuales e independientes del código** y se contrastan con un script desechable fuera del repositorio. No demuestran que la interpretación de las reglas (D-02 a D-07) sea la de la AEAT: eso daría la validación externa de DEP-01, que sigue **pendiente** como mejora.
+**Estado: «simulados, no externos».** Cada ejercicio es un trimestre con sus importes **acumulados desde el 1 de enero**; los cuatro primeros son los trimestres de 2025 (un solo ejercicio fiscal, de modo que el T2 incluye al T1 y el T4 encadena los pagos de los tres anteriores) y el quinto es la frontera con 2026. Los totales se calcularon **a mano antes de ejecutar nada** y se contrastaron con un script desechable, **fuera del repositorio y sin importar `cuadre`**, con aritmética entera: **coinciden los cinco ejercicios y la comprobación adicional al céntimo** y la suma de los documentos de cada casilla es la casilla (NFR-08). Todos los importes están en **céntimos**.
+
+**Límite de lo que demuestran.** Que el código reproducirá un cálculo manual hecho con la misma interpretación de las reglas (D-02 a D-07). No demuestran que esa interpretación sea la de la AEAT: eso daría la validación externa de DEP-01 (equipo docente o gestoría), que sigue **pendiente** como mejora.
+
+**Convenciones.** Año 2025 (y 2026 para la frontera). Un gasto aporta a la 02 su **coste** = base + el IVA que no se deduce (`vat_cents` si no hay IVA deducible, 0 si lo hay); un gasto anulado no cuenta; un gasto sin factura no lleva IVA. La retención de una factura es el 15 % de su base (solo en las de empresa nacional; `ROUND_HALF_UP`), y la de una rectificativa es la **diferencia** de retención, con signo. El 20 % de la 04 se calcula **una sola vez** sobre la 03, solo si es positiva. La 05 de un trimestre es la suma de los pagos de los anteriores, y el pago de cada uno es `max(0, 07)`. El porcentaje con retención es `base de los documentos con retención ≠ 0 × 100 / 01`, redondeado al entero (hueco que este hito corrige en la spec, ver abajo).
+
+#### Documentos
+
+| Id | Fecha | Documento | Ámbito | Base | Retención | IVA | Cuenta |
+|---|---|---|---|---|---|---|---|
+| A1 | 2025-01-15 | factura | nacional | 300000 | 45000 | — | 15 % × 300000 = 45000 → 45000 |
+| A2 | 2025-02-10 | factura | UE | 150000 | 0 | — | sin retención |
+| A3 | 2025-03-05 | factura | fuera de la UE | 80000 | 0 | — | sin retención |
+| A4 | 2025-03-28 | factura | nacional | 123459 | 18519 | — | 15 % × 123459 = 18518,85 → 18519 |
+| B1 | 2025-04-10 | factura | nacional | 200000 | 30000 | — | 15 % × 200000 = 30000 → 30000 |
+| B2 | 2025-05-12 | factura | UE | 60007 | 0 | — | sin retención |
+| B3 | 2025-06-20 | rectificativa de A1, base corregida 250000 | nacional | -50000 | -7500 | — | base 250000 − vigente 300000 = −50000; retención 15 % × 250000 = 37500 − vigente 45000 = −7500 |
+| C1 | 2025-07-15 | factura | nacional | 100000 | 15000 | — | 15 % × 100000 = 15000 → 15000 |
+| D1 | 2025-10-10 | factura | nacional | 500000 | 75000 | — | 15 % × 500000 = 75000 → 75000 |
+| D2 | 2025-12-31 | factura | UE | 1500000 | 0 | — | sin retención |
+| X1 | 2026-04-01 | factura | nacional | 100000 | 15000 | — | 15 % × 100000 = 15000 → 15000 |
+| G1 | 2025-01-20 | gasto, IVA deducible | — | 40000 | — | 8400 | coste = 40000 (el IVA se deduce en el 303) |
+| G2 | 2025-02-15 | gasto, IVA no deducible | — | 25000 | — | 5250 | coste = 25000 + 5250 = 30250 |
+| G3 | 2025-03-10 | gasto, sin factura (sin IVA) | — | 12000 | — | 0 | coste = 12000 |
+| G4 | 2025-03-12 | gasto, anulado | — | 99999 | — | 21000 | no cuenta |
+| G5 | 2025-04-18 | gasto, IVA deducible | — | 60000 | — | 12600 | coste = 60000 (el IVA se deduce en el 303) |
+| G6 | 2025-05-30 | gasto, IVA no deducible | — | 15000 | — | 3150 | coste = 15000 + 3150 = 18150 |
+| G7 | 2025-06-10 | gasto, sin factura (sin IVA) | — | 9999 | — | 0 | coste = 9999 |
+| G8 | 2025-07-20 | gasto, IVA deducible | — | 900000 | — | 189000 | coste = 900000 (el IVA se deduce en el 303) |
+| G9 | 2025-08-30 | gasto, IVA no deducible | — | 120000 | — | 25200 | coste = 120000 + 25200 = 145200 |
+| G10 | 2025-09-12 | gasto, anulado | — | 50000 | — | 10500 | no cuenta |
+| G11 | 2025-11-05 | gasto, IVA deducible | — | 70000 | — | 14700 | coste = 70000 (el IVA se deduce en el 303) |
+| G12 | 2025-12-31 | gasto, sin factura (sin IVA) | — | 30001 | — | 0 | coste = 30001 |
+
+#### E-1 · T1 de 2025 · los tres ámbitos, los cuatro tipos de gasto y un 20 % con céntimos que sube
+
+Periodo: del 1 de enero de 2025 al 31 de marzo de 2025.
+
+| Casilla | Cuenta | Importe | Documentos |
+|---|---|---|---|
+| 01 Ingresos computables | 300000 + 150000 + 80000 + 123459 | 653459 | A1, A2, A3, A4 |
+| 02 Gastos deducibles | 40000 + 30250 + 12000 | 82250 | G1, G2, G3 |
+| 03 Rendimiento neto | 01 − 02 = 653459 − 82250 | 571209 | derivada: 01, 02 |
+| 04 20 % del rendimiento | 571209 × 20 % = 114241,8 → 114242 | 114242 | derivada: 03 |
+| 05 Pagos de trimestres anteriores | 0 (cada pago es max(0, 07) del trimestre) | 0 | — |
+| 06 Retenciones soportadas | 45000 + 18519 | 63519 | A1, A4 |
+| 07 Resultado | 04 − 05 − 06 = 114242 − 0 − 63519 | 50723 | derivada: 04, 05, 06 |
+
+**Resultado:** `a_ingresar` (507,23 €). **Porcentaje con retención:** 423459 × 100 / 653459 = 64,80 → **65 %**.
+
+#### E-2 · T2 de 2025 · acumulado, pago anterior y una rectificativa que resta ingresos y retención
+
+Periodo: del 1 de enero de 2025 al 30 de junio de 2025.
+
+| Casilla | Cuenta | Importe | Documentos |
+|---|---|---|---|
+| 01 Ingresos computables | 300000 + 150000 + 80000 + 123459 + 200000 + 60007 − 50000 | 863466 | A1, A2, A3, A4, B1, B2, B3 |
+| 02 Gastos deducibles | 40000 + 30250 + 12000 + 60000 + 18150 + 9999 | 170399 | G1, G2, G3, G5, G6, G7 |
+| 03 Rendimiento neto | 01 − 02 = 863466 − 170399 | 693067 | derivada: 01, 02 |
+| 04 20 % del rendimiento | 693067 × 20 % = 138613,4 → 138613 | 138613 | derivada: 03 |
+| 05 Pagos de trimestres anteriores | T1: 50723 (cada pago es max(0, 07) del trimestre) | 50723 | T1 |
+| 06 Retenciones soportadas | 45000 + 18519 + 30000 − 7500 | 86019 | A1, A4, B1, B3 |
+| 07 Resultado | 04 − 05 − 06 = 138613 − 50723 − 86019 | 1871 | derivada: 04, 05, 06 |
+
+**Resultado:** `a_ingresar` (18,71 €). **Porcentaje con retención:** 573459 × 100 / 863466 = 66,41 → **66 %**.
+
+#### E-3 · T3 de 2025 · rendimiento neto negativo: «nada que ingresar» y pago cero para el siguiente
+
+Periodo: del 1 de enero de 2025 al 30 de septiembre de 2025.
+
+| Casilla | Cuenta | Importe | Documentos |
+|---|---|---|---|
+| 01 Ingresos computables | 300000 + 150000 + 80000 + 123459 + 200000 + 60007 − 50000 + 100000 | 963466 | A1, A2, A3, A4, B1, B2, B3, C1 |
+| 02 Gastos deducibles | 40000 + 30250 + 12000 + 60000 + 18150 + 9999 + 900000 + 145200 | 1215599 | G1, G2, G3, G5, G6, G7, G8, G9 |
+| 03 Rendimiento neto | 01 − 02 = 963466 − 1215599 | -252133 | derivada: 01, 02 |
+| 04 20 % del rendimiento | la 03 no es positiva → 0 | 0 | derivada: 03 |
+| 05 Pagos de trimestres anteriores | T1: 50723 + T2: 1871 (cada pago es max(0, 07) del trimestre) | 52594 | T1, T2 |
+| 06 Retenciones soportadas | 45000 + 18519 + 30000 − 7500 + 15000 | 101019 | A1, A4, B1, B3, C1 |
+| 07 Resultado | 04 − 05 − 06 = 0 − 52594 − 101019 | -153613 | derivada: 04, 05, 06 |
+
+**Resultado:** `nada_que_ingresar` (−1.536,13 €). **Porcentaje con retención:** 673459 × 100 / 963466 = 69,89 → **70 %**.
+
+#### E-4 · T4 de 2025 · pagos anteriores encadenados con `max(0, …)`, el 31/12 dentro y el porcentaje con retención
+
+Periodo: del 1 de enero de 2025 al 31 de diciembre de 2025.
+
+| Casilla | Cuenta | Importe | Documentos |
+|---|---|---|---|
+| 01 Ingresos computables | 300000 + 150000 + 80000 + 123459 + 200000 + 60007 − 50000 + 100000 + 500000 + 1500000 | 2963466 | A1, A2, A3, A4, B1, B2, B3, C1, D1, D2 |
+| 02 Gastos deducibles | 40000 + 30250 + 12000 + 60000 + 18150 + 9999 + 900000 + 145200 + 70000 + 30001 | 1315600 | G1, G2, G3, G5, G6, G7, G8, G9, G11, G12 |
+| 03 Rendimiento neto | 01 − 02 = 2963466 − 1315600 | 1647866 | derivada: 01, 02 |
+| 04 20 % del rendimiento | 1647866 × 20 % = 329573,2 → 329573 | 329573 | derivada: 03 |
+| 05 Pagos de trimestres anteriores | T1: 50723 + T2: 1871 + T3: 0 (cada pago es max(0, 07) del trimestre) | 52594 | T1, T2, T3 |
+| 06 Retenciones soportadas | 45000 + 18519 + 30000 − 7500 + 15000 + 75000 | 176019 | A1, A4, B1, B3, C1, D1 |
+| 07 Resultado | 04 − 05 − 06 = 329573 − 52594 − 176019 | 100960 | derivada: 04, 05, 06 |
+
+**Resultado:** `a_ingresar` (1.009,60 €). **Porcentaje con retención:** 1173459 × 100 / 2963466 = 39,59 → **40 %**.
+
+#### E-5 · T1 de 2026 · frontera de año: nada del 31/12/2025 cuenta y no hay ningún documento: «sin actividad»
+
+Periodo: del 1 de enero de 2026 al 31 de marzo de 2026.
+
+| Casilla | Cuenta | Importe | Documentos |
+|---|---|---|---|
+| 01 Ingresos computables | 0 | 0 | — |
+| 02 Gastos deducibles | 0 | 0 | — |
+| 03 Rendimiento neto | 01 − 02 = 0 − 0 | 0 | derivada: 01, 02 |
+| 04 20 % del rendimiento | la 03 no es positiva → 0 | 0 | derivada: 03 |
+| 05 Pagos de trimestres anteriores | 0 (cada pago es max(0, 07) del trimestre) | 0 | — |
+| 06 Retenciones soportadas | 0 | 0 | — |
+| 07 Resultado | 04 − 05 − 06 = 0 − 0 − 0 | 0 | derivada: 04, 05, 06 |
+
+**Resultado:** `sin_actividad` (0,00 €). **Porcentaje con retención:** no se calcula (la 01 no es positiva).
+
+#### E-5b · T2 de 2026 · comprobación adicional: el año nuevo empieza de cero (no arrastra nada de 2025)
+
+Periodo: del 1 de enero de 2026 al 30 de junio de 2026.
+
+| Casilla | Cuenta | Importe | Documentos |
+|---|---|---|---|
+| 01 Ingresos computables | 100000 | 100000 | X1 |
+| 02 Gastos deducibles | 0 | 0 | — |
+| 03 Rendimiento neto | 01 − 02 = 100000 − 0 | 100000 | derivada: 01, 02 |
+| 04 20 % del rendimiento | 100000 × 20 % = 20000 → 20000 | 20000 | derivada: 03 |
+| 05 Pagos de trimestres anteriores | T1: 0 (cada pago es max(0, 07) del trimestre) | 0 | T1 |
+| 06 Retenciones soportadas | 15000 | 15000 | X1 |
+| 07 Resultado | 04 − 05 − 06 = 20000 − 0 − 15000 | 5000 | derivada: 04, 05, 06 |
+
+**Resultado:** `a_ingresar` (50,00 €). **Porcentaje con retención:** 100000 × 100 / 100000 = 100,00 → **100 %**.
+
+**Lo que ejercita cada caso**
+
+- **E-1.** Los tres ámbitos suman en la 01 (A1 a A4); los cuatro tipos de gasto: IVA deducible (G1, solo la base), IVA no deducible (G2, base más IVA), sin factura (G3) y **anulado** (G4, no cuenta). El 20 % de `571209` es `114241,8` y **sube** a `114242` (medio hacia arriba); G4 anulado dejaría un resultado distinto si contara.
+- **E-2.** El T1 sigue dentro (acumulado) y la 05 trae su pago (`50723`); la rectificativa B3 resta `50000` de ingresos y `7500` de retención en el periodo de **su** fecha; el 20 % de `693067` es `138613,4` y baja a `138613`.
+- **E-3.** Los gastos de G8 y G9 dejan el rendimiento neto en `−252133`: la 04 es **0** (no hay 20 % de un negativo), el 07 es `−153613` y el resultado «nada que ingresar»; su pago cuenta **0** para el T4 (`max(0, …)`). G10 está anulado.
+- **E-4.** La 05 encadena T1 `50723`, T2 `1871` y T3 `0`; D2 y G12 son del **31/12** y cuentan en el T4; el 20 % de `1647866` es `329573,2` y baja a `329573`.
+- **E-5.** Entre D2 y G12 (31/12/2025, del año anterior) y X1 (01/04/2026, del T2) el T1 de 2026 no tiene ningún documento: todas las casillas a cero y «sin actividad»; el porcentaje con retención no se calcula. **E-5b** pide el T2 de 2026: solo cuenta X1 (`100000`, retención `15000`), nada de 2025: `04 = 20000`, `07 = 5000`.
+- **El redondeo por casilla no se ejerce con estos datos**: en ningún ejercicio sumar los 20 % de cada documento (redondeando uno a uno) da un resultado distinto del 20 % de la 03. Esa diferencia se fija con una prueba unitaria propia del hito 1 (documentos pequeños construidos para ello), no con estos ejercicios.
+
+**Huecos de la spec que este hito corrige.**
+
+- **Porcentaje con retención** (D-11, §5.1): se define con los documentos cuya retención **no es cero** (así una rectificativa que devuelve retención resta de los dos lados) y se redondea medio hacia arriba; `null` si la 01 no es positiva.
+- **Casilla 05**: sus `items` son **todos** los trimestres anteriores del año, incluidos los que pagaron 0, para que se vea de dónde sale cada importe (T1 no tiene ninguno).
+
+**Formato para las pruebas del hito 1** (los mismos datos, para no reescribirlos; `documentos` de cada caso son los ids que enlaza cada casilla, por fecha). Las pruebas pasan **todos los documentos juntos** y piden cada trimestre por separado, con un reloj posterior a 2026-04-01:
+
+```json
+{
+ "nota": "simulados, no externos; importes en céntimos; las rectificativas llevan la diferencia ya calculada; los gastos llevan base e iva; la retención de una factura es la que lleva",
+ "documentos": [
+  {
+   "id": "A1",
+   "tipo": "factura",
+   "fecha": "2025-01-15",
+   "ambito": "national",
+   "base": 300000,
+   "retencion": 45000
+  },
+  {
+   "id": "A2",
+   "tipo": "factura",
+   "fecha": "2025-02-10",
+   "ambito": "eu",
+   "base": 150000,
+   "retencion": 0
+  },
+  {
+   "id": "A3",
+   "tipo": "factura",
+   "fecha": "2025-03-05",
+   "ambito": "non_eu",
+   "base": 80000,
+   "retencion": 0
+  },
+  {
+   "id": "A4",
+   "tipo": "factura",
+   "fecha": "2025-03-28",
+   "ambito": "national",
+   "base": 123459,
+   "retencion": 18519
+  },
+  {
+   "id": "B1",
+   "tipo": "factura",
+   "fecha": "2025-04-10",
+   "ambito": "national",
+   "base": 200000,
+   "retencion": 30000
+  },
+  {
+   "id": "B2",
+   "tipo": "factura",
+   "fecha": "2025-05-12",
+   "ambito": "eu",
+   "base": 60007,
+   "retencion": 0
+  },
+  {
+   "id": "B3",
+   "tipo": "rectificativa",
+   "fecha": "2025-06-20",
+   "ambito": "national",
+   "base": -50000,
+   "retencion": -7500,
+   "rectifica": "A1"
+  },
+  {
+   "id": "C1",
+   "tipo": "factura",
+   "fecha": "2025-07-15",
+   "ambito": "national",
+   "base": 100000,
+   "retencion": 15000
+  },
+  {
+   "id": "D1",
+   "tipo": "factura",
+   "fecha": "2025-10-10",
+   "ambito": "national",
+   "base": 500000,
+   "retencion": 75000
+  },
+  {
+   "id": "D2",
+   "tipo": "factura",
+   "fecha": "2025-12-31",
+   "ambito": "eu",
+   "base": 1500000,
+   "retencion": 0
+  },
+  {
+   "id": "X1",
+   "tipo": "factura",
+   "fecha": "2026-04-01",
+   "ambito": "national",
+   "base": 100000,
+   "retencion": 15000
+  },
+  {
+   "id": "G1",
+   "tipo": "gasto",
+   "fecha": "2025-01-20",
+   "iva_deducible": true,
+   "anulado": false,
+   "base": 40000,
+   "iva": 8400
+  },
+  {
+   "id": "G2",
+   "tipo": "gasto",
+   "fecha": "2025-02-15",
+   "iva_deducible": false,
+   "anulado": false,
+   "base": 25000,
+   "iva": 5250
+  },
+  {
+   "id": "G3",
+   "tipo": "gasto",
+   "fecha": "2025-03-10",
+   "iva_deducible": false,
+   "anulado": false,
+   "base": 12000,
+   "iva": 0
+  },
+  {
+   "id": "G4",
+   "tipo": "gasto",
+   "fecha": "2025-03-12",
+   "iva_deducible": true,
+   "anulado": true,
+   "base": 99999,
+   "iva": 21000
+  },
+  {
+   "id": "G5",
+   "tipo": "gasto",
+   "fecha": "2025-04-18",
+   "iva_deducible": true,
+   "anulado": false,
+   "base": 60000,
+   "iva": 12600
+  },
+  {
+   "id": "G6",
+   "tipo": "gasto",
+   "fecha": "2025-05-30",
+   "iva_deducible": false,
+   "anulado": false,
+   "base": 15000,
+   "iva": 3150
+  },
+  {
+   "id": "G7",
+   "tipo": "gasto",
+   "fecha": "2025-06-10",
+   "iva_deducible": false,
+   "anulado": false,
+   "base": 9999,
+   "iva": 0
+  },
+  {
+   "id": "G8",
+   "tipo": "gasto",
+   "fecha": "2025-07-20",
+   "iva_deducible": true,
+   "anulado": false,
+   "base": 900000,
+   "iva": 189000
+  },
+  {
+   "id": "G9",
+   "tipo": "gasto",
+   "fecha": "2025-08-30",
+   "iva_deducible": false,
+   "anulado": false,
+   "base": 120000,
+   "iva": 25200
+  },
+  {
+   "id": "G10",
+   "tipo": "gasto",
+   "fecha": "2025-09-12",
+   "iva_deducible": true,
+   "anulado": true,
+   "base": 50000,
+   "iva": 10500
+  },
+  {
+   "id": "G11",
+   "tipo": "gasto",
+   "fecha": "2025-11-05",
+   "iva_deducible": true,
+   "anulado": false,
+   "base": 70000,
+   "iva": 14700
+  },
+  {
+   "id": "G12",
+   "tipo": "gasto",
+   "fecha": "2025-12-31",
+   "iva_deducible": false,
+   "anulado": false,
+   "base": 30001,
+   "iva": 0
+  }
+ ],
+ "ejercicios": [
+  {
+   "caso": "E-1",
+   "anio": 2025,
+   "trimestre": 1,
+   "casillas": {
+    "01": 653459,
+    "02": 82250,
+    "03": 571209,
+    "04": 114242,
+    "05": 0,
+    "06": 63519,
+    "07": 50723
+   },
+   "resultado": "a_ingresar",
+   "porcentaje_retencion": 65,
+   "documentos": {
+    "01": [
+     "A1",
+     "A2",
+     "A3",
+     "A4"
+    ],
+    "02": [
+     "G1",
+     "G2",
+     "G3"
+    ],
+    "05": [],
+    "06": [
+     "A1",
+     "A4"
+    ]
+   }
+  },
+  {
+   "caso": "E-2",
+   "anio": 2025,
+   "trimestre": 2,
+   "casillas": {
+    "01": 863466,
+    "02": 170399,
+    "03": 693067,
+    "04": 138613,
+    "05": 50723,
+    "06": 86019,
+    "07": 1871
+   },
+   "resultado": "a_ingresar",
+   "porcentaje_retencion": 66,
+   "documentos": {
+    "01": [
+     "A1",
+     "A2",
+     "A3",
+     "A4",
+     "B1",
+     "B2",
+     "B3"
+    ],
+    "02": [
+     "G1",
+     "G2",
+     "G3",
+     "G5",
+     "G6",
+     "G7"
+    ],
+    "05": [
+     "T1"
+    ],
+    "06": [
+     "A1",
+     "A4",
+     "B1",
+     "B3"
+    ]
+   }
+  },
+  {
+   "caso": "E-3",
+   "anio": 2025,
+   "trimestre": 3,
+   "casillas": {
+    "01": 963466,
+    "02": 1215599,
+    "03": -252133,
+    "04": 0,
+    "05": 52594,
+    "06": 101019,
+    "07": -153613
+   },
+   "resultado": "nada_que_ingresar",
+   "porcentaje_retencion": 70,
+   "documentos": {
+    "01": [
+     "A1",
+     "A2",
+     "A3",
+     "A4",
+     "B1",
+     "B2",
+     "B3",
+     "C1"
+    ],
+    "02": [
+     "G1",
+     "G2",
+     "G3",
+     "G5",
+     "G6",
+     "G7",
+     "G8",
+     "G9"
+    ],
+    "05": [
+     "T1",
+     "T2"
+    ],
+    "06": [
+     "A1",
+     "A4",
+     "B1",
+     "B3",
+     "C1"
+    ]
+   }
+  },
+  {
+   "caso": "E-4",
+   "anio": 2025,
+   "trimestre": 4,
+   "casillas": {
+    "01": 2963466,
+    "02": 1315600,
+    "03": 1647866,
+    "04": 329573,
+    "05": 52594,
+    "06": 176019,
+    "07": 100960
+   },
+   "resultado": "a_ingresar",
+   "porcentaje_retencion": 40,
+   "documentos": {
+    "01": [
+     "A1",
+     "A2",
+     "A3",
+     "A4",
+     "B1",
+     "B2",
+     "B3",
+     "C1",
+     "D1",
+     "D2"
+    ],
+    "02": [
+     "G1",
+     "G2",
+     "G3",
+     "G5",
+     "G6",
+     "G7",
+     "G8",
+     "G9",
+     "G11",
+     "G12"
+    ],
+    "05": [
+     "T1",
+     "T2",
+     "T3"
+    ],
+    "06": [
+     "A1",
+     "A4",
+     "B1",
+     "B3",
+     "C1",
+     "D1"
+    ]
+   }
+  },
+  {
+   "caso": "E-5",
+   "anio": 2026,
+   "trimestre": 1,
+   "casillas": {
+    "01": 0,
+    "02": 0,
+    "03": 0,
+    "04": 0,
+    "05": 0,
+    "06": 0,
+    "07": 0
+   },
+   "resultado": "sin_actividad",
+   "porcentaje_retencion": null,
+   "documentos": {
+    "01": [],
+    "02": [],
+    "05": [],
+    "06": []
+   }
+  }
+ ],
+ "adicionales": [
+  {
+   "caso": "E-5b",
+   "anio": 2026,
+   "trimestre": 2,
+   "casillas": {
+    "01": 100000,
+    "02": 0,
+    "03": 100000,
+    "04": 20000,
+    "05": 0,
+    "06": 15000,
+    "07": 5000
+   },
+   "resultado": "a_ingresar",
+   "porcentaje_retencion": 100,
+   "documentos": {
+    "01": [
+     "X1"
+    ],
+    "02": [],
+    "05": [
+     "T1"
+    ],
+    "06": [
+     "X1"
+    ]
+   }
+  }
+ ]
+}
+```

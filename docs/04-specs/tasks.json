@@ -391,7 +391,7 @@
       "id": "SPEC-W-009",
       "title": "Modelo 130",
       "file": "docs/04-specs/SPEC-W-009-modelo-130.md",
-      "status": "propuesta",
+      "status": "en-progreso",
       "priority": "must",
       "risk": "medio",
       "stories": [
@@ -424,7 +424,7 @@
       "verification": [
         "pytest backend/tests/tax -k modelo_130"
       ],
-      "notes": "Importes acumulados desde enero; pagos fraccionados anteriores y retenciones soportadas. Spec escrita el 2026-11-11 con trece decisiones por defecto (D-01 a D-13) y cinco preguntas abiertas pendientes de la persona (P-01 a P-05): vivienda afecta (home_pct), criterio de fecha, retenciones de gastos, resultado negativo y cómo demostrar NFR-03 mientras DEP-01 siga pendiente (cinco ejercicios simulados, no externos). Sin tablas nuevas, solo lectura sobre invoices y expenses; la pestaña del 130 de /trimestres se activa en el hito 4. Seis hitos en el Anexo A."
+      "notes": "Importes acumulados desde enero; pagos fraccionados anteriores y retenciones soportadas. Spec escrita el 2026-11-11 con trece decisiones por defecto (D-01 a D-13) y cinco preguntas abiertas pendientes de la persona (P-01 a P-05): vivienda afecta (home_pct), criterio de fecha, retenciones de gastos, resultado negativo y cómo demostrar NFR-03 mientras DEP-01 siga pendiente (cinco ejercicios simulados, no externos). Sin tablas nuevas, solo lectura sobre invoices y expenses; la pestaña del 130 de /trimestres se activa en el hito 4. Seis hitos en el Anexo A. Preguntas P-01 a P-05 resueltas por la persona el 2026-11-11: la vivienda afecta (home_pct) no se calcula y se avisa, fecha de expedición y del gasto, la retención de un gasto se ignora, un resultado negativo no se arrastra y NFR-03 se demuestra con cinco ejercicios simulados (no externos). Hito 0 hecho (cinco ejercicios simulados a mano: T1 a T4 de 2025 con acumulado y pagos encadenados y T1 de 2026 como frontera de año, más una comprobación adicional del T2 de 2026; contrastados al céntimo con un script independiente fuera del repositorio; no son validación externa; Anexo B.1)."
     },
     {
       "id": "SPEC-W-010",

@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-007
 titulo: Emisión de facturas: inmutables, numeración, mención legal, PDF, QR simulado y rectificativas
-estado: en-progreso
+estado: en-revision
 prioridad: must
 riesgo: medio
 historias: [US-006, US-007]
@@ -529,13 +529,13 @@ npm --prefix frontend exec -- playwright test e2e/factura.spec.ts      # AC-21 a
 
 ### 8.4 Definición de hecho
 
-- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001, 002, 003, 005 y 006 §8.2 siguen en verde.
-- [ ] `pytest backend/tests/rls -m rls` incluye `invoices`, `invoice_files`, sus funciones y el bucket `invoices`.
-- [ ] «Facturas» está activo en el menú del autónomo y `/facturas` hace todo lo de AC-21; `/clientes` enseña «Facturado en {año}».
-- [ ] El seed lleva facturas sintéticas de los cinco tratamientos y una rectificativa, y las pruebas que dependían del menú se han revisado.
-- [ ] `docs/04-specs/tasks.json` actualizado; los ADR 0003, 0004, 0006, 0011, 0015 y 0016 enlazados.
-- [ ] Las preguntas abiertas P-02 y P-04 siguen anotadas en el Anexo B (P-01, P-03 y P-05 se resolvieron en el hito 0).
-- [ ] Sin secretos, NIF, IBAN reales ni datos de terceros en el cambio; `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
+- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001, 002, 003, 005 y 006 §8.2 siguen en verde. *(Local, verificado el 2026-11-11 —Anexo B.7—; el CI lo confirma la persona.)*
+- [x] `pytest backend/tests/rls -m rls` incluye `invoices`, `invoice_files`, sus funciones y el bucket `invoices`.
+- [x] «Facturas» está activo en el menú del autónomo y `/facturas` hace todo lo de AC-21; `/clientes` enseña «Facturado en {año}».
+- [x] El seed lleva facturas sintéticas de los cinco tratamientos y una rectificativa, y las pruebas que dependían del menú se han revisado.
+- [x] `docs/04-specs/tasks.json` actualizado; los ADR 0003, 0004, 0006, 0011, 0015 y 0016 enlazados.
+- [x] Las preguntas abiertas P-02 y P-04 siguen anotadas en el Anexo B (P-01, P-03 y P-05 se resolvieron en el hito 0).
+- [x] Sin secretos, NIF, IBAN reales ni datos de terceros en el cambio; `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
 
 ## Anexo A · Orden de implementación sugerido (un plan y un commit por hito)
 
@@ -552,6 +552,7 @@ npm --prefix frontend exec -- playwright test e2e/factura.spec.ts      # AC-21 a
 5. **Frontend**: `/facturas`, `/facturas/[id]`, menú, columna «Facturado en {año}» y condiciones en `/clientes`; unitarias; comprobación visual en los tres motores.
    **Hecho el 2026-11-10** (las dos pantallas, dos Route Handlers —vista previa en directo y descarga del PDF— y cuatro Server Actions; `Invoice.issuer` como copia congelada del emisor; 26 unitarias nuevas y 39 mutaciones de las piezas puras, todas detectadas; comprobación visual con la API y el Storage reales en Chromium, Firefox y WebKit a 390 y 1.440 px, y 91 E2E existentes en Chromium; la columna nueva de `/clientes` obligó a rebalancear su tabla; Anexo B.6).
 6. **E2E y cierre**: `factura.spec.ts` en tres motores y dos anchos, ajustes de `roles.spec.ts`, `responsive.spec.ts` y `env.ts`, mutaciones de la interfaz, Anexo B, `tasks.json`.
+   **Hecho el 2026-11-11** (`factura.spec.ts` con 20 pruebas, el fixture `biller` y `InvoicesApi`; ajustes de `roles.spec.ts` y `responsive.spec.ts`; 22 mutaciones de la interfaz, todas detectadas; batería completa por motor en Chromium, Firefox y WebKit; la vista previa dejó de contestar 4xx a los avisos normales; Anexo B.7).
 
 ## Anexo B · Decisiones que esta spec dejó a la implementación
 
@@ -958,3 +959,46 @@ Los **ocho huecos reales** que encontraron y cerraron pruebas: el QR del PDF cod
 - Mutaciones de la interfaz entera (los componentes de `components/invoices/*`), que este hito no cubre.
 - Las facturas sembradas de Alicia siguen sin PDF; las que emiten las pruebas, no: usar las sembradas para «Generar PDF».
 - Cuidado con el orden: las pruebas que emiten dejan facturas y sus números no se reutilizan (`db reset` entre baterías).
+
+### B.7 Hito 6 · E2E y cierre · 2026-11-11
+
+**Qué hay.** `e2e/factura.spec.ts` (20 pruebas por proyecto, seis proyectos), el fixture `biller` en `e2e/helpers/fixtures.ts` (completa el perfil de la cuenta del worker, con retención del 15 %, y siembra por la API seis clientes: empresa española, empresa alemana, particular alemán, particular de EE. UU., empresa mexicana y uno sin domicilio; al terminar restaura el perfil y archiva los clientes), el ayudante `e2e/helpers/invoices.ts` (`InvoicesApi`: emitir, rectificar y listar por la API con el token de GoTrue de la cuenta, nunca la service key), y ajustes de `roles.spec.ts` (Facturas activa para el autónomo; gestor y administrador a `/403` y la descarga de un PDF ajeno, 403) y de `responsive.spec.ts` (`/facturas`).
+
+**Decisiones.**
+- Las facturas no se pueden borrar ni archivar (RES-03): las pruebas que emiten usan la cuenta del worker y localizan lo suyo por un concepto único; ninguna cuenta filas ni números absolutos.
+- «Generar PDF» se prueba con las facturas sembradas de Alicia, una distinta por proyecto (`chromium-390` → `2026-001`, … `webkit-1440` → `R-2026-001`); si ya tienen PDF (segunda vuelta sin `db reset`), la prueba lo anota y comprueba solo la descarga. No se añadió ningún gancho de prueba al producto.
+
+**Hallazgos del E2E.**
+1. **Producto, corregido.** La vista previa (`POST /facturas/vista-previa`) contestaba con el estado 4xx de la API (422, 409) ante los avisos normales —perfil incompleto, importe que falta, retención sin elegir—, y el navegador registraba cada uno como error de consola, que el fixture trata como fallo. Ahora `handlePreview` contesta 200 con el problema en el cuerpo y deja el estado real solo para 5xx y 403 (`lib/invoice-routes.ts`). Lo cubre la mutación F21.
+2. **Guion, no producto.** Pulsar la tarjeta de una factura con `click()` caía en el `sr-only` de 1 px del enlace; se pulsa con una posición dentro de la tarjeta. También se afinaron un selector (`shown(...).first()` en «Facturado en {año}») y la prueba de la vista previa (cambio nacional → particular de la UE → empresa de la UE, y `aria-live="polite"`).
+
+**Resultados.**
+
+| Qué | Resultado |
+|---|---|
+| Batería completa, Chromium (390 y 1.440 px) | 243 correctas |
+| Batería completa, Firefox | 235 correctas, 6 omitidas |
+| Batería completa, WebKit | 234 correctas, 6 omitidas, 1 fallo intermitente (abajo) |
+| Backend sin RLS | 3.655 correctas |
+| RLS | 1.561 correctas con la base recién reiniciada |
+| `ruff check` y `ruff format --check`, `export_openapi --check`, `gen:api`, lint, typecheck, build y `check:bundle` | código 0 |
+| Pruebas unitarias del frontend | 232 correctas |
+
+Las baterías se lanzaron una por motor, con `--workers=1`, tras `supabase db reset`. Las omitidas son pruebas que no corren fuera de Chromium (entre ellas las dos del límite de ancho de la tabla de facturas); no se desglosaron las de otras specs.
+
+**Fallo intermitente.** En WebKit a 390 px falló una vez `auth.spec.ts:60` (SPEC-W-001, «recuperación · restablecer la contraseña con el enlace»): el formulario se envió con los campos vacíos («Escribe una contraseña. Las contraseñas no coinciden.»). Repetida tres veces, pasó las tres. No se ha cambiado esa prueba ni el producto de W-001; queda anotado como probable carrera de hidratación en WebKit.
+
+**Mutaciones de la interfaz.** **22 mutaciones** (F01–F22: selector de IVA siempre visible, importes con base ilegible, insignias de ámbito y de cobro sin texto, «Descargar PDF» con otra ruta, descarga sin cabeceras, detalle sin «Emisora», rectificar sin base vigente, casilla de anular sin `key`, resumen de errores sin foco, aviso «emitida» oculto, cobro invertido, «Generar PDF» inerte, tabla desde 1.200 px, filtro de cobro con otro nombre, «Facturado» de otro año, condiciones sin pintar, IVA arrastrado al cambiar de cliente, rectificativa sin ir a ella, factura ajena sin 404, vista previa con 4xx y sin `aria-live`) con un ejecutor desechable fuera del repositorio, en Chromium a 390 y 1.440 px: **22 detectadas, ninguna equivalente ni inválida**. Se ejecutaron en cuatro tandas porque el sistema había cortado antes la ejecución completa por memoria; tras cada tanda el árbol quedó sin restos.
+
+**Orden de las baterías.** Las pruebas E2E dejan datos: «Generar PDF» da PDF a las facturas sembradas de Alicia, y `backend/tests/rls/test_invoices_seed.py::test_nobody_else_has_any_invoice_or_pdf` exige que no lo tengan. Tras una batería E2E hace falta `supabase db reset` antes de la suite RLS (así ocurrió aquí: falló una vez con la base usada y pasó con la base reiniciada).
+
+**Lo que no se ha comprobado:**
+- **El CI de GitHub**: la verificación es local; la spec queda en `en-revision` hasta que se confirme.
+- **Los seis proyectos en paralelo**: las baterías fueron con un solo worker y un motor por vez, no con la configuración del CI.
+- **`storage_unavailable` y `invoice_pdf_corrupt` con la web delante**: solo como texto en las unitarias.
+- **Lectores de pantalla reales** (NVDA, VoiceOver) y visores de PDF de cada navegador.
+- **Muchos clientes** (una `preview_invoice` por cliente activo en cada carga de `/clientes`) y **red lenta** en la vista previa.
+- **Una factura emitida desde dos pestañas a la vez**: el cerrojo es de la base de datos.
+- **La causa del fallo intermitente de WebKit** en `auth.spec.ts`.
+
+**Estado de la spec.** Todos los hitos hechos y la verificación local en verde: `en-revision`. Pasará a `hecha` cuando se confirme el CI.

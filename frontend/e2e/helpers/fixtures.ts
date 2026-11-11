@@ -2,8 +2,9 @@ import path from "node:path";
 
 import { test as base, expect, type BrowserContext, type Page } from "@playwright/test";
 
-import { ClientsApi } from "./clients";
+import { ClientsApi, type ListedClient } from "./clients";
 import { API_URL, AUTH_DIR, type RoleKey } from "./env";
+import { InvoicesApi } from "./invoices";
 import { Ledger } from "./ledger";
 import { ProfileApi } from "./profile";
 import { signUpAndConfirm, uniqueEmail } from "./session";
@@ -47,6 +48,26 @@ async function closeQuietly(context: BrowserContext): Promise<void> {
 
 type StorageState = Awaited<ReturnType<BrowserContext["storageState"]>>;
 
+/** NIF, domicilio y retención sintéticos con los que `biller` deja completo el perfil de la cuenta del worker. */
+export const BILLER_PROFILE = {
+  legal_name: "Facturación E2E, diseño gráfico",
+  tax_id: "12345678Z",
+  fiscal_address: "Calle Ficticia 1, 28001 Madrid",
+  irpf_rate: "15.00",
+};
+
+/** Un cliente de cada tratamiento fiscal, más uno sin domicilio (NIF y NIF-IVA sintéticos con dígitos de control válidos). */
+export type BillerClients = {
+  national: ListedClient; // empresa en España: IVA 21 % y retención
+  euBusiness: ListedClient; // empresa de Alemania: inversión del sujeto pasivo
+  euPerson: ListedClient; // particular de Alemania: IVA español
+  usPerson: ListedClient; // particular de EE. UU.: IVA español
+  mxBusiness: ListedClient; // empresa de México: no sujeta (art. 69)
+  noAddress: ListedClient; // empresa en España sin domicilio: no se puede facturar
+};
+
+export type Biller = { clients: BillerClients; invoices: InvoicesApi; profile: ProfileApi; clientsApi: ClientsApi };
+
 type Fixtures = {
   /** Página ya autenticada como `role` con la sesión que guardó `auth.setup.ts` (mismo viewport y motor que el proyecto). */
   pageAs: (role: RoleKey) => Promise<Page>;
@@ -68,6 +89,12 @@ type Fixtures = {
    * entre los activos de cada persona, así que ninguna prueba puede depender de lo que dejó otra en la cuenta del worker.
    */
   clients: ClientsApi;
+  /**
+   * La cuenta de `gastosUser` lista para FACTURAR (SPEC-W-007 hito 6): perfil completo con retención del 15 %, un cliente de cada tratamiento y uno sin
+   * domicilio, y un ayudante para emitir por la API. Al terminar, `profile` restaura el perfil vacío y `clients` archiva los clientes; las facturas
+   * emitidas NO se pueden borrar (RES-03, T7-13): quedan en la cuenta y ninguna prueba cuenta filas ni números absolutos.
+   */
+  biller: Biller;
 };
 
 type WorkerFixtures = {
@@ -123,6 +150,20 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
     await clients.archiveAll();
     await use(clients);
     await clients.archiveAll();
+  },
+
+  biller: async ({ profile, clients, request, gastosUser }, use) => {
+    await profile.save(BILLER_PROFILE);
+    const make = (input: Parameters<ClientsApi["create"]>[0]) => clients.create(input);
+    const created: BillerClients = {
+      national: await make({ name: "Estudio Norte S.L.", kind: "business", country: "ES", tax_id: "B00000018", address: "Avenida Inventada 4, 28000 Madrid" }),
+      euBusiness: await make({ name: "Kreativ GmbH", kind: "business", country: "DE", tax_id: "DE534861408", address: "Beispielstrasse 1, 10115 Berlin" }),
+      euPerson: await make({ name: "Lena Müller", kind: "individual", country: "DE", address: "Musterweg 3, 80331 München" }),
+      usPerson: await make({ name: "Jane Doe", kind: "individual", country: "US", address: "1 Main Street, Springfield" }),
+      mxBusiness: await make({ name: "Taller Zócalo", kind: "business", country: "MX", tax_id: "XAXX010101000", address: "Calle Ejemplo 5, Ciudad de México" }),
+      noAddress: await make({ name: "Sin Domicilio S.L.", kind: "business", country: "ES", tax_id: "B00000026" }),
+    };
+    await use({ clients: created, invoices: new InvoicesApi(request, gastosUser.email, API_URL), profile, clientsApi: clients });
   },
 
   page: async ({ page }, use) => {

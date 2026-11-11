@@ -60,6 +60,32 @@ for (const role of ["gina", "adan"] as const) {
   });
 }
 
+// SPEC-W-007 AC-22 · «Facturas» es solo del autónomo: el gestor y el administrador no la ven y /facturas (y la descarga de un PDF) los lleva a /403.
+test("Facturas · el autónomo la ve activa en el menú y llega a su pantalla", async ({ pageAs }) => {
+  const page = await pageAs("alicia");
+  await page.goto(PEOPLE.alicia.home);
+  await page.getByRole("navigation", { name: "Apartados" }).getByRole("link", { name: "Facturas" }).click();
+  await expect(page).toHaveURL("/facturas");
+  await expect(page.getByRole("heading", { level: 1, name: "Facturas" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Apartados" }).getByRole("link", { name: "Facturas" })).toHaveAttribute("aria-current", "page");
+});
+
+for (const role of ["gina", "adan"] as const) {
+  test(`Facturas · ${role} no la ve en el menú y /facturas la lleva a /403`, async ({ pageAs }) => {
+    const page = await pageAs(role);
+    await page.goto(PEOPLE[role].home);
+    await expect(page.getByRole("navigation", { name: "Apartados" }).getByText("Facturas", { exact: true })).toHaveCount(0);
+    await settle(page);
+    await page.goto("/facturas");
+    await expect(page).toHaveURL("/403");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("No tienes acceso a esta sección");
+    // La descarga de un PDF (aunque el id no exista) tampoco es suya: 403 y sin cuerpo de la API.
+    const download = await page.request.get("/facturas/00000000-0000-4000-8000-000000000000/pdf");
+    expect(download.status()).toBe(403);
+    expect(await download.text()).toBe("No tienes acceso a esta factura.");
+  });
+}
+
 // SPEC-W-005 AC-20 · «Perfil» es solo del autónomo: el gestor y el administrador no lo ven y /perfil los lleva a /403.
 test("Perfil · el autónomo lo ve activo en el menú y llega a su pantalla", async ({ pageAs }) => {
   const page = await pageAs("alicia");

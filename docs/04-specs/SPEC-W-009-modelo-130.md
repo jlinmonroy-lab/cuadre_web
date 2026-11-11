@@ -45,7 +45,7 @@ fecha: 2026-11-11
 | D-09 | **El servidor calcula todo**, también el plazo y su estado, que son **los del 303** (20 de abril, julio y octubre; 30 de enero), con el reloj inyectado; la interfaz no calcula nada fiscal | Calcular en el navegador: dos implementaciones de la regla |
 | D-10 | **Solo lectura, sin tablas nuevas**: se calcula bajo demanda sobre `invoices` y `expenses` con la sesión de la persona (RLS), con las lecturas de `cuadre.quarters` por rango desde el 1 de enero. Una migración solo si el hito 2 demuestra que hace falta | Guardar borradores: histórico de lo calculado, con la duda de qué hacer cuando cambian los documentos |
 | D-11 | **Información, no regla**: la respuesta lleva el **porcentaje de ingresos con retención** del año (sobre la 01, redondeado al entero) y un aviso fijo sobre la regla del 70 % del año anterior, que **no se calcula** (falta ese dato) | Calcular la regla del año anterior: necesita el año anterior completo y la fecha de alta |
-| D-12 | **Lectura**: se amplían las filas de entrada con campos opcionales de valor 0 por defecto (`irpf_cents` en `InvoiceRow`; `base_cents` y `vat_cents` en `ExpenseRow`) para no romper el 303, o se crean tipos propios; lo decide el hito 2 con las pruebas del 303 en verde | Tipos propios: más código, pero ningún riesgo para el 303 |
+| D-12 | **Lectura**: el 130 usa **tipos de entrada propios** (`IncomeRow` y `CostRow`, en `cuadre/tax/types_130.py`) y no amplía `InvoiceRow` ni `ExpenseRow`: el 303 no corre ningún riesgo. *(Resuelta en el hito 1; era «ampliar con campos opcionales o tipos propios».)* El hito 2 los rellena desde `invoices` y `expenses` | Ampliar las filas del 303 con campos opcionales: menos código, pero un cambio en lo que ya está hecho |
 | D-13 | **Pantalla**: la pestaña «Modelo 130» de `/trimestres` pasa a enlace (`?model=130`; sin parámetro, el 303); misma hoja del prototipo, mismo selector de año y trimestre y mismo estado del plazo; sin JavaScript de cliente | Una pantalla aparte: dos rutas y dos menús |
 
 **Preguntas resueltas el 2026-11-11** (las cinco, por la persona):
@@ -114,7 +114,7 @@ Unitarias del dominio con los cinco ejercicios a mano y propiedades; lectura y A
 
 **Información**: `withheld_share_percent` = `base de los documentos del periodo con retención distinta de cero × 100 / 01`, redondeado medio hacia arriba al entero; `null` si la 01 no es positiva. Se cuentan los documentos con retención **≠ 0** (no solo > 0) para que una rectificativa que devuelve retención reste de los dos lados (corregido en el hito 0, B.1).
 
-**Avisos fijos** (`notes`, **siempre presentes**): borrador **orientativo** y sin presentar; lo que no incluye (§4: 5 % de difícil justificación, minoraciones y deducciones, vivienda afecta, compensación de negativos); y el de la regla del 70 % (D-11): «Si en el año anterior más del 70 % de tus ingresos llevó retención, no estás obligada a presentar el 130.» El porcentaje del año en curso es solo informativo.
+**Avisos fijos** (`notes`, **siempre presentes**): borrador **orientativo** y sin presentar; lo que no incluye (§4: 5 % de difícil justificación, minoraciones y deducciones, vivienda afecta, compensación de negativos); y el de la regla del 70 % (D-11): «Si en el año anterior más del 70 % de tus ingresos llevó retención, no tienes obligación de presentar el 130. El porcentaje de este año que ves aquí es solo informativo.» (redactado sin género en el hito 1).
 
 **Límite**: un periodo con más de **10.000 documentos** (facturas y gastos acumulados desde enero) da `quarter_too_large` (422, con texto propio) en vez de una respuesta que no cabría en 4,5 MB (ADR-0016).
 
@@ -130,7 +130,7 @@ Sin cambios (D-10). RLS ya limita `invoices` y `expenses` a `owner_id = auth.uid
 Los parámetros, los errores y el valor por defecto son los de `get_modelo_303`. `Cache-Control: private, no-store`. Solo lee: no crea ni cambia nada (T9-07).
 
 ### 5.4 Backend
-`cuadre/tax/modelo_130.py` y `cuadre/tax/types_130.py` (puros); en `cuadre/quarters/`, el repositorio ampliado (D-12), `QuarterService.modelo_130` y los modelos y errores del 130; `cuadre/api/routes_tax.py` con la ruta nueva. Los módulos nuevos de `cuadre.tax` se declaran como puros en `test_invoicing_boundary.py`.
+`cuadre/tax/modelo_130.py` y `cuadre/tax/types_130.py` (puros, con `IncomeRow` y `CostRow` como entrada, D-12; `year_start` en `periods.py`); en `cuadre/quarters/`, la lectura de esas filas por rango desde enero, `QuarterService.modelo_130` y los modelos y errores del 130; `cuadre/api/routes_tax.py` con la ruta nueva. Los módulos nuevos de `cuadre.tax` se declaran como puros en `test_invoicing_boundary.py`.
 
 ### 5.5 Frontend
 `lib/tax.ts` (puro, ampliado con lo del 130: dirección `?model=`, textos del resultado y del porcentaje, casillas por grupo), `lib/tax-api.ts` (`getModelo130`), `components/tax/modelo-130.tsx` y la pestaña de `quarter-picker.tsx`; `app/(app)/trimestres/page.tsx` elige la hoja según `?model=`. Server Components y HTML nativo: ninguna línea de JavaScript de cliente. Ninguna cuenta ni regla fiscal en el navegador (D-09).
@@ -251,7 +251,8 @@ npm --prefix frontend exec -- playwright test e2e/modelo-130.spec.ts   # AC-19 a
 1. **Hito 0 · decisiones y cinco ejercicios simulados**: se confirman D-01 a D-13 y se resuelven P-01 a P-05; se redactan en el Anexo B.1 **cinco ejercicios resueltos a mano**, con las cuentas escritas paso a paso y sin ejecutar el código (con acumulado y pagos encadenados T1→T4, ingresos de los tres ámbitos, rectificativa, gastos con y sin IVA deducible y sin factura, retenciones, un rendimiento negativo, un 20 % con céntimos y la frontera de año), contrastados con un script independiente fuera del repositorio y marcados «simulados, no externos».
    **Hecho el 2026-11-11** (cinco ejercicios: T1 a T4 de 2025 con acumulado y pagos encadenados, y T1 de 2026 como frontera de año, más una comprobación adicional del T2 de 2026; los tres ámbitos, rectificativa, gastos con y sin IVA deducible, sin factura y anulados, retenciones con signo, un rendimiento negativo y un 20 % que sube y baja con céntimos; totales calculados a mano y contrastados al céntimo con un script independiente fuera del repositorio; D-01 a D-13 se confirman y P-01 a P-05 se resuelven; dos huecos de §5.1 corregidos; Anexo B.1).
 2. **Hito 1 · dominio puro**: `modelo_130.py` y `types_130.py` con pruebas de los ejercicios a mano, propiedades de `items` y mutaciones.
-3. **Hito 2 · lectura de datos**: filas ampliadas (D-12) y lectura por rango desde el 1 de enero, con la prueba del límite y las del 303 en verde.
+   **Hecho el 2026-11-11** (`types_130.py` y `modelo_130.py` puros, `year_start` en `periods.py`; 69 pruebas nuevas y 3.897 sin RLS; los cinco ejercicios simulados y la comprobación adicional reproducidos al céntimo desde el bloque JSON de B.1; 63 mutaciones: 62 detectadas y 1 equivalente; D-12 resuelta con tipos propios; Anexo B.2).
+3. **Hito 2 · lectura de datos**: lectura de `IncomeRow` y `CostRow` (D-12) y lectura por rango desde el 1 de enero, con la prueba del límite y las del 303 en verde.
 4. **Hito 3 · API**: `get_modelo_130`, modelos, errores, OpenAPI y cliente, con las pruebas de la API.
 5. **Hito 4 · frontend**: la pestaña, la hoja del 130, `lib/tax.ts` ampliado con sus unitarias y la comprobación visual en tres motores.
 6. **Hito 5 · E2E y cierre**: `modelo-130.spec.ts`, ajustes de `roles.spec.ts` y `responsive.spec.ts`, mutaciones de la interfaz, Anexo B, `tasks.json` y, si llegan, los ejercicios externos de DEP-01.
@@ -854,3 +855,47 @@ Periodo: del 1 de enero de 2026 al 30 de junio de 2026.
  ]
 }
 ```
+
+### B.2 Hito 1 · dominio puro del modelo 130 · 2026-11-11
+
+**Qué hay.** Dos módulos puros nuevos en `backend/src/cuadre/tax/` (declarados en `PURE_TAX` de `test_invoicing_boundary.py`, que vigila que no importen base de datos, red, FastAPI, Pydantic ni reloj): `types_130.py` y `modelo_130.py`; `year_start` en `periods.py`; las constantes y los tres avisos en `limits.py`; todo exportado desde `cuadre.tax`. No hay base de datos, API ni pantalla todavía, y el 303 no se ha tocado.
+
+| Pieza | Contenido |
+|---|---|
+| `types_130.py` | Dataclasses `frozen, slots`: entrada (`IncomeRow`: `base_cents` e `irpf_cents` con signo; `CostRow`: `base_cents`, `vat_cents`, `deductible_vat`, `voided`) y salida (`Item130`, `Box130`, `Modelo130`) |
+| `modelo_130.py` | `build_modelo_130(year, quarter, incomes, costs, today)`: filtra del 1 de enero al fin del trimestre, calcula 01 a 07 por cada trimestre hasta el pedido (el pago de cada anterior alimenta la 05), enlaza cada casilla a sus documentos y devuelve resultado, porcentaje con retención, plazo y avisos |
+| `limits.py` | `YEAR_MAX_DOCUMENTS = 10_000`, `IRPF_PAYMENT_RATE = Decimal(20)` y los avisos `NOTE_130_*` |
+| `periods.py` | `year_start(year)`; plazo y estado son los de siempre |
+
+**Decisiones tomadas al implementar** (completan o corrigen la spec, ya actualizada):
+
+| Tema | Decisión |
+|---|---|
+| **D-12 resuelta** | **Tipos de entrada propios** (`IncomeRow`, `CostRow`) en lugar de ampliar `InvoiceRow` y `ExpenseRow`: el 303 no corre ningún riesgo y el hito 2 solo tiene que rellenar los nuevos |
+| **Una sola cuenta** | Todo son sumas de céntimos enteros; el único redondeo es el 20 % de la 04 con `percentage_of` (`ROUND_HALF_UP`), **una vez** sobre la 03 y solo si es positiva |
+| **Los pagos anteriores** | Se calculan trimestre a trimestre con la misma regla sobre lo acumulado hasta su fin: `max(0, 07)` de cada uno, con su propia 05. Los items de la 05 son **todos** los trimestres anteriores (id `T1`, etiqueta `T1 de 2025`, fecha = su último día), también los que pagaron 0 |
+| **`sin_actividad`** | Solo si no hay ninguna factura ni gasto no anulado en el periodo acumulado. En un trimestre sin documentos a partir del T2, la 05 sigue listando los anteriores con pago 0: no contradice la regla (los items de la 05 no son documentos) |
+| **Resultado** | `a_ingresar` (07 > 0) o `nada_que_ingresar` (07 ≤ 0, también el cero con documentos); el negativo no se arrastra |
+| **Límite** | 10.000 documentos acumulados; reutiliza `QuarterTooLarge` de `modelo_303` (mismo `code` `quarter_too_large`) |
+| **Porcentaje con retención** | Base de las facturas con retención ≠ 0 × 100 / 01, medio hacia arriba al entero (con `Decimal`; un empate como 12,5 sube a 13); `None` si la 01 no es positiva |
+| **Avisos** | Tres, siempre: orientativo y acumulado; lo que no incluye (5 %, minoraciones y deducciones, vivienda afecta, compensación de negativos, y el plazo del calendario); y la regla del 70 % con el porcentaje como mera información. Redactados sin género («no tienes obligación de presentar el 130») |
+
+**Pruebas.** **69 nuevas** (`pytest backend/tests/tax -k modelo_130`) y **3.897 en total** sin RLS (3.828 + 69); lo que no se toca (RLS, API, frontend) sigue como estaba:
+
+| Archivo | Cubre |
+|---|---|
+| `test_modelo_130.py` (44) | AC-01 a AC-14, AC-18, AC-22 y AC-23: ingresos y rectificativa con signo; los cuatro tipos de gasto; el rendimiento negativo; el 20 % con redondeo (sube, baja y exactos); **el redondeo por casilla** (tres facturas de 12 céntimos: la 04 es 7, no 6); acumulado; pagos anteriores encadenados con `max(0, …)` y sus items; retenciones con signo; los tres resultados; fronteras de año y de trimestre; plazo y estado; periodo inválido y futuro; el límite; el porcentaje (empates, rectificativa que devuelve retención, 01 ≤ 0); avisos; determinismo |
+| `test_modelo_130_cases.py` (18) | AC-15, AC-11, AC-12: **lee el bloque JSON de B.1** de `SPEC-W-009` y reproduce al céntimo los cinco ejercicios y la comprobación adicional (siete casillas, resultado, porcentaje y los documentos de cada casilla), con todos los documentos juntos |
+| `test_modelo_130_properties.py` (7) | NFR-08 con 300 conjuntos al azar y semilla fija: suma de items = casilla, derivadas y regla del 20 %; la 05 de cada trimestre = lo que pagaron los anteriores calculados por separado; nada posterior al fin del trimestre cambia el resultado; aditividad de 01, 02 y 06; orden; otro año sin efecto; porcentaje frente a un oráculo con enteros |
+
+**Mutaciones.** **63 mutaciones** de `modelo_130.py`, `limits.py` y `periods.py` con un ejecutor desechable fuera del repositorio (borra `__pycache__` antes y después de cada una): **62 detectadas y 1 equivalente** (K03: calcular el 20 % también con la 03 en cero, que da cero). La primera tanda dejó viva una cosa de verdad: el redondeo del porcentaje (el valor por defecto de `quantize` redondea al par y ninguna prueba tenía un empate exacto); ahora hay dos (12,5 y 37,5). Una propiedad mía estaba mal planteada (exigía que «sin actividad» no tuviera items en ninguna casilla, y la 05 lista los trimestres anteriores con pago 0); se corrigió la propiedad, no el dominio.
+
+**Lo que no se ha comprobado:**
+- **Contra la AEAT o una gestoría**: los cinco ejercicios son **simulados, no externos** (B.1); solo prueban que el código reproduce nuestro cálculo manual con las mismas reglas (D-02 a D-07).
+- **Datos reales de la base**: `IncomeRow` y `CostRow` los rellena el hito 2; aquí no hay ninguna lectura.
+- **Rendimiento con 10.000 documentos**: se prueba el límite, no el tiempo.
+
+**Para el hito 2** (lectura de datos):
+- Rellenar `IncomeRow` desde `public.invoices` (`id`, `{serie}-{NNN}` como `label` con `display_number`, `issue_date`, `base_cents`, `irpf_cents`; las rectificativas ya traen la diferencia con signo) y `CostRow` desde `public.expenses` (`id`, `supplier_name`, `expense_date`, `base_cents`, `vat_cents`, `deductible_vat`; los anulados se pueden dejar sin leer, `voided = False`).
+- Leer por el rango `[year_start(year), fin del trimestre)` con la misma consulta por dueño y los mismos índices (`invoices_owner_date`, `expenses_by_owner_date`), con el límite de filas por consulta; los gastos manuales llegan sin IVA.
+- Sembrar con los ayudantes de `tests/rls` los cinco ejercicios de B.1 y comprobar que, de la base de datos a la casilla, salen las mismas cifras (de paso, contrasta lo que calcula la base con las retenciones de B.1).

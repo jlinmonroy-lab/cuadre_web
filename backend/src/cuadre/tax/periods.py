@@ -27,6 +27,11 @@ def quarter_of(day: date) -> tuple[int, int]:
     return day.year, (day.month - 1) // 3 + 1
 
 
+def year_start(year: int) -> date:
+    """El 1 de enero: el modelo 130 acumula desde ahí hasta el fin del trimestre (SPEC-W-009 D-02)."""
+    return date(year, 1, 1)
+
+
 def quarter_bounds(year: int, quarter: int) -> tuple[date, date]:
     """El primer día del trimestre y el primero del siguiente (el final es exclusivo)."""
     start = date(year, 3 * quarter - 2, 1)

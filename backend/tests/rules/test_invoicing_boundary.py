@@ -19,9 +19,11 @@ PURE_TAX = {
     "amounts.py",
     "invoice_terms.py",
     "limits.py",
+    "modelo_130.py",
     "modelo_303.py",
     "periods.py",
     "types.py",
+    "types_130.py",
     "types_303.py",
 }  # SPEC-W-008 hito 1: el modelo 303 también es puro (los modelos de la API de su hito 3 irán en IMPURE_TAX)
 PURE_INVOICING = {

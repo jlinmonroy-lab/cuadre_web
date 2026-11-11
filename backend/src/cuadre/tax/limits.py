@@ -34,3 +34,24 @@ NOTE_303_EXCLUSIONS = (
 )
 NOTE_303_CANARIAS = "No incluye el IGIC ni las operaciones en Canarias, Ceuta y Melilla: si tu actividad o tus clientes están allí, consulta con un asesor."
 NOTE_303_349 = "Las operaciones de la casilla 59 también van en el modelo 349."
+
+# --- Modelo 130 (SPEC-W-009 §5.1) ---------------------------------------------------------------------------------------------------
+
+# Más documentos que esto acumulados desde enero no caben en una respuesta de una Vercel Function (4,5 MB, ADR-0016).
+YEAR_MAX_DOCUMENTS = 10_000
+# El pago fraccionado es el 20 % del rendimiento neto acumulado (casilla 04), si es positivo.
+IRPF_PAYMENT_RATE = Decimal(20)
+
+NOTE_130_DRAFT = (
+    "Borrador orientativo calculado con tus registros, con importes acumulados desde el 1 de enero. "
+    "No se presenta ante la AEAT desde la aplicación."
+)
+NOTE_130_EXCLUSIONS = (
+    "No incluye el 5 % de gastos de difícil justificación, las minoraciones, las deducciones, la deducción por vivienda afecta "
+    "ni la compensación de resultados negativos de trimestres anteriores. El plazo es el del calendario: "
+    "la AEAT lo traslada si cae en un día inhábil."
+)
+NOTE_130_70 = (
+    "Si en el año anterior más del 70 % de tus ingresos llevó retención, no tienes obligación de presentar el 130. "
+    "El porcentaje de este año que ves aquí es solo informativo."
+)

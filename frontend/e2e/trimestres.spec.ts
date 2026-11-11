@@ -90,7 +90,7 @@ const BANNER = { en_curso: "Trimestre en curso", plazo_abierto: "Plazo abierto",
 
 // --- AC-17 · AC-18 · la hoja -----------------------------------------------------------------------------------------------------
 
-test("la hoja (AC-17, AC-18): menú activo, trimestre actual, 303 activo y 130 «Próximamente», plazo con texto y los avisos fijos", async ({ gastosPage: page, tax }) => {
+test("la hoja (AC-17, AC-18): menú activo, trimestre actual, 303 activo y 130 como enlace, plazo con texto y los avisos fijos", async ({ gastosPage: page, tax }) => {
   const model = await tax.modelo303();
   await page.goto("/inicio");
   const menu = page.getByRole("navigation", { name: "Apartados" });
@@ -101,9 +101,9 @@ test("la hoja (AC-17, AC-18): menú activo, trimestre actual, 303 activo y 130 �
 
   await expect(quarterNav(page).getByRole("link", { name: new RegExp(`^T${model.quarter}\\b`) })).toHaveAttribute("aria-current", "page");
   await expect(modelNav(page).locator('[aria-current="page"]')).toHaveText("Modelo 303");
-  const thirty = modelNav(page).locator('[aria-disabled="true"]');
-  await expect(thirty).toContainText("Modelo 130");
-  await expect(thirty).toContainText("Próximamente");
+  const thirty = modelNav(page).getByRole("link", { name: "Modelo 130" }); // desde SPEC-W-009 es un enlace (y no «Próximamente»)
+  await expect(thirty).not.toHaveAttribute("aria-current", "page");
+  await expect(thirty).toHaveAttribute("href", /^\/trimestres\?model=130&year=\d{4}&quarter=[1-4]$/);
   await expect(page.getByRole("heading", { level: 2, name: `T${model.quarter} de ${model.year}: ${MONTHS[model.quarter - 1]}` })).toBeVisible();
   await expect(page.getByText(BANNER[model.deadline_status as keyof typeof BANNER], { exact: true })).toBeVisible();
   await expect(page.getByText(longDate(model.deadline))).toBeVisible(); // la fecha del plazo, la del servidor
@@ -328,7 +328,7 @@ test("interfaz (AC-20): sin scroll horizontal, campos etiquetados, desplegables 
   await page.keyboard.press("Space");
   await expect(details).not.toHaveAttribute("open", "");
 
-  // Con Tab: año → «Ver» → los trimestres que ya han empezado → el primer desplegable, y el foco se ve.
+  // Con Tab: año → «Ver» → los trimestres que ya han empezado → las pestañas de modelo → el primer desplegable, y el foco se ve.
   const signature = (locator: Locator) =>
     locator.evaluate((el) => {
       const style = getComputedStyle(el);

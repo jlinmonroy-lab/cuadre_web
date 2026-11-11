@@ -4,22 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { yearOptions } from "@/lib/invoices";
-import { QUARTERS, quarterEnabled, quarterHref, quarterMonths, type Quarter } from "@/lib/tax";
+import { QUARTERS, quarterEnabled, quarterHref, quarterMonths, type ModelKey, type Quarter } from "@/lib/tax";
 
 const ITEM = "inline-block px-4 py-2 font-semibold";
 
 /**
  * El año (un formulario `GET`, con el trimestre en un campo oculto) y los cuatro trimestres como enlaces. Todo vive en la dirección
- * (`?year=&quarter=`) y lo lee el servidor: funciona sin JavaScript. Los trimestres que aún no han empezado no se ofrecen. Debajo del
- * trimestre, la pestaña del modelo: solo el 303 existe todavía; el 130 sale desactivado con «Próximamente», como el menú.
+ * (`?model=&year=&quarter=`) y lo lee el servidor: funciona sin JavaScript. Los trimestres que aún no han empezado no se ofrecen. Debajo del
+ * trimestre, las pestañas de los dos modelos, que son enlaces y conservan el año y el trimestre. El 303 no lleva `model` en la dirección.
  */
-export function QuarterPicker({ year, quarter, today }: { year: number; quarter: Quarter; today: string }) {
+export function QuarterPicker({ year, quarter, model, today }: { year: number; quarter: Quarter; model: ModelKey; today: string }) {
   const currentYear = Number(today.slice(0, 4));
   return (
     <div className="grid gap-4">
       <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
         <form method="get" action="/trimestres" className="flex items-end gap-3" aria-label="Año del trimestre">
           <input type="hidden" name="quarter" value={quarter} />
+          {model === "130" ? <input type="hidden" name="model" value="130" /> : null}
           <div className="grid gap-1.5">
             <Label htmlFor="trimestre-year" className="text-[13px] font-semibold text-ink-soft">
               Año
@@ -54,7 +55,7 @@ export function QuarterPicker({ year, quarter, today }: { year: number; quarter:
               return (
                 <li key={option} className={border}>
                   <Link
-                    href={quarterHref(year, option)}
+                    href={quarterHref(year, option, model)}
                     aria-current={selected ? "page" : undefined}
                     title={quarterMonths(option)}
                     className={`${ITEM} ${selected ? "bg-ink text-sheet" : "bg-sheet text-ink hover:bg-paper"}`}
@@ -70,16 +71,20 @@ export function QuarterPicker({ year, quarter, today }: { year: number; quarter:
       </div>
       <nav aria-label="Modelo">
         <ul className="m-0 flex w-max list-none overflow-hidden rounded-lg border border-rule-strong p-0">
-          <li>
-            <span aria-current="page" className={`${ITEM} bg-ink text-sheet`}>
-              Modelo 303
-            </span>
-          </li>
-          <li className="border-l border-rule-strong">
-            <span aria-disabled="true" className={`${ITEM} cursor-not-allowed bg-sheet text-ink-soft`}>
-              Modelo 130 <span className="ml-1 text-[13px] font-normal">Próximamente</span>
-            </span>
-          </li>
+          {(["303", "130"] as const).map((option) => {
+            const selected = option === model;
+            return (
+              <li key={option} className={option === "303" ? "" : "border-l border-rule-strong"}>
+                <Link
+                  href={quarterHref(year, quarter, option)}
+                  aria-current={selected ? "page" : undefined}
+                  className={`${ITEM} ${selected ? "bg-ink text-sheet" : "bg-sheet text-ink hover:bg-paper"}`}
+                >
+                  Modelo {option}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       </nav>
     </div>

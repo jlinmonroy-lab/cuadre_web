@@ -257,6 +257,7 @@ npm --prefix frontend exec -- playwright test e2e/modelo-130.spec.ts   # AC-19 a
 4. **Hito 3 · API**: `get_modelo_130`, modelos, errores, OpenAPI y cliente, con las pruebas de la API.
    **Hecho el 2026-11-11** (`QuarterService.modelo_130`, `Modelo130`/`Box130`/`Item130` y `present_130`, `period_too_large` con el código estable `quarter_too_large`, ruta `GET /api/tax/130` y OpenAPI y cliente regenerados; 36 pruebas nuevas por HTTP y 3.960 sin RLS; 1.561 RLS en verde; 27 mutaciones detectadas; respuesta máxima medida 2,51 MB; Anexo B.4).
 5. **Hito 4 · frontend**: la pestaña, la hoja del 130, `lib/tax.ts` ampliado con sus unitarias y la comprobación visual en tres motores.
+   **Hecho el 2026-11-11** (pestaña «Modelo 130» activa con `?model=130`, `Modelo130Sheet`, `BoxLine` compartido con el 303, `lib/tax.ts` y `lib/tax-api.ts` ampliados; 12 unitarias nuevas y 260 en verde; E2E del 303 en Chromium 14 de 14; comprobación visual desechable en tres motores y dos anchos; 41 mutaciones de la lógica detectadas; Anexo B.5).
 6. **Hito 5 · E2E y cierre**: `modelo-130.spec.ts`, ajustes de `roles.spec.ts` y `responsive.spec.ts`, mutaciones de la interfaz, Anexo B, `tasks.json` y, si llegan, los ejercicios externos de DEP-01.
 
 ## Anexo B · Decisiones que esta spec deja a la implementación
@@ -984,3 +985,47 @@ Periodo: del 1 de enero de 2026 al 30 de junio de 2026.
 - `lib/tax-api.ts`: `getModelo130(query)` con el mismo patrón que `getModelo303` (Server Component, token de la sesión, sin caché).
 - `lib/tax.ts` (puro, con unitarias): dirección `?model=303|130&year=&quarter=`, textos del resultado (`a_ingresar`, `nada_que_ingresar`, `sin_actividad`) y del porcentaje con retención («informativo»), casillas por grupo (`rendimiento`, `pagos`, `resultado`), y enlace de cada item (las facturas a su ficha, los gastos a su ficha; los items `quarter` no enlazan).
 - `components/tax/modelo-130.tsx` y la pestaña «Modelo 130» activa en `quarter-picker.tsx`; `app/(app)/trimestres/page.tsx` elige la hoja según `?model=`; sin JavaScript de cliente; el 303 sin cambios (AC-20).
+
+### B.5 Hito 4 · pestaña y hoja del modelo 130 · 2026-11-11
+
+**Qué hay.** La pestaña «Modelo 130» de `/trimestres` deja de ser «Próximamente» y pasa a ser un enlace (`?model=130`; sin parámetro o con cualquier otro valor, el 303). La hoja sigue el prototipo (`docs/cuadre-interfaz.html`): cabecera oscura «IRPF, pago fraccionado · T2 de 2025, importes acumulados desde enero», las siete casillas en tres grupos, el resultado al pie y debajo el porcentaje con retención como texto pequeño de apoyo, más el mismo selector de año y trimestre y el mismo estado del plazo. Server Components y HTML nativo: ni una línea de JavaScript de cliente (`check:bundle` en verde). **La interfaz no calcula nada**: importes, resultado, porcentaje y avisos son los del servidor.
+
+| Archivo | Cambio |
+|---|---|
+| `lib/tax.ts` | `ModelKey`, `parseModel`, `quarterHref(year, quarter, model)`; textos y agrupación del 130 (`resultText130`, `withheldShareText`, `groupBoxes130`, `componentsText130`, `itemSummary130`, `itemHref130`); la fila de cada casilla como dato (`boxView130` y `boxView303`, funciones puras) |
+| `lib/tax-api.ts` | `getModelo130` y `TaxReading<M>` genérico, con el tratamiento de errores del 303 en una función común |
+| `components/tax/box-row.tsx` | `BoxLine`: el marcado de una fila, único para los dos modelos; `BoxRow` (303) es un adaptador fino con las mismas clases |
+| `components/tax/modelo-130.tsx` | `Modelo130Sheet` |
+| `components/tax/quarter-picker.tsx` | Las dos pestañas son enlaces y conservan el año y el trimestre; los enlaces de trimestre y el formulario del año conservan el modelo (solo el 130 lleva `model`: las direcciones del 303 no cambian) |
+| `components/tax/notes.tsx`, `deadline-status.tsx` | `avisos-${model}` (el del 303 sigue siendo `avisos-303`); el estado del plazo acepta los dos modelos |
+| `app/(app)/trimestres/page.tsx` | Elige la lectura y la hoja según `?model=`; «Ir al trimestre actual» respeta el modelo |
+| `e2e/trimestres.spec.ts` | Solo la afirmación obsoleta «130 desactivado con Próximamente» pasa a «130 es un enlace»; nada más del E2E del 303 cambia |
+
+**Decisiones al implementar:**
+
+| Tema | Decisión |
+|---|---|
+| **Una sola fila para los dos modelos** | En lugar de copiar el marcado de `BoxRow`, se extrae `BoxLine` y cada modelo le da su vista ya escrita. Es el único cambio sobre código del 303; lo vigilan las unitarias de `boxView303`, el E2E del 303 y la comparación visual |
+| **Los trimestres anteriores enlazan** | En la casilla 05 cada trimestre anterior (`T1 de 2026…`) enlaza al 130 de ese trimestre (`/trimestres?model=130&year=&quarter=`): cumple NFR-08 enseñando de dónde sale cada pago. La nota de B.4 decía «no enlazan»; era una sugerencia y se corrige aquí. Un `id` que no sea `T1` a `T4` no enlaza |
+| **Resultado negativo** | «Nada que ingresar este trimestre», sin repetir el signo; el importe con signo está en la casilla 07 (y el rendimiento negativo, en la 03). No se arrastra ni se compensa: los avisos del servidor lo dicen |
+| **Regla del 70 %** | No se redacta en la interfaz: llega en `notes` (aviso fijo) y el porcentaje del año se enseña solo como información |
+| **Grupos** | El prototipo agrupa 01 a 06 bajo un solo título; aquí son los tres grupos del servidor: «Rendimiento de la actividad (estimación directa)», «Pagos ya hechos y retenciones» y «Resultado» |
+| **Gastos** | Un gasto no tiene detalle propio: se enseña su proveedor sin enlace y el desplegable cierra con «Ir a Gastos» (como en el 303) |
+
+**Pruebas.**
+- **12 unitarias nuevas** en `lib/tax.test.ts`; **260 en total**, todas en verde (las 248 anteriores, sin tocar): `parseModel` (ausente, `130`, `303`, valores raros, listas), la dirección (la del 303 idéntica), el plazo, los tres resultados, el porcentaje (incluido `null` y 0), las siete casillas siempre en tres grupos, los componentes de 03, 04 y 07, los resúmenes por tipo y por casilla, los enlaces de factura, trimestre y gasto, y las filas de los dos modelos.
+- `lint`, `typecheck`, `build`, `check:bundle` y `gen:api --check`, con código 0; el backend no cambia (`pytest backend/tests/quarters`: 122 en verde; `ruff check`).
+- **E2E del 303**: `e2e/trimestres.spec.ts` completo en Chromium a 1.440 px (un motor, un worker): **14 de 14** en verde con la afirmación del 130 actualizada.
+- **Comprobación visual del 130** con una prueba **desechable** (no se commitea) en Chromium, Firefox y WebKit, a 390 y 1.440 px (6 de 6): las siete casillas con el importe del servidor, los tres grupos, el porcentaje y los tres avisos, pestaña activa y 303 sin `model`, los desplegables de la 01 y la 06 con el enlace a la factura y el de la 05 con enlace al trimestre anterior, trimestre y año conservan el modelo, T1 sin pagos anteriores, el periodo futuro se explica y «Ir al trimestre actual» conserva el 130; sin scroll horizontal, campos etiquetados y sin errores de consola. Las capturas se miraron a mano (escritorio y móvil).
+- **Mutaciones de la lógica de la interfaz**: **41 de 41 detectadas** (dirección, `parseModel`, textos del resultado y del porcentaje, grupos, componentes, resúmenes, enlaces, importes y fechas, y la fila del 303), con un ejecutor desechable fuera del repositorio. Un patrón del ejecutor era ambiguo y se afinó. Las mutaciones de los componentes quedan para el hito 5.
+
+**Lo que no se ha comprobado:**
+- **La batería completa** (Chromium, Firefox y WebKit a 390 y 1.440 px) con los E2E propios del 130: es el hito 5. Aquí solo el E2E del 303 en un motor y la prueba visual desechable en los tres.
+- **Roles y `responsive.spec.ts`** con el 130: sin tocar todavía (el gestor y el administrador siguen yendo a `/403` por la ruta de siempre).
+- **Contra la AEAT o una gestoría**: los ejercicios siguen siendo simulados (DEP-01 pendiente).
+
+**Para el hito 5** (E2E y cierre):
+- `e2e/modelo-130.spec.ts` en los seis proyectos: lo que enseña la pantalla es lo que dice el servidor (casilla a casilla, resultado, porcentaje, avisos y documentos), emitiendo con las fixtures `gastosPage`, `biller` y `ledger`; un oráculo `TaxApi.modelo130` en `e2e/helpers/tax.ts` (tipos `Tax130` y `TaxItem130`, sin tocar los del 303) y la fixture `tax` ampliada.
+- Cobertura de AC-19 a AC-23: pestaña y dirección (`?model=130&year=&quarter=`), enlaces de factura y de trimestre anterior, trimestre futuro, dirección ilegible, interfaz (sin scroll horizontal, etiquetas, teclado, foco y consola) y aislamiento por cuenta.
+- Ajustes de `roles.spec.ts` (el gestor y el administrador no ven `/trimestres?model=130`, van a `/403`) y de `responsive.spec.ts` (también el 130).
+- Mutaciones de los componentes (`box-row`, `modelo-130`, `quarter-picker`, `notes`, `page`), batería completa en tres motores y dos anchos, Anexo B final y cierre de `tasks.json`; si llegan ejercicios externos de DEP-01, se añaden.

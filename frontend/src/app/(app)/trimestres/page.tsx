@@ -2,13 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { DeadlineStatus } from "@/components/tax/deadline-status";
+import { Modelo130Sheet } from "@/components/tax/modelo-130";
 import { Modelo303Sheet } from "@/components/tax/modelo-303";
 import { TaxNotes } from "@/components/tax/notes";
 import { QuarterPicker } from "@/components/tax/quarter-picker";
 import { madridToday } from "@/lib/invoices";
 import { requireRole } from "@/lib/session";
-import { getModelo303 } from "@/lib/tax-api";
-import { parseQuarterQuery, quarterHref, quarterMonths, quarterOfDate, quarterTitle } from "@/lib/tax";
+import { getModelo130, getModelo303 } from "@/lib/tax-api";
+import type { Modelo130, Modelo303 } from "@/lib/tax";
+import { parseModel, parseQuarterQuery, quarterHref, quarterMonths, quarterOfDate, quarterTitle } from "@/lib/tax";
 
 // Depende de la sesión en cada navegación (ver el layout de (app)): no es «instantánea» y no se valida como tal.
 export const instant = false;
@@ -21,7 +23,8 @@ export default async function TrimestresPage(props: PageProps<"/trimestres">) {
   const today = madridToday(new Date());
   // El trimestre vive en la dirección (`?year=&quarter=`): es una lectura de servidor, sin estado en el navegador.
   const query = parseQuarterQuery(params, today);
-  const reading = await getModelo303(query);
+  const model = parseModel(params); // `?model=130`; sin parámetro, el 303
+  const reading = model === "130" ? await getModelo130(query) : await getModelo303(query);
   const current = quarterOfDate(today);
 
   return (
@@ -34,7 +37,7 @@ export default async function TrimestresPage(props: PageProps<"/trimestres">) {
         </p>
       </header>
       <div className="grid gap-6">
-        <QuarterPicker year={query.year} quarter={query.quarter} today={today} />
+        <QuarterPicker year={query.year} quarter={query.quarter} model={model} today={today} />
         <section aria-labelledby="trimestre-elegido" className="grid gap-3">
           <h2 id="trimestre-elegido" className="text-base">
             {quarterTitle(query.year, query.quarter)}: {quarterMonths(query.quarter)}
@@ -42,14 +45,14 @@ export default async function TrimestresPage(props: PageProps<"/trimestres">) {
           {reading.status === "ok" ? (
             <>
               <DeadlineStatus model={reading.model} />
-              <Modelo303Sheet model={reading.model} />
-              <TaxNotes notes={reading.model.notes} />
+              {model === "130" ? <Modelo130Sheet model={reading.model as Modelo130} /> : <Modelo303Sheet model={reading.model as Modelo303} />}
+              <TaxNotes notes={reading.model.notes} model={model} />
             </>
           ) : (
             <div role="status" className="max-w-3xl rounded-panel border border-status-doubt-line bg-status-doubt-bg p-4 text-status-doubt">
               <p className="font-semibold">{reading.message}</p>
               <p className="mt-2">
-                <Link href={quarterHref(current.year, current.quarter)} className="font-semibold underline underline-offset-2">
+                <Link href={quarterHref(current.year, current.quarter, model)} className="font-semibold underline underline-offset-2">
                   Ir al trimestre actual
                 </Link>
               </p>

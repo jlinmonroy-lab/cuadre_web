@@ -37,7 +37,7 @@ fecha: 2026-11-11
 | D-03 | **Devengado**: `national_vat`, `eu_consumer_vat` y `non_eu_consumer_vat` suman base y cuota en la casilla de **su tipo** (`vat_rate` 4, 10 o 21); `eu_reverse_charge` suma su **base** en la **59**; `non_eu_not_subject` suma su base en la **120**. Un tipo distinto de 4, 10 o 21 no se esconde: error explícito (`unsupported_vat_rate`) | Una casilla «otros tipos»: no existe en el modelo |
 | D-04 | **Deducible**: gastos **no anulados** con `deductible_vat = true`, sumados por **línea de `tax_breakdown` con cuota** (tipo > 0): base en la **28** y cuota en la **29**. Las líneas con tipo 0 no tienen cuota y no entran; los gastos con IVA no deducible no entran (y la pantalla no los lista) | Sumar la base de todo gasto deducible, como el prototipo: infla la 28 con operaciones sin cuota (P-02, resuelta: no entran) |
 | D-05 | **Sumas en céntimos enteros**: la cuota de cada documento ya está redondeada al céntimo (al emitir o registrar); las casillas **suman**, sin volver a redondear. Solo una casilla derivada se redondea, una vez, con `ROUND_HALF_UP` (en el 303 no hay ninguna: 27 = suma de cuotas, 45 = 29 y 46 = 27 − 45) | Recalcular la cuota desde la base y el tipo: puede diferir un céntimo de lo facturado |
-| D-06 | **Resultado 46 = 27 − 45** en céntimos con signo: positivo = «a ingresar»; negativo = «a compensar» en próximos trimestres (sin compensar nada, D-01); cero con todas las casillas a cero = «sin actividad» | Calcular el resultado final con compensaciones: fuera de alcance |
+| D-06 | **Resultado 46 = 27 − 45** en céntimos con signo: positivo = «a ingresar»; negativo = «a compensar» en próximos trimestres (sin compensar nada, D-01); **cero con documentos en el trimestre = «a cero»** (27 = 45, o una factura anulada del todo) y **«sin actividad» solo si el trimestre no tiene ningún documento** (corregido en el hito 1, B.2) | Calcular el resultado final con compensaciones: fuera de alcance |
 | D-07 | **Cada casilla enlaza a sus documentos** (NFR-08, 100 %): la API devuelve, por casilla, los `items` (factura o gasto) que la componen, con su identificador, número o proveedor, fecha, base y cuota, y la **suma de los items es igual a la casilla** (propiedad que se comprueba en las pruebas). Las casillas derivadas (27, 45, 46) enlazan a las casillas que las componen | Solo totales: no cumple NFR-08 |
 | D-08 | **El servidor calcula todo**: el trimestre, el plazo de presentación y su estado (`en_curso`, `plazo_abierto`, `plazo_cerrado`) salen de la API con el reloj inyectado; la interfaz **no calcula nada fiscal** (como D-14 de SPEC-W-007) | Calcular en el navegador: dos implementaciones de la regla |
 | D-09 | **Solo lectura, sin tablas nuevas**: el borrador se calcula bajo demanda sobre `invoices` y `expenses` con la sesión de la persona (RLS). Nada se guarda ni se congela: un borrador no es un documento legal. Una migración solo si el hito 2 demuestra que la consulta lo necesita, y entonces entra en la matriz RLS | Guardar borradores: histórico de lo calculado, pero hay que decidir qué pasa cuando cambian las facturas |
@@ -55,12 +55,12 @@ fecha: 2026-11-11
 
 ## 2. Objetivo
 
-Que la persona abra **«Trimestres»**, elija un trimestre y vea su **borrador del modelo 303** con las casillas del régimen general, el resultado («a ingresar», «a compensar» o «sin actividad»), el plazo de presentación y, **bajo cada casilla, las facturas y los gastos que la componen**, todo calculado por el servidor con reglas deterministas, en céntimos exactos, marcado como **orientativo** y sin enviar nada a la AEAT.
+Que la persona abra **«Trimestres»**, elija un trimestre y vea su **borrador del modelo 303** con las casillas del régimen general, el resultado («a ingresar», «a compensar», «a cero» o «sin actividad»), el plazo de presentación y, **bajo cada casilla, las facturas y los gastos que la componen**, todo calculado por el servidor con reglas deterministas, en céntimos exactos, marcado como **orientativo** y sin enviar nada a la AEAT.
 
 ## 3. Alcance explícito
 
 ### 3.1 Dominio puro (`cuadre.tax.modelo_303`)
-Función pura `build_modelo_303(year, quarter, invoices, expenses, today)` que recibe documentos ya leídos (tipos inmutables, sin base de datos ni reloj), clasifica cada factura por `tax_treatment` y tipo y cada gasto por línea con cuota, suma en céntimos enteros y devuelve las casillas con sus `items`, el resultado, el plazo y el estado. Errores explícitos (`unsupported_vat_rate`, `invalid_period`, `period_in_future`). Funciones de periodo: inicio y fin de cada trimestre natural, trimestre de una fecha y plazo de presentación (1-20 de abril, julio y octubre; 1-30 de enero).
+Función pura `build_modelo_303(year, quarter, invoices, expenses, today)` que recibe documentos ya leídos (tipos inmutables, sin base de datos ni reloj), clasifica cada factura por `tax_treatment` y tipo y cada gasto por línea con cuota, suma en céntimos enteros y devuelve las casillas con sus `items`, el resultado, el plazo y el estado. Errores explícitos (`unsupported_vat_rate`, `quarter_too_large`, `invalid_period`, `period_in_future`). Módulos puros: `periods.py`, `types_303.py` y `modelo_303.py`. Funciones de periodo: inicio y fin de cada trimestre natural, trimestre de una fecha y plazo de presentación (1-20 de abril, julio y octubre; 1-30 de enero).
 
 ### 3.2 Base de datos
 Sin migraciones previstas (D-09). Una consulta por tabla con el rango `[inicio, fin)` del trimestre y `voided_at is null` en gastos. Si el hito 2 añade una función SQL o un índice, va en su propia migración, entra en `rls_matrix.yaml` y tiene sus pruebas de RLS.
@@ -89,7 +89,7 @@ Unitarias del dominio con casos a mano y propiedades; API y repositorio contra l
 
 **Periodo.** `year` (2000-9998) y `quarter` (1-4). Un trimestre que aún no ha empezado (según el reloj en Europe/Madrid) da `period_in_future`; el trimestre en curso se calcula con lo registrado hasta hoy. `period_start` y `period_end` (fechas ISO) y `deadline` (último día de presentación) salen del dominio.
 
-**Estado del plazo** (`deadline_status`): `en_curso` (el trimestre no ha terminado), `plazo_abierto` (terminó y `today <= deadline`) y `plazo_cerrado` (`today > deadline`).
+**Estado del plazo** (`deadline_status`): `en_curso` (el trimestre no ha terminado), `plazo_abierto` (terminó y `today <= deadline`) y `plazo_cerrado` (`today > deadline`). El `deadline` es la **fecha del calendario**: la AEAT lo traslada al siguiente día hábil si cae en sábado, domingo o festivo y el dominio no lo calcula (el aviso de «lo que no incluye» lo dice).
 
 **Clasificación de una factura** (de su `tax_treatment`, sin recalcular nada):
 
@@ -99,11 +99,11 @@ Unitarias del dominio con casos a mano y propiedades; API y repositorio contra l
 | `eu_reverse_charge` | 59 (base) |
 | `non_eu_not_subject` | 120 (base) |
 
-**Casillas** (todas en céntimos enteros con signo): `01`, `03`, `04`, `06`, `07`, `09` por tipo; `27` = `03 + 06 + 09`; `28` y `29` de los gastos (D-04); `45` = `29`; `46` = `27 − 45`; `59` y `120`. Cada casilla lleva `code`, `label` (texto en español), `amount_cents`, `group` (`devengado`, `deducible`, `resultado`, `adicional`), `items` (vacío en las derivadas, que enlazan a sus `components`) y `components` (códigos).
+**Casillas** (todas en céntimos enteros con signo): `01`, `03`, `04`, `06`, `07`, `09` por tipo; `27` = `03 + 06 + 09`; `28` y `29` de los gastos (D-04); `45` = `29`; `46` = `27 − 45`; `59` y `120`. Cada casilla lleva `code`, `label` (texto en español), `amount_cents`, `group` (`devengado`, `deducible`, `resultado`, `adicional`), `measure` (`base` o `vat`: qué importe de cada item suma en ella; `null` en las derivadas), `items` (vacío en las derivadas, que enlazan a sus `components`) y `components` (códigos). **Las trece casillas salen siempre**, también a cero; la interfaz oculta las nulas que no aplican.
 
 **Item**: `kind` (`invoice` | `expense`), `id`, `label` (número de factura o proveedor del gasto), `date`, `base_cents`, `vat_cents`. Una rectificativa es un item más con importes negativos. El `label` de un gasto es el nombre del proveedor tal como lo registró la persona.
 
-**Resultado**: `result_cents` (= casilla 46) y `result_kind` (`a_ingresar` | `a_compensar` | `sin_actividad`).
+**Resultado**: `result_cents` (= casilla 46) y `result_kind` (`a_ingresar` | `a_compensar` | `a_cero` | `sin_actividad`): `a_cero` cuando hay documentos pero 27 = 45; `sin_actividad` solo si el trimestre no tiene ningún documento (los gastos anulados no cuentan como documento).
 
 **Avisos fijos** (`notes`, textos del dominio, **siempre presentes**): borrador **orientativo** y sin presentar; lo que no incluye (§4); **«No incluye el IGIC ni las operaciones en Canarias, Ceuta y Melilla: si tu actividad o tus clientes están allí, consulta con un asesor.»** (P-04: la ficha del cliente solo guarda el país, así que el aviso no puede saber si aplica); y, solo si hay casilla 59, «también va en el modelo 349».
 
@@ -157,7 +157,7 @@ Sin cambios (D-09). Las lecturas pasan por la sesión de la persona: RLS ya limi
 
 **AC-06 · Líneas por tipo.** *Given* un gasto con dos líneas (21 % y 10 %) y otro con una línea al 0 %; *Then* las dos primeras suman en 28/29 por separado y la del 0 % no entra (P-02).
 
-**AC-07 · Resultado.** *Given* 27 mayor que 45, menor y todo a cero; *Then* el resultado es «a ingresar», «a compensar» (46 negativo) y «sin actividad».
+**AC-07 · Resultado.** *Given* 27 mayor que 45, menor, igual con documentos, y un trimestre sin documentos; *Then* el resultado es «a ingresar», «a compensar» (46 negativo), «a cero» y «sin actividad».
 
 **AC-08 · Cada casilla se explica.** *Given* cualquier trimestre; *Then* la suma de los `items` de cada casilla con items es igual a su importe y las derivadas (27, 45, 46) enumeran sus componentes (NFR-08, 100 %).
 
@@ -167,7 +167,7 @@ Sin cambios (D-09). Las lecturas pasan por la sesión de la persona: RLS ya limi
 
 **AC-11 · Periodo inválido o futuro.** *Given* `quarter=5`, un año fuera de rango o un trimestre que no ha empezado; *Then* `422` con `invalid_period` o `period_in_future` y el texto en español.
 
-**AC-12 · Tipo no soportado.** *Given* una factura con un tipo de IVA distinto de 4, 10 o 21 (dato corrupto); *Then* `422 unsupported_vat_rate`; la casilla no lo esconde.
+**AC-12 · Tipo no soportado.** *Given* una factura con IVA y un tipo distinto de 4, 10 o 21, o una operación sin IVA (`eu_reverse_charge`, `non_eu_not_subject`) con tipo o cuota distintos de cero (dato corrupto); *Then* `422 unsupported_vat_rate`; la casilla no lo esconde.
 
 **AC-13 · Redondeo al céntimo.** *Given* los **cinco trimestres simulados** del Anexo B.1 (cuotas con redondeo `ROUND_HALF_UP` por documento, resueltos a mano e independientes del código); *Then* todas las casillas coinciden **al céntimo** con el cálculo manual (NFR-03). Si llegan trimestres externos (DEP-01), se añaden aquí con la misma prueba.
 
@@ -216,8 +216,8 @@ npm --prefix frontend exec -- playwright test e2e/trimestres.spec.ts   # AC-17 a
 |---|---|
 | AC-01 a AC-03 | `backend/tests/tax/test_modelo_303.py` (clasificación por tratamiento y tipo) |
 | AC-04, AC-05, AC-06 | `test_modelo_303.py` (rectificativas, gastos y líneas) |
-| AC-07, AC-08 | `test_modelo_303.py` (resultado) y propiedades de `items` (documentos generados) |
-| AC-09, AC-10, AC-11 | `backend/tests/tax/test_periods.py` y `test_modelo_303_api.py` |
+| AC-07, AC-08 | `test_modelo_303.py` (resultado) y `test_modelo_303_properties.py` (propiedades de `items` con documentos generados) |
+| AC-09, AC-10, AC-11 | `backend/tests/tax/test_modelo_303_periods.py` (el nombre lleva `modelo_303` para que el comando de la spec lo seleccione) y `test_modelo_303_api.py` |
 | AC-12, AC-16 | `test_modelo_303.py` y `test_modelo_303_api.py` |
 | AC-13 | `test_modelo_303_cases.py`: los cinco trimestres simulados a mano de esta spec (Anexo B.1) y, si llegan, los externos de DEP-01 |
 | AC-14 | `backend/tests/rls/` (lecturas de `invoices` y `expenses` por rol) y `test_modelo_303_api.py` (403) |
@@ -239,6 +239,7 @@ npm --prefix frontend exec -- playwright test e2e/trimestres.spec.ts   # AC-17 a
 1. **Hito 0 · decisiones y cinco trimestres simulados**: se confirman D-01 a D-10 y se redactan en el Anexo B.1 **cinco trimestres resueltos a mano**, con las cuentas escritas paso a paso y sin ejecutar el código (solo nacional; UE y fuera de la UE con particulares; rectificativa que cruza trimestre; gastos de varios tipos con uno no deducible, uno anulado y una línea al 0 %; un trimestre «a compensar» y uno «sin actividad»), marcados «simulados, no externos».
    **Hecho el 2026-11-11** (cinco trimestres: T1 a T4 de 2025 y T1 de 2026, con empates de medio céntimo, los cuatro ámbitos, rectificativas que cruzan trimestre y cadenas, gastos de varios tipos y los resultados «a ingresar», «a compensar» y «sin actividad»; totales calculados a mano y contrastados al céntimo con un script independiente fuera del repositorio; D-01 a D-10 se confirman sin cambios; Anexo B.1).
 2. **Hito 1 · dominio puro**: `periods.py` y `modelo_303.py` con sus tipos, pruebas de los casos a mano, propiedades de `items` y mutaciones.
+   **Hecho el 2026-11-11** (`periods.py`, `types_303.py` y `modelo_303.py` puros; 113 pruebas nuevas, 3.768 sin RLS; los cinco trimestres simulados reproducidos al céntimo desde el bloque JSON de B.1; 75 mutaciones: 73 detectadas y 2 equivalentes por diseño; el resultado `a_cero` y el campo `measure` corrigieron §5.1 y D-06; Anexo B.2).
 3. **Hito 2 · lectura de datos**: consultas de trimestre para facturas y gastos (SQL explícito) y, solo si hace falta, una migración con su matriz RLS y sus pruebas; prueba del límite de documentos.
 4. **Hito 3 · API**: `get_modelo_303`, modelos, errores, OpenAPI y pruebas de la API (incluidas las de sin escrituras y sin datos personales).
 5. **Hito 4 · frontend**: `gen:api`, `/trimestres`, el menú, `lib/tax.ts` con sus unitarias y la comprobación visual en tres motores.
@@ -897,3 +898,49 @@ npm --prefix frontend exec -- playwright test e2e/trimestres.spec.ts   # AC-17 a
  ]
 }
 ```
+
+### B.2 Hito 1 · dominio puro del modelo 303 · 2026-11-11
+
+**Qué hay.** Tres módulos puros nuevos en `backend/src/cuadre/tax/` (declarados en `PURE_TAX` de `test_invoicing_boundary.py`, que vigila que no importen base de datos, red, FastAPI, Pydantic ni reloj): `periods.py`, `types_303.py` y `modelo_303.py`; constantes y textos en `limits.py`; todo exportado desde `cuadre.tax`. No hay base de datos, API ni pantalla todavía.
+
+| Pieza | Contenido |
+|---|---|
+| `periods.py` | `quarter_of`, `quarter_bounds` (fin exclusivo), `filing_deadline`, `deadline_status`, `validate_period` y las excepciones `InvalidPeriod` (`invalid_period`) y `PeriodInFuture` (`period_in_future`). Recibe fechas, nunca lee un reloj |
+| `types_303.py` | Dataclasses `frozen, slots`: entrada (`InvoiceRow`, `ExpenseRow`, `ExpenseLine`) y salida (`Item`, `Box`, `Modelo303`). Pydantic queda para los modelos de la API del hito 3 |
+| `modelo_303.py` | `build_modelo_303(year, quarter, invoices, expenses, today)`; `UnsupportedVatRate` (`unsupported_vat_rate`) y `QuarterTooLarge` (`quarter_too_large`) |
+| `limits.py` | `FILING_DEADLINES`, `QUARTER_MAX_DOCUMENTS = 5_000`, `PERIOD_MIN_YEAR/MAX_YEAR`, `VAT_TREATMENTS` y los cuatro textos de aviso |
+
+**Decisiones tomadas al implementar** (completan o corrigen §5.1 y D-06, ya actualizadas):
+
+| Tema | Decisión |
+|---|---|
+| **Resultado cero** | La spec solo preveía tres formas. Con documentos y 27 = 45 (o una factura anulada del todo en el mismo trimestre) el resultado es 0,00 € y **no** es «sin actividad»: se añade `a_cero`. `sin_actividad` queda para «ningún documento en el trimestre»; los gastos anulados no cuentan como documento, los no deducibles sí |
+| **Plazo** | Es la fecha del calendario (20 de abril, julio y octubre; 30 de enero). No se traslada a día hábil: el aviso «lo que no incluye» lo dice |
+| **Trece casillas siempre** | La función devuelve todas, también a cero; ocultar las nulas (01/03 y 04/06 sin operaciones) es cosa de la pantalla. Cada casilla lleva `measure` (`base` o `vat`) para que se pueda comprobar «la suma de los items es la casilla» sin conocer el mapa |
+| **Sin redondeos** | El dominio solo suma céntimos enteros (D-05); no usa `Decimal` salvo para comparar tipos. Las cuotas de cada documento ya vienen redondeadas |
+| **Filtro interno por trimestre** | Se le pueden pasar todos los documentos de la persona: filtra por fecha de expedición o de gasto. El repositorio del hito 2 igualmente acotará la consulta |
+| **Datos incoherentes** | Una operación `eu_reverse_charge` o `non_eu_not_subject` con tipo o cuota distintos de cero falla con `UnsupportedVatRate` en vez de sumarse en silencio; un tratamiento desconocido es un `ValueError` (error de programación). Los mensajes no llevan ningún dato del documento |
+| **Orden de los items** | Por fecha, etiqueta e id: determinista aunque cambie el orden de entrada |
+| **Años** | 2000-9998 (el cuarto trimestre del 9998 acaba en el 9999, el último año de `date`). Un booleano no es un trimestre válido (`True` valdría 1); para el año ya lo rechaza el rango |
+| **Tipos de línea de gasto** | En 28/29 cuenta toda línea con tipo > 0, sea cual sea (5 %, 7,5 %…), y no la de tipo 0 aunque trajera cuota (D-04, P-02) |
+
+**Pruebas.** **113 nuevas** (`pytest backend/tests/tax -k modelo_303`) y **3.768 en total** sin RLS (3.655 + 113):
+
+| Archivo | Cubre |
+|---|---|
+| `test_modelo_303_periods.py` (44) | AC-09, AC-10, AC-11: cada día del año en su trimestre, fronteras 31/03-01/04, 30/06-01/07, 30/09-01/10 y 31/12-01/01, plazos de los cuatro trimestres (el T4 en enero del año siguiente), estado del plazo en los días de borde, periodo inválido y futuro |
+| `test_modelo_303.py` (47) | AC-01 a AC-08, AC-11, AC-12, AC-16, AC-21: clasificación por tratamiento y tipo, particulares, rectificativas con signo, gastos (deducible, no deducible, anulado, dos líneas, línea al 0 %), los cuatro resultados, fronteras, orden, determinismo, tipos y tratamientos que no existen, límite de 5.000, avisos |
+| `test_modelo_303_cases.py` (16) | AC-13, AC-08: **lee el bloque JSON de B.1** de esta spec y reproduce los cinco trimestres simulados al céntimo (las 13 casillas, el resultado y los documentos de cada casilla), con todos los documentos juntos |
+| `test_modelo_303_properties.py` (6) | NFR-08 con 300 conjuntos de documentos al azar y semilla fija: suma de items = casilla, derivadas, invariancia al orden, aditividad al partir los documentos, documentos de otros trimestres sin efecto |
+
+**Mutaciones.** **75 mutaciones** de `periods.py`, `modelo_303.py` y `limits.py` con un ejecutor desechable fuera del repositorio: **73 detectadas y 2 equivalentes por diseño** (M22 y M24: cambiar el orden del par «casilla de base, casilla de cuota» de un tipo no cambia nada, porque cada factura se anota en las dos casillas y cada casilla suma su propio importe). La primera tanda destapó tres cosas: un `isinstance(year, bool)` **redundante** (el rango del año ya rechaza `True`; se quitó), y dos huecos de prueba reales (una línea al 0 % que trajera cuota, y dos documentos con la misma fecha y etiqueta, que ahora se ordenan por id). Lección del ejecutor: una mutación de igual longitud (`5_000` por `4_999`) puede reutilizar un `.pyc` viejo; el ejecutor borra `__pycache__` antes de cada mutante.
+
+**Lo que no se ha comprobado:**
+- **Contra la AEAT o una gestoría**: los cinco trimestres son simulados (B.1); solo prueban que el código reproduce ese cálculo manual con las mismas reglas.
+- **Datos reales de la base**: los tipos de entrada son los que el hito 2 tiene que rellenar; aquí no hay ninguna lectura.
+- **Rendimiento con 5.000 documentos**: se prueba el límite, no el tiempo.
+
+**Para el hito 2** (lectura de datos):
+- Rellenar `InvoiceRow` desde `public.invoices` (`id`, el número `{serie}-{NNN}` como `label`, `issue_date`, `tax_treatment`, `vat_rate`, `base_cents`, `vat_cents`; las rectificativas ya traen la diferencia con signo y el tipo de la original) y `ExpenseRow` desde `public.expenses` (`id`, `supplier_name` como `label`, `expense_date`, `deductible_vat`, `voided_at is not null` como `voided` y las líneas de `tax_breakdown`, cuyo `vat_rate` es un `str`: convertir a `Decimal`).
+- Acotar la consulta al rango `[inicio, fin)` del trimestre (`quarter_bounds`) y, si hace falta, un índice; pasar el «hoy» de `today_in_madrid`.
+- La fecha de un gasto de documento es la de la factura; la de uno manual, la que anotó la persona.

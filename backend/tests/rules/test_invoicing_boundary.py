@@ -14,7 +14,16 @@ from tests.rules.test_validators_boundary import clock_calls, forbidden_imports,
 
 TAX = SRC / "tax"
 INVOICING = SRC / "invoicing"
-PURE_TAX = {"__init__.py", "amounts.py", "invoice_terms.py", "limits.py", "types.py"}
+PURE_TAX = {
+    "__init__.py",
+    "amounts.py",
+    "invoice_terms.py",
+    "limits.py",
+    "modelo_303.py",
+    "periods.py",
+    "types.py",
+    "types_303.py",
+}  # SPEC-W-008 hito 1: el modelo 303 también es puro (los modelos de la API de su hito 3 irán en IMPURE_TAX)
 PURE_INVOICING = {
     "__init__.py",
     "limits.py",

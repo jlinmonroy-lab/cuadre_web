@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-007
 titulo: Emisión de facturas: inmutables, numeración, mención legal, PDF, QR simulado y rectificativas
-estado: en-revision
+estado: hecha
 prioridad: must
 riesgo: medio
 historias: [US-006, US-007]
@@ -529,7 +529,7 @@ npm --prefix frontend exec -- playwright test e2e/factura.spec.ts      # AC-21 a
 
 ### 8.4 Definición de hecho
 
-- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001, 002, 003, 005 y 006 §8.2 siguen en verde. *(Local, verificado el 2026-11-11 —Anexo B.7—; el CI lo confirma la persona.)*
+- [x] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001, 002, 003, 005 y 006 §8.2 siguen en verde. *(Local, verificado el 2026-11-11 —Anexo B.7—; CI de GitHub confirmado en verde por la persona el mismo día.)*
 - [x] `pytest backend/tests/rls -m rls` incluye `invoices`, `invoice_files`, sus funciones y el bucket `invoices`.
 - [x] «Facturas» está activo en el menú del autónomo y `/facturas` hace todo lo de AC-21; `/clientes` enseña «Facturado en {año}».
 - [x] El seed lleva facturas sintéticas de los cinco tratamientos y una rectificativa, y las pruebas que dependían del menú se han revisado.
@@ -1001,4 +1001,4 @@ Las baterías se lanzaron una por motor, con `--workers=1`, tras `supabase db re
 - **Una factura emitida desde dos pestañas a la vez**: el cerrojo es de la base de datos.
 - **La causa del fallo intermitente de WebKit** en `auth.spec.ts`.
 
-**Estado de la spec.** Todos los hitos hechos y la verificación local en verde: `en-revision`. Pasará a `hecha` cuando se confirme el CI.
+**Estado de la spec.** Todos los hitos hechos, la verificación local en verde y el CI de GitHub confirmado en verde por la persona tras el push de `bbed2a8` (2026-11-11): `hecha`.

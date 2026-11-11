@@ -13,6 +13,7 @@ const SIGNED_IN_PAGES: [RoleKey, string][] = [
   ["alicia", "/perfil"],
   ["alicia", "/clientes"],
   ["alicia", "/facturas"],
+  ["alicia", "/trimestres"],
   ["alicia", "/403"],
   ["gina", "/cartera"],
   ["adan", "/admin"],

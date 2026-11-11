@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-008
 titulo: Modelo 303 casilla a casilla: borrador orientativo del IVA trimestral con cada casilla enlazada a sus facturas y gastos
-estado: en-progreso
+estado: en-revision
 prioridad: must
 riesgo: medio
 historias: [US-003]
@@ -228,13 +228,13 @@ npm --prefix frontend exec -- playwright test e2e/trimestres.spec.ts   # AC-17 a
 
 ### 8.4 Definición de hecho
 
-- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001, 002, 003, 005, 006 y 007 §8.2 siguen en verde.
-- [ ] Los **cinco trimestres simulados** del Anexo B.1 coinciden al céntimo (NFR-03, por decisión de la persona del 2026-11-11). La **validación externa de DEP-01** queda como mejora pendiente y se anota en el Anexo B al cerrar; si la persona la exige antes de cerrar, la spec no pasa de `en-revision`.
-- [ ] El 100 % de las casillas con documentos enumera sus items y su suma es la casilla (NFR-08).
-- [ ] «Trimestres» está activo en el menú del autónomo y `/trimestres` hace todo lo de AC-17 a AC-21.
-- [ ] `docs/04-specs/tasks.json` actualizado; los ADR 0003, 0006, 0011, 0015 y 0016 enlazados.
+- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001, 002, 003, 005, 006 y 007 §8.2 siguen en verde. *(Local, verificado el 2026-11-11 —Anexo B.6—, con la batería completa en los tres motores; el CI lo confirma la persona.)*
+- [x] Los **cinco trimestres simulados** del Anexo B.1 coinciden al céntimo (NFR-03, por decisión de la persona del 2026-11-11): en el dominio, desde la base de datos y por HTTP. La **validación externa de DEP-01** queda como mejora pendiente (Anexo B.6); si la persona la exige antes de cerrar, la spec no pasa de `en-revision`.
+- [x] El 100 % de las casillas con documentos enumera sus items y su suma es la casilla (NFR-08): propiedad del dominio, pruebas de la API y E2E contra el servidor.
+- [x] «Trimestres» está activo en el menú del autónomo y `/trimestres` hace todo lo de AC-17 a AC-21.
+- [x] `docs/04-specs/tasks.json` actualizado; los ADR 0003, 0006, 0011, 0015 y 0016 enlazados.
 - [x] Las preguntas P-01 a P-05 están resueltas (2026-11-11).
-- [ ] Sin secretos, NIF, IBAN reales ni datos de terceros en el cambio; `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
+- [x] Sin secretos, NIF, IBAN reales ni datos de terceros en el cambio; `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
 
 ## Anexo A · Orden de implementación sugerido (un plan y un commit por hito)
 
@@ -249,6 +249,7 @@ npm --prefix frontend exec -- playwright test e2e/trimestres.spec.ts   # AC-17 a
 5. **Hito 4 · frontend**: `gen:api`, `/trimestres`, el menú, `lib/tax.ts` con sus unitarias y la comprobación visual en tres motores.
    **Hecho el 2026-11-11** (la pantalla `/trimestres` con el selector de año y trimestre, la hoja del 303 por grupos, los documentos de cada casilla en desplegables y los avisos, sin JavaScript de cliente; «Trimestres» activo en el menú; 16 unitarias nuevas y 248 en total; 46 mutaciones de las piezas puras, todas detectadas; comprobación visual con la API y la base reales en Chromium, Firefox y WebKit a 390 y 1.440 px —48 comprobaciones por motor—; Anexo B.5).
 6. **Hito 5 · E2E y cierre**: `trimestres.spec.ts`, ajustes de `roles.spec.ts` y `responsive.spec.ts`, mutaciones de la interfaz, Anexo B, `tasks.json` y, si llegan, los trimestres externos de DEP-01.
+   **Hecho el 2026-11-11** (`trimestres.spec.ts` con 11 pruebas por proyecto, `helpers/tax.ts` y el fixture `tax`, ajustes de `roles.spec.ts` y `responsive.spec.ts`; 26 mutaciones de la interfaz, todas detectadas; batería completa por motor: Chromium 273, Firefox 265 y WebKit 265 correctas, con 6 omitidas en los dos últimos; ningún defecto de producto; Anexo B.6).
 
 ## Anexo B · Decisiones que esta spec deja a la implementación
 
@@ -1063,3 +1064,43 @@ npm --prefix frontend exec -- playwright test e2e/trimestres.spec.ts   # AC-17 a
 - `trimestres.spec.ts` en tres motores y dos anchos con **esperas por un elemento concreto** (la página llega por streaming). Datos: las facturas por `InvoicesApi` (ya existe) y, para los gastos deducibles, el flujo real de Gastos con el servidor de agentes de E2E (como `gastos-registro.spec.ts`); las facturas y los gastos de una cuenta no se pueden borrar, así que se usa la cuenta nueva de cada worker y se localiza lo propio por su concepto o proveedor únicos.
 - Ajustes de `responsive.spec.ts` (`/trimestres`) y `roles.spec.ts` (gestor y administrador a `/403` también en `/trimestres`).
 - Mutaciones de los componentes de `components/tax/*` y de la página; verificación completa y el cierre (Anexo B.6, `tasks.json`, `en-revision`; `hecha` cuando se confirme el CI).
+
+### B.6 Hito 5 · E2E y cierre · 2026-11-11
+
+**Qué hay.** `e2e/trimestres.spec.ts` (11 pruebas por proyecto, seis proyectos), `e2e/helpers/tax.ts` (`TaxApi.modelo303(year?, quarter?)`: lee el borrador por la API con el token de GoTrue de la cuenta, como `InvoicesApi`; nunca la service key; ni el token ni la clave pública se escriben en ningún sitio) y el fixture `tax` en `helpers/fixtures.ts`. Ajustes de `roles.spec.ts` (el autónomo ve «Trimestres» activo; gestor y administrador no lo ven y `/trimestres` los lleva a `/403`) y de `responsive.spec.ts` (`/trimestres` como Alicia). Sin cambios de producto.
+
+**Decisiones.**
+- La cuenta de `usuario` del worker la comparten `factura.spec.ts` (emite facturas que no se pueden borrar, RES-03) y las pruebas de Gastos: **ninguna prueba espera cifras absolutas** del trimestre en curso. Cada una lee lo que dice el servidor (`tax.modelo303()`, el oráculo), comprueba que la pantalla enseña lo mismo y, cuando emite, que la **diferencia** es la esperada y que **sus documentos** salen en su casilla (localizados por número de factura).
+- Las facturas que se emiten por la API llevan la fecha de hoy (la serie no admite fechas hacia atrás): caen en el trimestre en curso. El único gasto deducible que se puede registrar es el de ejemplo del servidor de agentes de E2E (`fixture:invoice_ok`, del 28/10/2026): cae en el T4 de 2026, así que esa prueba pide `?year=2026&quarter=4` y se **omite** si hoy es anterior al 1/10/2026.
+- La página llega por streaming (renderizado parcial): toda lectura espera a un elemento concreto y los localizadores piden lo visible.
+
+**Pruebas por proyecto:** la hoja (menú, selector, 303 activo y 130 «Próximamente», plazo con su fecha, avisos); lo que enseña la pantalla frente al servidor (cada casilla, sus documentos y el resultado); una factura de cada ámbito (07/09, 04/06, 59 y 120 con sus diferencias exactas, el enlace a cada factura y el aviso del 349); una rectificativa (−200,00 € y −42,00 €, con su número y su fecha); un gasto deducible y anulado (28 y 29, «Ir a Gastos»); un trimestre sin actividad; el selector (trimestre, año conservando el trimestre, recarga); un trimestre futuro y direcciones raras; interfaz (sin scroll horizontal, etiquetas, teclado, foco y consola); sin red; y cada persona, lo suyo.
+
+**Hallazgos.** **Ningún defecto de producto.** Cuatro fallos del guion, no de la pantalla: (1) el nombre accesible de un enlace de trimestre es «T4 , octubre a diciembre» (el texto solo para lectores de pantalla se maqueta como bloque y Chromium añade un espacio); las pruebas piden `^T4\b`. (2) El formulario del año manda `quarter` (campo oculto) antes que `year`: la dirección es `?quarter=1&year=2025`; el orden no importa y la prueba lo lee con `searchParams`. (3) WebKit no recorre los enlaces con Tab por defecto, como Safari: allí solo se exige llegar al desplegable, y en todos los motores se comprueba que un trimestre se activa con foco y Enter. (4) Mi comprobación del foco de «Ver» se hacía después de pulsar Tab.
+
+**Resultados** (con `--workers=1`, un motor por invocación, tras `supabase db reset`):
+
+| Qué | Resultado |
+|---|---|
+| `trimestres.spec.ts` por motor | 25 correctas en Chromium, Firefox y WebKit (la de interfaz de WebKit, tras el ajuste 3) |
+| Batería completa, Chromium (390 y 1.440 px) | **273 correctas** |
+| Batería completa, Firefox | **265 correctas**, 6 omitidas |
+| Batería completa, WebKit | **265 correctas**, 6 omitidas |
+| Backend sin RLS | 3.828 correctas |
+| RLS (con la base recién reiniciada) | 1.561 correctas |
+| `ruff`, `export_openapi --check`, `gen:api --check`, `lint`, `typecheck`, `build` y `check:bundle` | código 0 |
+| Pruebas unitarias del frontend | 248 correctas |
+
+La batería completa incluye W-001, 002, 003, 005, 006, 007 y 008. Las omitidas son pruebas que no corren fuera de Chromium. **Dos intentos de la batería se cortaron por memoria** (el sistema paró la cadena: la primera vez, el servidor web de Playwright murió con el código `3221225794` antes de ejecutar ninguna prueba; la segunda, ya con Chromium y Firefox terminados, el trabajador de WebKit murió con el mismo código a media tanda y arrastró al resto con fallos de tiempo y de trabajador caído); ninguno de los dos se cuenta. Chromium y Firefox son de la segunda tanda, que los completó; WebKit se repitió **solo**, con el equipo recién despejado (más de 3 GB libres), y terminó limpio.
+
+**Mutaciones de la interfaz.** **26 mutaciones** de `quarter-picker`, `deadline-status`, `box-row`, `modelo-303`, `notes` y la página, con un ejecutor desechable fuera del repositorio (`next build` y `trimestres.spec.ts` en Chromium a 390 y 1.440 px por mutante, restauración por huella, tandas de 6): **26 detectadas, ninguna equivalente**. La primera tanda dejó vivas dos cosas que ninguna prueba miraba, y se cubrieron: la frase del plazo con su fecha larga y la fecha de cada documento. No se mutó `requireRole` de la página: el proxy y la API rechazan antes al gestor y al administrador, así que un E2E no puede distinguirlo (defensa en profundidad).
+
+**Lo que no se ha comprobado:**
+- **El CI de GitHub**: la verificación es local; la spec queda en `en-revision` hasta que la persona lo confirme.
+- **Validación externa (DEP-01)**: los cinco trimestres de B.1 son **simulados, no externos**; solo prueban que el código reproduce un cálculo manual con las mismas reglas (D-02 a D-06). Sigue siendo una mejora pendiente.
+- **Los seis proyectos en paralelo**: se ejecutó con un worker y un motor por vez, no con la configuración del CI.
+- **El reloj real del servidor** (`SystemClock`): las pruebas de la ruta fijan el reloj; el E2E usa el de verdad solo de forma indirecta.
+- **Lectores de pantalla reales** y **trimestres con miles de documentos**.
+- **Un trimestre «a compensar» en el E2E**: la cuenta del worker acumula facturas y no se puede garantizar; lo cubren las pruebas del dominio, de la API y la comprobación visual del hito 4.
+
+**Estado de la spec.** Todos los hitos hechos y la verificación local en verde: `en-revision`. Pasará a `hecha` cuando la persona confirme el CI (como W-005, W-006 y W-007) y deje escrito si da por buena la validación simulada o exige la externa de DEP-01.

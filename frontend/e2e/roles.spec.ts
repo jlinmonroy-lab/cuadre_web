@@ -86,6 +86,28 @@ for (const role of ["gina", "adan"] as const) {
   });
 }
 
+// SPEC-W-008 AC-18 · «Trimestres» es solo del autónomo: el gestor y el administrador no lo ven y /trimestres los lleva a /403.
+test("Trimestres · el autónomo lo ve activo en el menú y llega a su pantalla", async ({ pageAs }) => {
+  const page = await pageAs("alicia");
+  await page.goto(PEOPLE.alicia.home);
+  await page.getByRole("navigation", { name: "Apartados" }).getByRole("link", { name: "Trimestres" }).click();
+  await expect(page).toHaveURL("/trimestres");
+  await expect(page.getByRole("heading", { level: 1, name: "Trimestres" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Apartados" }).getByRole("link", { name: "Trimestres" })).toHaveAttribute("aria-current", "page");
+});
+
+for (const role of ["gina", "adan"] as const) {
+  test(`Trimestres · ${role} no lo ve en el menú y /trimestres lo lleva a /403`, async ({ pageAs }) => {
+    const page = await pageAs(role);
+    await page.goto(PEOPLE[role].home);
+    await expect(page.getByRole("navigation", { name: "Apartados" }).getByText("Trimestres", { exact: true })).toHaveCount(0);
+    await settle(page);
+    await page.goto("/trimestres");
+    await expect(page).toHaveURL("/403");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("No tienes acceso a esta sección");
+  });
+}
+
 // SPEC-W-005 AC-20 · «Perfil» es solo del autónomo: el gestor y el administrador no lo ven y /perfil los lleva a /403.
 test("Perfil · el autónomo lo ve activo en el menú y llega a su pantalla", async ({ pageAs }) => {
   const page = await pageAs("alicia");

@@ -7,6 +7,7 @@ import { API_URL, AUTH_DIR, type RoleKey } from "./env";
 import { InvoicesApi } from "./invoices";
 import { Ledger } from "./ledger";
 import { ProfileApi } from "./profile";
+import { TaxApi } from "./tax";
 import { signUpAndConfirm, uniqueEmail } from "./session";
 
 /**
@@ -95,6 +96,8 @@ type Fixtures = {
    * emitidas NO se pueden borrar (RES-03, T7-13): quedan en la cuenta y ninguna prueba cuenta filas ni números absolutos.
    */
   biller: Biller;
+  /** El borrador del 303 de `gastosUser` por la API: el oráculo de `trimestres.spec.ts` (solo lee). */
+  tax: TaxApi;
 };
 
 type WorkerFixtures = {
@@ -164,6 +167,10 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
       noAddress: await make({ name: "Sin Domicilio S.L.", kind: "business", country: "ES", tax_id: "B00000026" }),
     };
     await use({ clients: created, invoices: new InvoicesApi(request, gastosUser.email, API_URL), profile, clientsApi: clients });
+  },
+
+  tax: async ({ request, gastosUser }, use) => {
+    await use(new TaxApi(request, gastosUser.email, API_URL));
   },
 
   page: async ({ page }, use) => {

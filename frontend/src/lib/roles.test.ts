@@ -23,7 +23,7 @@ test("las etiquetas están en español", () => {
   assert.equal(roleLabel("admin"), "Administrador");
 });
 
-test("navegación del autónomo: Inicio, Clientes, Facturas, Gastos y Perfil están activos; el resto, próximamente", () => {
+test("navegación del autónomo: Inicio, Clientes, Facturas, Gastos, Trimestres y Perfil están activos; el resto, próximamente", () => {
   const nav = navFor("usuario");
   assert.deepEqual(
     nav.map((item) => item.label),
@@ -35,6 +35,7 @@ test("navegación del autónomo: Inicio, Clientes, Facturas, Gastos y Perfil est
     { label: "Clientes", href: "/clientes" },
     { label: "Facturas", href: "/facturas" },
     { label: "Gastos", href: "/gastos" },
+    { label: "Trimestres", href: "/trimestres" },
     { label: "Perfil", href: "/perfil" },
   ]);
   for (const future of nav.filter((item) => item.href === null)) assert.deepEqual(future, { label: future.label, href: null });
@@ -71,11 +72,13 @@ test("los apartados con pantalla propia pertenecen a un solo rol, respetando el 
   assert.equal(sectionOwner("/facturas"), "usuario");
   assert.equal(sectionOwner("/facturas/3f2a"), "usuario");
   assert.equal(sectionOwner("/facturas/3f2a/pdf"), "usuario");
+  assert.equal(sectionOwner("/trimestres"), "usuario");
+  assert.equal(sectionOwner("/trimestres/2025"), "usuario");
   // Las portadas siguen siendo suyas.
   assert.equal(sectionOwner("/inicio"), "usuario");
   assert.equal(sectionOwner("/cartera/ana"), "gestor");
   assert.equal(sectionOwner("/admin"), "admin");
-  for (const none of ["/", "/403", "/login", "/gastosx", "/gastos-x", "/x/gastos", "/mis-gastos", "/Gastos", "/perfilx", "/perfil-x", "/Perfil", "/clientesx", "/clientes-x", "/x/clientes", "/Clientes", "/facturasx", "/facturas-x", "/x/facturas", "/Facturas"]) {
+  for (const none of ["/", "/403", "/login", "/gastosx", "/gastos-x", "/x/gastos", "/mis-gastos", "/Gastos", "/perfilx", "/perfil-x", "/Perfil", "/clientesx", "/clientes-x", "/x/clientes", "/Clientes", "/facturasx", "/facturas-x", "/x/facturas", "/Facturas", "/trimestresx", "/trimestres-x", "/x/trimestres", "/Trimestres"]) {
     assert.equal(sectionOwner(none), null, none);
   }
 });

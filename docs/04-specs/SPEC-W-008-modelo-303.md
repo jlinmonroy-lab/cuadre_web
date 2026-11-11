@@ -51,7 +51,7 @@ fecha: 2026-11-11
 | P-02 | Un gasto deducible con líneas al 0 %: ¿entra su base en la 28? | **No** (D-04) |
 | P-03 | **DEP-01**: ¿quién entrega los cinco trimestres resueltos a mano y cuándo? | **No se espera a nadie: los simula el asistente** (Anexo B.1), calculados a mano e independientes del código y marcados «simulados, no externos». NFR-03 se da por cubierta con esos casos **por decisión de la persona**; la validación externa real sigue pendiente como mejora y DEP-01 se conserva en `external` |
 | P-04 | Canarias, Ceuta y Melilla (heredada de SPEC-W-007 P-02): `ES` es nacional con IVA | **Se queda como nacional, con un aviso fijo** en la API y en la pantalla (§5.1, AC-21); no hay IGIC |
-| P-05 | ¿«Trimestres» muestra desde ya la pestaña del 130 desactivada («Próximamente»)? | **Sí**, desactivada y con el texto «Disponible con SPEC-W-009» |
+| P-05 | ¿«Trimestres» muestra desde ya la pestaña del 130 desactivada («Próximamente»)? | **Sí**, desactivada y con el texto «Próximamente», como el menú (la propuesta era «Disponible con SPEC-W-009», pero un identificador interno no le dice nada a quien usa la aplicación; corregido en el hito 4, B.5) |
 
 ## 2. Objetivo
 
@@ -126,7 +126,7 @@ Sin cambios (D-09). Las lecturas pasan por la sesión de la persona: RLS ya limi
 `cuadre/tax/modelo_303.py` (puro), `cuadre/tax/periods.py` (trimestres y plazos, puro) y `cuadre/tax/types_303.py` (tipos); **`cuadre/quarters/`** (paquete de lectura compartido con SPEC-W-009: `repository.py` desde el hito 2 y, en el hito 3, `service.py`, `models.py` —respuesta Pydantic— y `errors.py`; sin conexiones fuera de `cuadre.db`); `cuadre/api/routes_tax.py`. La lectura **no va en `cuadre.tax`** porque necesita el número de factura de `cuadre.invoicing` y `cuadre.tax` no depende de ese paquete (lo vigila `test_invoicing_boundary.py`). `cuadre.core.clock` aporta «hoy en Madrid».
 
 ### 5.5 Frontend
-`lib/tax-api.ts` (lectura de servidor), `lib/tax.ts` (puro: formato de periodo, textos de estado y de resultado, enlaces de cada item), `app/(app)/trimestres/page.tsx`, `components/tax/*` (selector de trimestre, grupo de casillas, fila con detalle desplegable y badge de estado). Ninguna cuenta ni regla fiscal en el navegador (D-08).
+`lib/tax-api.ts` (lectura de servidor), `lib/tax.ts` (puro: formato de periodo, textos de estado y de resultado, enlaces de cada item), `app/(app)/trimestres/page.tsx`, `components/tax/*` (`quarter-picker`, `modelo-303`, `box-row`, `deadline-status` y `notes`: selector de año y de trimestre, hoja con las casillas por grupo, fila con desplegable de documentos, estado del plazo y avisos). El trimestre vive en la dirección: `?year=&quarter=`, los mismos nombres que la API. Todo son Server Components y HTML nativo (un `<form method="get">`, enlaces y `<details>`): ninguna línea de JavaScript de cliente. Ninguna cuenta ni regla fiscal en el navegador (D-08).
 
 ## 6. Restricciones técnicas
 
@@ -247,6 +247,7 @@ npm --prefix frontend exec -- playwright test e2e/trimestres.spec.ts   # AC-17 a
 4. **Hito 3 · API**: `get_modelo_303`, modelos, errores, OpenAPI y pruebas de la API (incluidas las de sin escrituras y sin datos personales).
    **Hecho el 2026-11-11** (`GET /api/tax/303` con `QuarterService`, modelos Pydantic y los cuatro errores 422; `openapi.json` y el cliente del frontend regenerados; los cinco trimestres de B.1 reproducidos al céntimo por HTTP; 35 pruebas nuevas y 3.828 sin RLS; 37 mutaciones de la capa de API: 36 detectadas y 1 equivalente; Anexo B.4).
 5. **Hito 4 · frontend**: `gen:api`, `/trimestres`, el menú, `lib/tax.ts` con sus unitarias y la comprobación visual en tres motores.
+   **Hecho el 2026-11-11** (la pantalla `/trimestres` con el selector de año y trimestre, la hoja del 303 por grupos, los documentos de cada casilla en desplegables y los avisos, sin JavaScript de cliente; «Trimestres» activo en el menú; 16 unitarias nuevas y 248 en total; 46 mutaciones de las piezas puras, todas detectadas; comprobación visual con la API y la base reales en Chromium, Firefox y WebKit a 390 y 1.440 px —48 comprobaciones por motor—; Anexo B.5).
 6. **Hito 5 · E2E y cierre**: `trimestres.spec.ts`, ajustes de `roles.spec.ts` y `responsive.spec.ts`, mutaciones de la interfaz, Anexo B, `tasks.json` y, si llegan, los trimestres externos de DEP-01.
 
 ## Anexo B · Decisiones que esta spec deja a la implementación
@@ -1017,4 +1018,48 @@ npm --prefix frontend exec -- playwright test e2e/trimestres.spec.ts   # AC-17 a
 - Mostrar solo las casillas con importe o con documentos en los grupos de 01-03 y 04-06 (las 13 vienen siempre); 27, 45 y 46 muestran sus componentes; `result_kind` con texto además de color (`a_ingresar`, `a_compensar`, `a_cero`, `sin_actividad`); el plazo y su estado; los cuatro avisos de `notes`.
 - Enlaces: un `Item303` de tipo `invoice` lleva a `/facturas/{id}`; uno de tipo `expense`, a `/gastos` (no hay detalle de gasto por ruta).
 - Errores 422: `period_in_future` (el selector no debería ofrecerlo), `quarter_too_large` y `unsupported_vat_rate` con su texto en español; 403 → `/403`.
-- Activar «Trimestres» en el menú del autónomo (hoy `FUTURE("Trimestres")` en `roles.ts`) y dejar la pestaña del 130 desactivada con «Disponible con SPEC-W-009» (P-05).
+- Activar «Trimestres» en el menú del autónomo (hoy `FUTURE("Trimestres")` en `roles.ts`) y dejar la pestaña del 130 desactivada con «Próximamente» (P-05).
+
+### B.5 Hito 4 · la pantalla de trimestres · 2026-11-11
+
+**Qué hay.** La pantalla `/trimestres` del autónomo, con el borrador del 303 que devuelve `GET /api/tax/303`. «Trimestres» pasa a ser un enlace del menú (`lib/roles.ts`: ruta del autónomo; el gestor y el administrador van a `/403`) y deja de anunciarse como futuro en la portada. Sin cambios de backend ni de base de datos.
+
+| Pieza | Contenido |
+|---|---|
+| `lib/tax.ts` | Puro: `parseQuarterQuery`, `quarterOfDate`, `quarterEnabled`, `quarterTitle`, `quarterMonths`, `quarterHref`, `deadlineBanner`, `resultText`, `visibleBoxes`, `groupBoxes`, `itemSummary`, `itemHref`, `itemAmount` y `componentsText`. Solo orden y texto: ninguna cuenta fiscal |
+| `lib/tax-api.ts` | Lectura de servidor con el JWT de la sesión: `ok`, o `problem` con el texto en español del 422 (trimestre futuro, demasiado grande, tipo ilegible); 401 y 403 redirigen y lo demás es «servicio no disponible». `lib/problems.ts` **no cambió**: ya enseña el `detail` de un 4xx corto |
+| `components/tax/` | `quarter-picker`, `modelo-303` (la hoja del prototipo), `box-row`, `deadline-status` y `notes`. Todo Server Component y HTML nativo: **ninguna línea de JavaScript de cliente** |
+| `app/(app)/trimestres/page.tsx` | `requireRole("usuario")`, el trimestre de la dirección y las cuatro piezas |
+
+**Decisiones tomadas al implementar:**
+
+| Tema | Decisión |
+|---|---|
+| **Dirección** | `?year=&quarter=`, los nombres de la API. Lo ausente o ilegible (`abc`, `0`, `5`, `1999`, `02025`, `+2025`…) vale el año y el trimestre de hoy en Madrid, cada uno por su cuenta: una dirección rara enseña el trimestre en curso, nunca una página de error. Un trimestre futuro sí se pasa y lo rechaza el servidor |
+| **Selector** | Un `<form method="get">` con el año (y el trimestre en un campo oculto) y los cuatro trimestres como enlaces con `aria-current="page"`; los que aún no han empezado salen desactivados con su texto. Debajo, la pestaña del modelo: 303 activo y 130 desactivado |
+| **Pestaña del 130** | «Próximamente», como el menú. P-05 proponía «Disponible con SPEC-W-009»: un identificador interno no le dice nada a quien usa la aplicación (corregido en P-05) |
+| **Casillas visibles** | 01, 03, 04 y 06 solo si tienen documentos; el resto de la hoja sale siempre, aunque valga cero (como el prototipo). Se oculta por falta de documentos, no por valer cero: una casilla con documentos que suman cero sigue viéndose |
+| **Documentos** | Cada casilla con documentos lleva un `<details>` nativo («Ver la factura», «Ver las 4 facturas», «Ver el gasto»…) con su número o proveedor, fecha e importe (la base o la cuota, según lo que suma la casilla). Una factura enlaza a `/facturas/{id}`; un gasto no tiene detalle por ruta y el desplegable acaba con un único «Ir a Gastos» |
+| **Resultado** | Con palabras: «546,00 € a ingresar», «411,10 € a compensar en próximos trimestres» (sin signo, el texto ya lo dice), «0,00 €: nada que ingresar ni compensar» y «Sin actividad en este trimestre» |
+| **Plazo** | Insignia con texto (el color solo refuerza) y la fecha larga que manda el servidor: «Trimestre en curso», «Plazo abierto», «Plazo cerrado» |
+| **Error 422** | Un aviso con el texto de la API y un «Ir al trimestre actual»; no se tira la página |
+| **Avisos** | Los de `notes`, siempre visibles debajo de la hoja (orientativo, lo que no incluye, Canarias/Ceuta/Melilla y, con la 59, el 349) |
+
+**Pruebas.** **16 unitarias nuevas** (de 232 a **248**): `tax.test.ts` (dirección y sus rarezas, trimestres y días de borde, plazo, resultado, casillas visibles y agrupadas, resumen y enlaces de documentos, componentes de las derivadas) y los cambios de `roles.test.ts` (menú, `/trimestres` del autónomo y su límite de segmento). Backend sin cambios: **3.828 sin RLS** y 1.561 de RLS. `gen:api --check`, `lint`, `typecheck`, `build` y `check:bundle` en verde. **E2E existentes** de `roles.spec.ts` y `responsive.spec.ts` en Chromium a 390 y 1.440 px: **67 correctas** (hizo falta que `e2e/helpers/env.ts` contara «Trimestres» entre los enlaces de Alicia).
+
+**Mutaciones.** **46 mutaciones** de `tax.ts` y `roles.ts` con un ejecutor desechable fuera del repositorio: **46 detectadas, ninguna equivalente**. La primera tanda dejó vivas tres cosas: dos huecos de prueba (un año de cinco cifras como `02025`, y el año por defecto, que ninguna prueba hacía depender de «hoy») y una **redundancia del código** (`count === 0` en `itemSummary`, que `kind === undefined` ya cubre; se quitó).
+
+**Comprobación visual** con la API y la base reales, datos sintéticos y un guion desechable de Playwright en **Chromium, Firefox y WebKit**, a **390 y 1.440 px** (Alicia, con gastos deducibles sembrados para el T3 y el T4 de 2026): **48 comprobaciones por motor**, todas correctas. Menú y portada; selector (el actual, los futuros desactivados, el año conservando el trimestre); el 303 activo y el 130 «Próximamente»; casillas visibles (07, 09, 27, 28, 29, 45, 46, 59 y 120 en el T4); los cuatro avisos; los desplegables (cuatro facturas en la 07, un gasto con «Ir a Gastos» en la 28) y que se abren con el teclado; una factura lleva a su detalle; el T3 «a compensar» con plazo cerrado y sin aviso del 349; el T2 sin actividad; un trimestre futuro y una dirección ilegible; sin scroll horizontal, campos etiquetados y consola sin errores; y el gestor y el administrador a `/403`. Sin defectos de producto. Dos fallos del guion, no del producto: el selector tiene un formulario llamado «Año del trimestre» y un campo «Año» (hay que pedir la etiqueta exacta) y la pantalla usa renderizado parcial, de modo que el contenido llega por streaming y **hay que esperar a un elemento concreto antes de leer** (lo mismo valdrá para el E2E).
+
+**Lo que no se ha comprobado:**
+- **Los E2E propios** (`trimestres.spec.ts`) y las mutaciones de la interfaz entera: son del hito 5.
+- **Firefox y WebKit con los E2E existentes**: solo Chromium (el equipo tenía unos 2,4 GB libres); los tres motores se vieron con el guion visual.
+- **Muchos documentos**: los desplegables van cerrados, pero un trimestre con miles de documentos mete todas las filas en el HTML; no se midió.
+- **Lectores de pantalla reales** (NVDA, VoiceOver): hay encabezados, etiquetas, `aria-current` y `aria-disabled`, pero no se probaron.
+- **El enlace de un gasto**: lleva a la lista de Gastos, no a su ficha (no existe esa ruta).
+- **Los cinco trimestres siguen siendo simulados, no externos.**
+
+**Para el hito 5** (E2E y cierre):
+- `trimestres.spec.ts` en tres motores y dos anchos con **esperas por un elemento concreto** (la página llega por streaming). Datos: las facturas por `InvoicesApi` (ya existe) y, para los gastos deducibles, el flujo real de Gastos con el servidor de agentes de E2E (como `gastos-registro.spec.ts`); las facturas y los gastos de una cuenta no se pueden borrar, así que se usa la cuenta nueva de cada worker y se localiza lo propio por su concepto o proveedor únicos.
+- Ajustes de `responsive.spec.ts` (`/trimestres`) y `roles.spec.ts` (gestor y administrador a `/403` también en `/trimestres`).
+- Mutaciones de los componentes de `components/tax/*` y de la página; verificación completa y el cierre (Anexo B.6, `tasks.json`, `en-revision`; `hecha` cuando se confirme el CI).

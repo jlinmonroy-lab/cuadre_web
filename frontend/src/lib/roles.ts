@@ -10,8 +10,8 @@ export function isRole(value: unknown): value is Role {
 
 const HOME: Record<Role, string> = { usuario: "/inicio", gestor: "/cartera", admin: "/admin" };
 // Apartados con pantalla propia, además de la portada: pertenecen a un solo rol y exigen sesión (SPEC-W-002: Gastos; SPEC-W-005: Perfil;
-// SPEC-W-006: Clientes; SPEC-W-007: Facturas).
-const SECTIONS: Record<Role, readonly string[]> = { usuario: ["/gastos", "/perfil", "/clientes", "/facturas"], gestor: [], admin: [] };
+// SPEC-W-006: Clientes; SPEC-W-007: Facturas; SPEC-W-008: Trimestres).
+const SECTIONS: Record<Role, readonly string[]> = { usuario: ["/gastos", "/perfil", "/clientes", "/facturas", "/trimestres"], gestor: [], admin: [] };
 const LABEL: Record<Role, string> = { usuario: "Autónomo", gestor: "Gestor", admin: "Administrador" };
 
 export function homeFor(role: Role): string {
@@ -36,7 +36,7 @@ export function navFor(role: Role): NavItem[] {
         { label: "Facturas", href: "/facturas" },
         { label: "Gastos", href: "/gastos" },
         FUTURE("Contabilidad mensual"),
-        FUTURE("Trimestres"),
+        { label: "Trimestres", href: "/trimestres" },
         { label: "Perfil", href: "/perfil" },
       ];
     case "gestor":

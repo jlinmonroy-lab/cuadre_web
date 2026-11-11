@@ -22,7 +22,6 @@ export default async function InicioPage() {
         intro="Esta es tu portada de autónomo. Aquí irá el resumen de tu actividad."
         upcoming={[
           { label: "Contabilidad mensual", description: "cierre de cada mes y libros de registro." },
-          { label: "Trimestres", description: "borradores orientativos de los modelos 303 y 130." },
         ]}
       />
     </>

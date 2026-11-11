@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-008
 titulo: Modelo 303 casilla a casilla: borrador orientativo del IVA trimestral con cada casilla enlazada a sus facturas y gastos
-estado: propuesta
+estado: en-progreso
 prioridad: must
 riesgo: medio
 historias: [US-003]
@@ -237,6 +237,7 @@ npm --prefix frontend exec -- playwright test e2e/trimestres.spec.ts   # AC-17 a
 ## Anexo A · Orden de implementación sugerido (un plan y un commit por hito)
 
 1. **Hito 0 · decisiones y cinco trimestres simulados**: se confirman D-01 a D-10 y se redactan en el Anexo B.1 **cinco trimestres resueltos a mano**, con las cuentas escritas paso a paso y sin ejecutar el código (solo nacional; UE y fuera de la UE con particulares; rectificativa que cruza trimestre; gastos de varios tipos con uno no deducible, uno anulado y una línea al 0 %; un trimestre «a compensar» y uno «sin actividad»), marcados «simulados, no externos».
+   **Hecho el 2026-11-11** (cinco trimestres: T1 a T4 de 2025 y T1 de 2026, con empates de medio céntimo, los cuatro ámbitos, rectificativas que cruzan trimestre y cadenas, gastos de varios tipos y los resultados «a ingresar», «a compensar» y «sin actividad»; totales calculados a mano y contrastados al céntimo con un script independiente fuera del repositorio; D-01 a D-10 se confirman sin cambios; Anexo B.1).
 2. **Hito 1 · dominio puro**: `periods.py` y `modelo_303.py` con sus tipos, pruebas de los casos a mano, propiedades de `items` y mutaciones.
 3. **Hito 2 · lectura de datos**: consultas de trimestre para facturas y gastos (SQL explícito) y, solo si hace falta, una migración con su matriz RLS y sus pruebas; prueba del límite de documentos.
 4. **Hito 3 · API**: `get_modelo_303`, modelos, errores, OpenAPI y pruebas de la API (incluidas las de sin escrituras y sin datos personales).
@@ -252,8 +253,647 @@ npm --prefix frontend exec -- playwright test e2e/trimestres.spec.ts   # AC-17 a
 - **SPEC-W-010 (gestor).** Lee el mismo borrador con las políticas de lectura que ya existen; hace falta su pantalla y el registro de cada lectura.
 - **SPEC-W-019 (XLSX).** Los libros registro salen de los mismos documentos y del mismo trimestre.
 
-### B.1 Hito 0 · cinco trimestres simulados, resueltos a mano · pendiente
+### B.1 Hito 0 · cinco trimestres simulados, resueltos a mano · 2026-11-11
 
-**Estado: «simulados, no externos».** Se redactan en el hito 0 con una tabla por trimestre (documento → base → tipo → cuota redondeada `ROUND_HALF_UP` → casilla) y las sumas escritas paso a paso. Los cálculos son **manuales e independientes del código**: no se obtienen ejecutando `build_modelo_303`. Cubren, entre los cinco: solo nacional (4, 10 y 21 %); UE empresa y fuera de la UE sin IVA y particulares con IVA español; una rectificativa que cruza trimestre; gastos con varias líneas, uno con IVA no deducible, uno anulado y una línea al 0 %; un trimestre «a compensar» y uno «sin actividad».
+**Estado: «simulados, no externos».** Cada trimestre lleva la tabla de documentos, la cuenta de cada cuota (`base × tipo / 100`, con `ROUND_HALF_UP`: la mitad se aleja de cero) y las casillas con los documentos que las componen. Los totales se calcularon **a mano antes de ejecutar nada** y se contrastaron con un script desechable, **fuera del repositorio y sin importar `cuadre`**, con aritmética entera: **coinciden los cinco trimestres al céntimo** y la suma de los documentos de cada casilla es la casilla (NFR-08). Todos los importes están en **céntimos**; los gastos traen sus cuotas ya validadas (no se calculan).
 
 **Límite de lo que demuestran.** Que el código reproduce un cálculo manual hecho con la misma interpretación de las reglas (D-02 a D-06). No demuestran que esa interpretación sea la de la AEAT: eso es lo que daría la validación externa de DEP-01 (equipo docente o gestoría), que sigue **pendiente** y que la persona decidió no esperar (2026-11-11).
+
+**Convenciones de los casos.** Año 2025 y T1 de 2026 (todos pasados). Una rectificativa guarda la **diferencia** entre los valores tras la rectificación y los vigentes, con el tipo y el tratamiento de la original, y cuenta en el trimestre de **su** fecha de expedición (D-02). Un documento de gasto cuenta en la 28/29 con la suma de sus líneas con tipo > 0 (D-04). Los identificadores (`A1`, `R1`, `EB1`…) son de esta spec; las pruebas del hito 1 los reutilizan.
+
+#### Q-A · T1 de 2025 · solo nacional, con empates de redondeo y la frontera del 31/03
+
+| Id | Fecha | Documento | Tipo | Base | Cuota | Cuenta de la cuota |
+|---|---|---|---|---|---|---|
+| A1 | 2025-01-15 | factura nacional | 21 % | 250 | 53 | 250 × 21 % = 52,5 → 53 |
+| A2 | 2025-02-03 | factura nacional | 21 % | 120000 | 25200 | 120000 × 21 % = 25200 |
+| A3 | 2025-02-20 | factura nacional | 10 % | 105 | 11 | 105 × 10 % = 10,5 → 11 |
+| A4 | 2025-03-10 | factura nacional | 10 % | 2345 | 235 | 2345 × 10 % = 234,5 → 235 |
+| A5 | 2025-03-18 | factura nacional | 4 % | 1237 | 49 | 1237 × 4 % = 49,48 → 49 |
+| A6 | 2025-03-31 | factura nacional | 4 % | 1238 | 50 | 1238 × 4 % = 49,52 → 50 |
+
+| Casilla | Importe | Documentos |
+|---|---|---|
+| 01 Base al 4 % | 2475 | A5 (1237), A6 (1238) |
+| 03 Cuota al 4 % | 99 | A5 (49), A6 (50) |
+| 04 Base al 10 % | 2450 | A3 (105), A4 (2345) |
+| 06 Cuota al 10 % | 246 | A3 (11), A4 (235) |
+| 07 Base al 21 % | 120250 | A1 (250), A2 (120000) |
+| 09 Cuota al 21 % | 25253 | A1 (53), A2 (25200) |
+| 27 Total cuota devengada | 25598 | derivada: 03 + 06 + 09 |
+| 28 Base deducible | 0 | — |
+| 29 Cuota deducible | 0 | — |
+| 45 Total a deducir | 0 | derivada: 29 |
+| 46 Resultado (27 − 45) | 25598 | derivada: 27 − 45 |
+| 59 Servicios a empresas de la UE | 0 | — |
+| 120 No sujetas por localización | 0 | — |
+
+**Resultado:** `a_ingresar` (255,98 €)
+
+#### Q-B · T2 de 2025 · los cuatro ámbitos y gastos deducibles de varios tipos (empieza el 01/04)
+
+| Id | Fecha | Documento | Tipo | Base | Cuota | Cuenta de la cuota |
+|---|---|---|---|---|---|---|
+| B1 | 2025-04-01 | factura nacional | 21 % | 80000 | 16800 | 80000 × 21 % = 16800 |
+| B2 | 2025-04-22 | factura UE empresa (ISP) | sin IVA | 150000 | 0 | — |
+| B3 | 2025-05-06 | factura fuera de la UE, no sujeta | sin IVA | 90000 | 0 | — |
+| B4 | 2025-05-20 | factura particular UE con IVA | 21 % | 5050 | 1061 | 5050 × 21 % = 1060,5 → 1061 |
+| B5 | 2025-06-10 | factura particular de fuera con IVA | 10 % | 3333 | 333 | 3333 × 10 % = 333,3 → 333 |
+| B6 | 2025-06-30 | factura nacional | 21 % | 100000 | 21000 | 100000 × 21 % = 21000 |
+
+| Id | Fecha | Gasto | Líneas (tipo: base / cuota) | Cuenta en 28 / 29 |
+|---|---|---|---|---|
+| EB1 | 2025-04-15 | deducible | 21 %: 40000 / 8400 | 40000 / 8400 |
+| EB2 | 2025-05-12 | deducible | 21 %: 10000 / 2100; 10 %: 5000 / 500 | 15000 / 2600 |
+| EB3 | 2025-06-20 | deducible | 4 %: 2500 / 100 | 2500 / 100 |
+
+| Casilla | Importe | Documentos |
+|---|---|---|
+| 01 Base al 4 % | 0 | — |
+| 03 Cuota al 4 % | 0 | — |
+| 04 Base al 10 % | 3333 | B5 (3333) |
+| 06 Cuota al 10 % | 333 | B5 (333) |
+| 07 Base al 21 % | 185050 | B1 (80000), B4 (5050), B6 (100000) |
+| 09 Cuota al 21 % | 38861 | B1 (16800), B4 (1061), B6 (21000) |
+| 27 Total cuota devengada | 39194 | derivada: 03 + 06 + 09 |
+| 28 Base deducible | 57500 | EB1 (40000), EB2 (15000), EB3 (2500) |
+| 29 Cuota deducible | 11100 | EB1 (8400), EB2 (2600), EB3 (100) |
+| 45 Total a deducir | 11100 | derivada: 29 |
+| 46 Resultado (27 − 45) | 28094 | derivada: 27 − 45 |
+| 59 Servicios a empresas de la UE | 150000 | B2 (150000) |
+| 120 No sujetas por localización | 90000 | B3 (90000) |
+
+**Resultado:** `a_ingresar` (280,94 €)
+
+#### Q-C · T3 de 2025 · rectificativas que cruzan trimestre, cadenas de rectificativas y anulación completa
+
+| Id | Fecha | Documento | Tipo | Base | Cuota | Cuenta de la cuota |
+|---|---|---|---|---|---|---|
+| C1 | 2025-07-08 | factura nacional | 21 % | 120000 | 25200 | 120000 × 21 % = 25200 |
+| C2 | 2025-07-20 | factura nacional | 10 % | 2345 | 235 | 2345 × 10 % = 234,5 → 235 |
+| C3 | 2025-07-25 | factura nacional | 10 % | 105 | 11 | 105 × 10 % = 10,5 → 11 |
+| C4 | 2025-09-30 | factura nacional | 4 % | 50000 | 2000 | 50000 × 4 % = 2000 |
+| R1 | 2025-07-15 | rectificativa de B1, base corregida 60000 | nacional 21 % | -20000 | -4200 | vigente 80000 / 16800; corregida 60000 × 21 % = 12600 → 12600; base 60000 − 80000 = -20000; cuota 12600 − 16800 = -4200 |
+| R2 | 2025-08-02 | rectificativa de B2, base corregida 100000 | UE empresa (ISP) sin IVA | -50000 | 0 | vigente 150000 / 0; corregida 100000 × 0 % = 0 → 0; base 100000 − 150000 = -50000; cuota 0 − 0 = 0 |
+| R3 | 2025-08-20 | rectificativa de C1, base corregida 0 | nacional 21 % | -120000 | -25200 | vigente 120000 / 25200; corregida 0 × 21 % = 0 → 0; base 0 − 120000 = -120000; cuota 0 − 25200 = -25200 |
+| R5 | 2025-08-25 | rectificativa de C3, base corregida 53 | nacional 10 % | -52 | -6 | vigente 105 / 11; corregida 53 × 10 % = 5,3 → 5; base 53 − 105 = -52; cuota 5 − 11 = -6 |
+| R4 | 2025-09-10 | rectificativa de C2, base corregida 1105 | nacional 10 % | -1240 | -124 | vigente 2345 / 235; corregida 1105 × 10 % = 110,5 → 111; base 1105 − 2345 = -1240; cuota 111 − 235 = -124 |
+| R6 | 2025-09-25 | rectificativa de C3, base corregida 0 | nacional 10 % | -53 | -5 | vigente 53 / 5; corregida 0 × 10 % = 0 → 0; base 0 − 53 = -53; cuota 0 − 5 = -5 |
+
+| Casilla | Importe | Documentos |
+|---|---|---|
+| 01 Base al 4 % | 50000 | C4 (50000) |
+| 03 Cuota al 4 % | 2000 | C4 (2000) |
+| 04 Base al 10 % | 1105 | C2 (2345), C3 (105), R5 (-52), R4 (-1240), R6 (-53) |
+| 06 Cuota al 10 % | 111 | C2 (235), C3 (11), R5 (-6), R4 (-124), R6 (-5) |
+| 07 Base al 21 % | -20000 | C1 (120000), R1 (-20000), R3 (-120000) |
+| 09 Cuota al 21 % | -4200 | C1 (25200), R1 (-4200), R3 (-25200) |
+| 27 Total cuota devengada | -2089 | derivada: 03 + 06 + 09 |
+| 28 Base deducible | 0 | — |
+| 29 Cuota deducible | 0 | — |
+| 45 Total a deducir | 0 | derivada: 29 |
+| 46 Resultado (27 − 45) | -2089 | derivada: 27 − 45 |
+| 59 Servicios a empresas de la UE | -50000 | R2 (-50000) |
+| 120 No sujetas por localización | 0 | — |
+
+**Resultado:** `a_compensar` (−20,89 €)
+
+#### Q-D · T4 de 2025 · gastos variados (dos líneas, no deducible, anulado, línea al 0 %, 31/12) y resultado «a compensar»
+
+| Id | Fecha | Documento | Tipo | Base | Cuota | Cuenta de la cuota |
+|---|---|---|---|---|---|---|
+| D1 | 2025-10-05 | factura nacional | 21 % | 30000 | 6300 | 30000 × 21 % = 6300 |
+
+| Id | Fecha | Gasto | Líneas (tipo: base / cuota) | Cuenta en 28 / 29 |
+|---|---|---|---|---|
+| ED1 | 2025-10-10 | deducible | 21 %: 200000 / 42000; 10 %: 50000 / 5000 | 250000 / 47000 |
+| ED2 | 2025-11-04 | IVA no deducible | 21 %: 10000 / 2100 | no cuenta |
+| ED3 | 2025-11-18 | anulado | 21 %: 7000 / 1470 | no cuenta |
+| ED4 | 2025-12-02 | deducible | 0 %: 8000 / 0; 21 %: 1000 / 210 | 1000 / 210 (la línea al 0 % no entra) |
+| ED5 | 2025-12-31 | manual sin IVA | base 5000, cuota 0 | no cuenta |
+| ED6 | 2025-12-31 | deducible | 10 %: 2000 / 200 | 2000 / 200 |
+
+| Casilla | Importe | Documentos |
+|---|---|---|
+| 01 Base al 4 % | 0 | — |
+| 03 Cuota al 4 % | 0 | — |
+| 04 Base al 10 % | 0 | — |
+| 06 Cuota al 10 % | 0 | — |
+| 07 Base al 21 % | 30000 | D1 (30000) |
+| 09 Cuota al 21 % | 6300 | D1 (6300) |
+| 27 Total cuota devengada | 6300 | derivada: 03 + 06 + 09 |
+| 28 Base deducible | 253000 | ED1 (250000), ED4 (1000), ED6 (2000) |
+| 29 Cuota deducible | 47410 | ED1 (47000), ED4 (210), ED6 (200) |
+| 45 Total a deducir | 47410 | derivada: 29 |
+| 46 Resultado (27 − 45) | -41110 | derivada: 27 − 45 |
+| 59 Servicios a empresas de la UE | 0 | — |
+| 120 No sujetas por localización | 0 | — |
+
+**Resultado:** `a_compensar` (−411,10 €)
+
+#### Q-E · T1 de 2026 · «sin actividad» entre dos documentos vecinos (31/12/2025 y 01/04/2026)
+
+| Casilla | Importe | Documentos |
+|---|---|---|
+| 01 Base al 4 % | 0 | — |
+| 03 Cuota al 4 % | 0 | — |
+| 04 Base al 10 % | 0 | — |
+| 06 Cuota al 10 % | 0 | — |
+| 07 Base al 21 % | 0 | — |
+| 09 Cuota al 21 % | 0 | — |
+| 27 Total cuota devengada | 0 | derivada: 03 + 06 + 09 |
+| 28 Base deducible | 0 | — |
+| 29 Cuota deducible | 0 | — |
+| 45 Total a deducir | 0 | derivada: 29 |
+| 46 Resultado (27 − 45) | 0 | derivada: 27 − 45 |
+| 59 Servicios a empresas de la UE | 0 | — |
+| 120 No sujetas por localización | 0 | — |
+
+**Resultado:** `sin_actividad`
+
+**Lo que ejercita cada caso**
+
+- **Q-A.** Empates de medio céntimo (A1 `52,5 → 53`, A3 `10,5 → 11`, A4 `234,5 → 235`) y redondeo por documento: la cuota del 10 % suma `246`, no `245` (que saldría de redondear una sola vez sobre la base total `2450`). A6 (31/03) cuenta en el T1; B1 (01/04) en el T2.
+- **Q-B.** UE empresa → 59 y fuera de la UE sin IVA → 120 (no suman en la 27); el particular de la UE al 21 % (B4, empate `1060,5 → 1061`) y el de fuera al 10 % (B5, `333,3 → 333`) suman en su tipo; los tres gastos con cuota llenan 28/29 con todos los tipos; con la 59 distinta de cero el aviso del 349.
+- **Q-C.** R1 y R2 rectifican documentos del T2 y **restan en el T3**; el T2 queda completo (Q-B no cambia). R3 anula C1 entera (base y cuota `−120000`/`−25200`, el 07 y el 09 quedan negativos). C2 y R4 dejan vigente `1105`/`111`; la cadena C3 → R5 → R6 deja a cero la base y la cuota (`105`/`11`, luego `−52`/`−6` y `−53`/`−5`: **no** `−5` y `−5`, que dejaría una cuota vigente de `1`). Resultado negativo solo por rectificativas.
+- **Q-D.** Dos líneas con tipo en un mismo gasto (ED1), gasto con IVA no deducible (ED2), gasto anulado (ED3), línea al 0 % que no entra (ED4), gasto manual sin IVA (ED5) y un gasto del 31/12 (ED6) que cuenta en el T4. El resultado es negativo: «a compensar».
+- **Q-E.** Entre el 31/12/2025 (T4, Q-D) y el 01/04/2026 (X1, factura al 21 % sobre `10000` con cuota `2100`, que cuenta en el T2 de 2026) el T1 de 2026 no tiene ningún documento: todas las casillas a cero y «sin actividad».
+
+**Cómo las usan las pruebas del hito 1.** Se pasan **todos los documentos de los cinco casos juntos** (más `X1`) a la función y se pide cada trimestre por separado: así se ejercitan las fronteras (31/03, 01/04, 31/12) y que ningún documento se cuele en otro trimestre. El reloj de las pruebas está después de 2026-04-01 para que ningún trimestre sea futuro. Las rectificativas ya llevan la diferencia calculada (es lo que guarda la base de datos); su cálculo está en la columna «Cuenta de la cuota».
+
+**Formato para las pruebas del hito 1** (los mismos datos, para no reescribirlos; `casillas` usa el número de casilla):
+
+```json
+{
+ "nota": "simulados, no externos; importes en céntimos; las rectificativas llevan la diferencia (ya calculada) y la fecha de la rectificativa",
+ "trimestres": [
+  {
+   "caso": "Q-A",
+   "anio": 2025,
+   "trimestre": 1,
+   "documentos": [
+    {
+     "id": "A1",
+     "tipo": "factura",
+     "fecha": "2025-01-15",
+     "tratamiento": "national_vat",
+     "iva": 21,
+     "base": 250,
+     "cuota": 53
+    },
+    {
+     "id": "A2",
+     "tipo": "factura",
+     "fecha": "2025-02-03",
+     "tratamiento": "national_vat",
+     "iva": 21,
+     "base": 120000,
+     "cuota": 25200
+    },
+    {
+     "id": "A3",
+     "tipo": "factura",
+     "fecha": "2025-02-20",
+     "tratamiento": "national_vat",
+     "iva": 10,
+     "base": 105,
+     "cuota": 11
+    },
+    {
+     "id": "A4",
+     "tipo": "factura",
+     "fecha": "2025-03-10",
+     "tratamiento": "national_vat",
+     "iva": 10,
+     "base": 2345,
+     "cuota": 235
+    },
+    {
+     "id": "A5",
+     "tipo": "factura",
+     "fecha": "2025-03-18",
+     "tratamiento": "national_vat",
+     "iva": 4,
+     "base": 1237,
+     "cuota": 49
+    },
+    {
+     "id": "A6",
+     "tipo": "factura",
+     "fecha": "2025-03-31",
+     "tratamiento": "national_vat",
+     "iva": 4,
+     "base": 1238,
+     "cuota": 50
+    }
+   ],
+   "casillas": {
+    "01": 2475,
+    "03": 99,
+    "04": 2450,
+    "06": 246,
+    "07": 120250,
+    "09": 25253,
+    "27": 25598,
+    "28": 0,
+    "29": 0,
+    "45": 0,
+    "46": 25598,
+    "59": 0,
+    "120": 0
+   },
+   "resultado": "a_ingresar"
+  },
+  {
+   "caso": "Q-B",
+   "anio": 2025,
+   "trimestre": 2,
+   "documentos": [
+    {
+     "id": "B1",
+     "tipo": "factura",
+     "fecha": "2025-04-01",
+     "tratamiento": "national_vat",
+     "iva": 21,
+     "base": 80000,
+     "cuota": 16800
+    },
+    {
+     "id": "B2",
+     "tipo": "factura",
+     "fecha": "2025-04-22",
+     "tratamiento": "eu_reverse_charge",
+     "iva": 0,
+     "base": 150000,
+     "cuota": 0
+    },
+    {
+     "id": "B3",
+     "tipo": "factura",
+     "fecha": "2025-05-06",
+     "tratamiento": "non_eu_not_subject",
+     "iva": 0,
+     "base": 90000,
+     "cuota": 0
+    },
+    {
+     "id": "B4",
+     "tipo": "factura",
+     "fecha": "2025-05-20",
+     "tratamiento": "eu_consumer_vat",
+     "iva": 21,
+     "base": 5050,
+     "cuota": 1061
+    },
+    {
+     "id": "B5",
+     "tipo": "factura",
+     "fecha": "2025-06-10",
+     "tratamiento": "non_eu_consumer_vat",
+     "iva": 10,
+     "base": 3333,
+     "cuota": 333
+    },
+    {
+     "id": "B6",
+     "tipo": "factura",
+     "fecha": "2025-06-30",
+     "tratamiento": "national_vat",
+     "iva": 21,
+     "base": 100000,
+     "cuota": 21000
+    },
+    {
+     "id": "EB1",
+     "tipo": "gasto",
+     "fecha": "2025-04-15",
+     "iva_deducible": true,
+     "anulado": false,
+     "lineas": [
+      {
+       "iva": 21,
+       "base": 40000,
+       "cuota": 8400
+      }
+     ]
+    },
+    {
+     "id": "EB2",
+     "tipo": "gasto",
+     "fecha": "2025-05-12",
+     "iva_deducible": true,
+     "anulado": false,
+     "lineas": [
+      {
+       "iva": 21,
+       "base": 10000,
+       "cuota": 2100
+      },
+      {
+       "iva": 10,
+       "base": 5000,
+       "cuota": 500
+      }
+     ]
+    },
+    {
+     "id": "EB3",
+     "tipo": "gasto",
+     "fecha": "2025-06-20",
+     "iva_deducible": true,
+     "anulado": false,
+     "lineas": [
+      {
+       "iva": 4,
+       "base": 2500,
+       "cuota": 100
+      }
+     ]
+    }
+   ],
+   "casillas": {
+    "01": 0,
+    "03": 0,
+    "04": 3333,
+    "06": 333,
+    "07": 185050,
+    "09": 38861,
+    "27": 39194,
+    "28": 57500,
+    "29": 11100,
+    "45": 11100,
+    "46": 28094,
+    "59": 150000,
+    "120": 90000
+   },
+   "resultado": "a_ingresar"
+  },
+  {
+   "caso": "Q-C",
+   "anio": 2025,
+   "trimestre": 3,
+   "documentos": [
+    {
+     "id": "C1",
+     "tipo": "factura",
+     "fecha": "2025-07-08",
+     "tratamiento": "national_vat",
+     "iva": 21,
+     "base": 120000,
+     "cuota": 25200
+    },
+    {
+     "id": "C2",
+     "tipo": "factura",
+     "fecha": "2025-07-20",
+     "tratamiento": "national_vat",
+     "iva": 10,
+     "base": 2345,
+     "cuota": 235
+    },
+    {
+     "id": "C3",
+     "tipo": "factura",
+     "fecha": "2025-07-25",
+     "tratamiento": "national_vat",
+     "iva": 10,
+     "base": 105,
+     "cuota": 11
+    },
+    {
+     "id": "C4",
+     "tipo": "factura",
+     "fecha": "2025-09-30",
+     "tratamiento": "national_vat",
+     "iva": 4,
+     "base": 50000,
+     "cuota": 2000
+    },
+    {
+     "id": "R1",
+     "tipo": "rectificativa",
+     "fecha": "2025-07-15",
+     "tratamiento": "national_vat",
+     "iva": 21,
+     "base": -20000,
+     "cuota": -4200
+    },
+    {
+     "id": "R2",
+     "tipo": "rectificativa",
+     "fecha": "2025-08-02",
+     "tratamiento": "eu_reverse_charge",
+     "iva": 0,
+     "base": -50000,
+     "cuota": 0
+    },
+    {
+     "id": "R3",
+     "tipo": "rectificativa",
+     "fecha": "2025-08-20",
+     "tratamiento": "national_vat",
+     "iva": 21,
+     "base": -120000,
+     "cuota": -25200
+    },
+    {
+     "id": "R5",
+     "tipo": "rectificativa",
+     "fecha": "2025-08-25",
+     "tratamiento": "national_vat",
+     "iva": 10,
+     "base": -52,
+     "cuota": -6
+    },
+    {
+     "id": "R4",
+     "tipo": "rectificativa",
+     "fecha": "2025-09-10",
+     "tratamiento": "national_vat",
+     "iva": 10,
+     "base": -1240,
+     "cuota": -124
+    },
+    {
+     "id": "R6",
+     "tipo": "rectificativa",
+     "fecha": "2025-09-25",
+     "tratamiento": "national_vat",
+     "iva": 10,
+     "base": -53,
+     "cuota": -5
+    }
+   ],
+   "casillas": {
+    "01": 50000,
+    "03": 2000,
+    "04": 1105,
+    "06": 111,
+    "07": -20000,
+    "09": -4200,
+    "27": -2089,
+    "28": 0,
+    "29": 0,
+    "45": 0,
+    "46": -2089,
+    "59": -50000,
+    "120": 0
+   },
+   "resultado": "a_compensar"
+  },
+  {
+   "caso": "Q-D",
+   "anio": 2025,
+   "trimestre": 4,
+   "documentos": [
+    {
+     "id": "D1",
+     "tipo": "factura",
+     "fecha": "2025-10-05",
+     "tratamiento": "national_vat",
+     "iva": 21,
+     "base": 30000,
+     "cuota": 6300
+    },
+    {
+     "id": "ED1",
+     "tipo": "gasto",
+     "fecha": "2025-10-10",
+     "iva_deducible": true,
+     "anulado": false,
+     "lineas": [
+      {
+       "iva": 21,
+       "base": 200000,
+       "cuota": 42000
+      },
+      {
+       "iva": 10,
+       "base": 50000,
+       "cuota": 5000
+      }
+     ]
+    },
+    {
+     "id": "ED2",
+     "tipo": "gasto",
+     "fecha": "2025-11-04",
+     "iva_deducible": false,
+     "anulado": false,
+     "lineas": [
+      {
+       "iva": 21,
+       "base": 10000,
+       "cuota": 2100
+      }
+     ]
+    },
+    {
+     "id": "ED3",
+     "tipo": "gasto",
+     "fecha": "2025-11-18",
+     "iva_deducible": true,
+     "anulado": true,
+     "lineas": [
+      {
+       "iva": 21,
+       "base": 7000,
+       "cuota": 1470
+      }
+     ]
+    },
+    {
+     "id": "ED4",
+     "tipo": "gasto",
+     "fecha": "2025-12-02",
+     "iva_deducible": true,
+     "anulado": false,
+     "lineas": [
+      {
+       "iva": 0,
+       "base": 8000,
+       "cuota": 0
+      },
+      {
+       "iva": 21,
+       "base": 1000,
+       "cuota": 210
+      }
+     ]
+    },
+    {
+     "id": "ED5",
+     "tipo": "gasto",
+     "fecha": "2025-12-31",
+     "iva_deducible": false,
+     "anulado": false,
+     "lineas": []
+    },
+    {
+     "id": "ED6",
+     "tipo": "gasto",
+     "fecha": "2025-12-31",
+     "iva_deducible": true,
+     "anulado": false,
+     "lineas": [
+      {
+       "iva": 10,
+       "base": 2000,
+       "cuota": 200
+      }
+     ]
+    }
+   ],
+   "casillas": {
+    "01": 0,
+    "03": 0,
+    "04": 0,
+    "06": 0,
+    "07": 30000,
+    "09": 6300,
+    "27": 6300,
+    "28": 253000,
+    "29": 47410,
+    "45": 47410,
+    "46": -41110,
+    "59": 0,
+    "120": 0
+   },
+   "resultado": "a_compensar"
+  },
+  {
+   "caso": "Q-E",
+   "anio": 2026,
+   "trimestre": 1,
+   "documentos": [],
+   "casillas": {
+    "01": 0,
+    "03": 0,
+    "04": 0,
+    "06": 0,
+    "07": 0,
+    "09": 0,
+    "27": 0,
+    "28": 0,
+    "29": 0,
+    "45": 0,
+    "46": 0,
+    "59": 0,
+    "120": 0
+   },
+   "resultado": "sin_actividad"
+  }
+ ],
+ "fuera_de_los_cinco": [
+  {
+   "id": "X1",
+   "tipo": "factura",
+   "fecha": "2026-04-01",
+   "tratamiento": "national_vat",
+   "iva": 21,
+   "base": 10000,
+   "cuota": 2100
+  }
+ ]
+}
+```

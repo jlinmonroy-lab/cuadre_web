@@ -351,7 +351,7 @@
       "id": "SPEC-W-008",
       "title": "Modelo 303 casilla a casilla",
       "file": "docs/04-specs/SPEC-W-008-modelo-303.md",
-      "status": "propuesta",
+      "status": "en-progreso",
       "priority": "must",
       "risk": "medio",
       "stories": [
@@ -385,7 +385,7 @@
       "verification": [
         "pytest backend/tests/tax -k modelo_303"
       ],
-      "notes": "Lógica en backend/src/cuadre/tax/ (convención del prototipo). Cada casilla enlaza a sus facturas y gastos. Borrador orientativo. Spec escrita el 2026-11-11 con diez decisiones por defecto (D-01 a D-10). Preguntas P-01 a P-05 resueltas por la persona el 2026-11-11: trimestre por fecha de expedición, las líneas al 0 % no entran en la casilla 28, aviso fijo de Canarias, Ceuta y Melilla (se queda como nacional) y pestaña del 130 desactivada desde ya. DEP-01 sustituido por cinco trimestres simulados a mano e independientes del código (no son validación externa; la externa queda como mejora pendiente y DEP-01 se conserva en external). Sin tablas nuevas, solo lectura sobre invoices y expenses. Seis hitos en el Anexo A."
+      "notes": "Lógica en backend/src/cuadre/tax/ (convención del prototipo). Cada casilla enlaza a sus facturas y gastos. Borrador orientativo. Spec escrita el 2026-11-11 con diez decisiones por defecto (D-01 a D-10). Preguntas P-01 a P-05 resueltas por la persona el 2026-11-11: trimestre por fecha de expedición, las líneas al 0 % no entran en la casilla 28, aviso fijo de Canarias, Ceuta y Melilla (se queda como nacional) y pestaña del 130 desactivada desde ya. DEP-01 sustituido por cinco trimestres simulados a mano e independientes del código (no son validación externa; la externa queda como mejora pendiente y DEP-01 se conserva en external). Sin tablas nuevas, solo lectura sobre invoices y expenses. Seis hitos en el Anexo A. Hito 0 hecho (cinco trimestres simulados a mano: T1 a T4 de 2025 y T1 de 2026, con empates de redondeo, los cuatro ámbitos, rectificativas que cruzan trimestre, gastos variados y los resultados a ingresar, a compensar y sin actividad; contrastados al céntimo con un script independiente fuera del repositorio; no son validación externa; Anexo B.1)."
     },
     {
       "id": "SPEC-W-009",

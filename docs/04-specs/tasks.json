@@ -429,8 +429,8 @@
     {
       "id": "SPEC-W-010",
       "title": "Acceso del gestor: invitar, aceptar, revocar, cartera, anotaciones y registro de actividad",
-      "file": null,
-      "status": "propuesta",
+      "file": "docs/04-specs/SPEC-W-010-acceso-gestor.md",
+      "status": "en-progreso",
       "priority": "must",
       "risk": "medio",
       "stories": [
@@ -444,9 +444,17 @@
       "nfr": [
         "NFR-06"
       ],
-      "constraints": [],
+      "constraints": [
+        "RES-03",
+        "RES-07"
+      ],
       "adr": [
-        "0005"
+        "0003",
+        "0005",
+        "0008",
+        "0011",
+        "0015",
+        "0016"
       ],
       "depends_on": [
         "SPEC-W-001",
@@ -457,11 +465,12 @@
         "CONF-001 opción (a) adoptada; CONF-002 puede bajar este panel a Should"
       ],
       "prd_legacy_ids": [],
+      "acceptance_criteria": 24,
       "verification": [
         "pytest backend/tests/rls backend/tests/gestor",
         "npm --prefix frontend exec -- playwright test e2e/gestor.spec.ts"
       ],
-      "notes": "Rutas /api/gestor/clientes/{owner_id}/… con owner_scope que verifica el vínculo y registra cada lectura. Añade gestor_notes (D2). Correo de invitación vía EmailSender."
+      "notes": "Rutas del gestor bajo /api/gestor/autonomos/{owner_id}/… (renombradas desde /clientes/{owner_id}, que se confunde con los clientes del autonomo) con owner_scope que verifica el vinculo con la identidad del gestor y registra cada lectura (app.log_gestor_read). Añade gestor_notes (D2, solo de añadir). Correo de invitacion via EmailSender sin proveedor real. Hito 0 hecho (spec escrita con 24 criterios, decisiones D-01 a D-10 y preguntas P-01 a P-05 propuestas; alcance completo de consulta, seccion Mi gestor y una spec con seis hitos decididos por la persona el 2026-11-12). Notas: SPEC-W-001, 002 y 003 siguen en en-revision."
     },
     {
       "id": "SPEC-W-011",

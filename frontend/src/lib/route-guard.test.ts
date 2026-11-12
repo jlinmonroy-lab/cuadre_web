@@ -18,6 +18,9 @@ test("AC-04 · sin sesión, una portada lleva a /login?next=<ruta>", () => {
 test("Gastos exige sesión, también sus subrutas y los Route Handlers de lectura", () => {
   assert.deepEqual(anon("/gastos"), { redirect: "/login?next=/gastos" });
   assert.deepEqual(anon("/perfil"), { redirect: "/login?next=/perfil" });
+  assert.deepEqual(anon("/gestor"), { redirect: "/login?next=/gestor" });
+  assert.deepEqual(anon("/gestor", "?actividad=120"), { redirect: "/login?next=/gestor%3Factividad%3D120" });
+  assert.equal(authed("/gestor"), null);
   assert.equal(authed("/perfil"), null);
   assert.deepEqual(anon("/clientes"), { redirect: "/login?next=/clientes" });
   assert.deepEqual(anon("/clientes", "?archivados=1"), { redirect: "/login?next=/clientes%3Farchivados%3D1" });
@@ -34,7 +37,7 @@ test("la ruta anidada y la query se conservan, codificadas", () => {
 });
 
 test("las rutas con nombre parecido a una portada no se confunden", () => {
-  for (const open of ["/administracion", "/iniciox", "/carteras", "/gastosx", "/mis-gastos", "/auth/confirm", "/", "/login", "/registro", "/recuperar"]) {
+  for (const open of ["/administracion", "/iniciox", "/carteras", "/gestores", "/gastosx", "/mis-gastos", "/auth/confirm", "/", "/login", "/registro", "/recuperar"]) {
     assert.equal(anon(open), null, open);
   }
 });

@@ -272,6 +272,7 @@ npm --prefix frontend exec -- playwright test e2e/gestor.spec.ts       # AC-19 a
 3. **Hito 2 · API de lectura del gestor**: `owner_scope`, cartera, lecturas por autónomo con dueño explícito (también 303 y 130), anotaciones, registro de lecturas y de actividad; OpenAPI y cliente.
    **Hecho el 2026-11-12** (migración `read_owner`; `cuadre.gestor.scope` y `reads`; 16 rutas; OpenAPI y cliente regenerados; Anexo B.3).
 4. **Hito 3 · pantalla del autónomo** `/gestor`: invitar, estados, revocar, anotaciones y registro de actividad; menú y roles; unitarias y comprobación visual en tres motores.
+   **Hecho el 2026-11-12** (`/gestor` con invitar, accesos con su estado, revocar con confirmación en línea, anotaciones y registro de actividad paginado; «Mi gestor» en el menú entre Trimestres y Perfil; 33 unitarias nuevas y 293 en verde; 43 mutaciones detectadas; `roles.spec` 51 de 51 en Chromium y comprobación visual desechable en tres motores y dos anchos; Anexo B.4).
 5. **Hito 4 · pantallas del gestor** `/cartera` y `/cartera/{ownerId}`: invitaciones, cartera con pendientes, ficha con pestañas y descargas; unitarias y comprobación visual.
 6. **Hito 5 · E2E y cierre**: `e2e/gestor.spec.ts`, ajustes de `roles.spec.ts` y `responsive.spec.ts`, mutaciones de la interfaz, batería completa, Anexo B final, `tasks.json` y `en-revision`.
 
@@ -378,3 +379,43 @@ npm --prefix frontend exec -- playwright test e2e/gestor.spec.ts       # AC-19 a
 - **Pantallas y E2E:** hitos 3 a 5.
 
 **Para los hitos 3 y 4.** Las pantallas piden las listas del gestor por páginas (facturas con `offset`, gastos con `next_cursor`, actividad con `next_cursor`); la ficha usa `get_gestor_autonomo` y las descargas devuelven `{url, expires_in}`, no bytes.
+
+### B.4 Hito 3 · pantalla «Mi gestor» del autónomo · 2026-11-12
+
+**Qué hay.** `/gestor` (`app/(app)/gestor/page.tsx`, Server Component con `requireRole("usuario")`) con cuatro bloques: **Invitar a tu gestor**, **Accesos**, **Anotaciones de tu gestor** y **Qué ha consultado tu gestor**. Lógica pura en `lib/gestor.ts` y `lib/gestor-form.ts` (con unitarias), lecturas de servidor en `lib/gestor-api.ts`, Server Actions en `lib/gestor-actions.ts` (`inviteGestor`, `revokeGestorAccess`) y componentes en `components/gestor/` (`invite-form`, `access-list`, `notes-list`, `activity-list`, `feedback`). «Mi gestor» entra en el menú del autónomo **entre «Trimestres» y «Perfil»** y `/gestor` en los apartados del rol `usuario` (`lib/roles.ts`); el gestor sigue con «Cartera» y el administrador sin ninguno. **Sin cambios de backend ni de contrato** (`schema.d.ts` ya traía los modelos).
+
+**Decisiones al implementar:**
+
+| Tema | Decisión |
+|---|---|
+| **Confirmar la revocación** | En la misma fila, no con un diálogo del navegador: un grupo con «Sí, revocar» (que recibe el foco) y «Cancelar»; «Escape» cancela y el foco vuelve a «Revocar» |
+| **Estado del acceso** | Una insignia con el texto (`Estado: Activo`, para lectores de pantalla) y, debajo, solo lo que añade: «Caduca el …» si está pendiente, y «Invitado el …». Una primera versión repetía el estado en las dos líneas |
+| **Frases del registro** | Se redactan en la interfaz (`describeActivity`) con tablas **cerradas** (un tipo o una acción desconocidos dan una frase genérica y nunca se reflejan). El correo del gestor en «Invitaste a …» y «Revocaste el acceso de …» sale de la lista de accesos por el `entity_id` de la entrada; si ese acceso ya no está, «tu gestor» |
+| **Paginación del registro** | Por enlace (`?actividad=<cursor>`, «Ver actividad anterior» y «Volver a lo más reciente»), sin estado en el navegador; el cursor se valida como entero en la página y uno manipulado enseña la primera página |
+| **Errores de invitar** | `invalid_email`, `cannot_invite_self`, `invitation_already_open` y un cuerpo mal formado van **junto al campo**; el límite de 5 y los fallos del servicio, en el resumen. Si `email_sent` es `false` se dice que la invitación existe y queda pendiente |
+| **Enlaces de las anotaciones** | Factura y gasto enlazan a su página (solo con un UUID válido); un documento se nombra sin enlace (no tiene página propia para el autónomo) |
+
+**Lo que las pruebas encontraron mientras se hacía** (corregido, con prueba):
+- **Un fallo real de la lógica pura:** las tablas de frases eran objetos, y un `entity_type` como `"constructor"` resolvía por la cadena de prototipos («…consultó el borrador del function Object() { [native code] }»). Ahora son `Map`.
+- **Un fallo de accesibilidad:** al cancelar la confirmación con «Escape» el foco no volvía a «Revocar» (en ese instante el botón no está montado). Lo vio la comprobación con teclado; ahora se devuelve el foco al volver a pintarlo.
+- **Una repetición visual** del estado (arriba) y **dos huecos de prueba** que revelaron las mutaciones (resolver el correo solo para entradas de acceso; no leer otro campo como correo).
+
+**Pruebas y resultados medidos (2026-11-12):**
+
+| Qué | Resultado |
+|---|---|
+| Unitarias del frontend | **293 de 293** (260 antes; 33 nuevas: `gestor.test.ts`, `gestor-form.test.ts` y las de `roles` y `route-guard` con `/gestor` y `/gestores`) |
+| `lint`, `typecheck`, `gen:api --check`, `build` y `check:bundle` | código 0 |
+| **43 mutaciones** de `gestor.ts`, `gestor-form.ts` y `roles.ts` (ejecutor desechable fuera del repositorio) | **43 detectadas, ninguna equivalente.** Tres sobrevivieron a la primera pasada: dos eran huecos de prueba reales y una era un mutante mal construido (una cadena entre comillas que no interpola); tras corregirlos, y repetir las dos que cambiaron con la función, todas detectadas |
+| `e2e/roles.spec.ts` (con `helpers/env.ts` actualizado: «Mi gestor» en el menú del autónomo) en Chromium, 390 y 1.440 px | **51 de 51** |
+| **Comprobación visual desechable** (4 pruebas por motor y ancho, sin commitear) en **Chromium, Firefox y WebKit**, 390 y 1.440 px | **11 de 11 por motor** (3 inicios de sesión y 8 pruebas). Con una siembra sintética en la base local: un acceso en cada estado, tres anotaciones (una con salto de línea, otra con texto sin espacios y otra ligada a un gasto) y 60 entradas de actividad |
+
+Lo que comprobó la visual: los cuatro `h2` y el menú con «Mi gestor» activo; los cinco estados escritos; «Revocar» solo en lo abierto; anotaciones con salto de línea, texto largo que se parte y enlace al gasto; 50 entradas en la primera página y el enlace a la anterior; cursor manipulado sin romper; errores junto al campo con `aria-invalid` y `aria-describedby`; invitar de verdad (campo vacío después, fila nueva pendiente); revocar con teclado (foco al confirmar, «Escape» devuelve el foco, cancelar con el ratón, confirmar y ver «Revocada» y la entrada en el registro); sin scroll horizontal; consola limpia; y que el gestor y el administrador van a `/403`, no ven «Mi gestor» y, sin sesión, `/gestor` lleva a `/login?next=/gestor`. Las capturas se miraron a mano a 390 y a 1.440 px (en una versión reducida por su altura). Chromium y Firefox se pasaron con el vigilante de consola de la propia prueba (que falla ante cualquier `console.error` o excepción); WebKit falló al principio por avisos de una precarga RSC cancelada al navegar nada más iniciar sesión (el problema que `settle` y `watchBrowserErrors` ya cubren en el resto de E2E) y se repitió con esos ayudantes del repositorio, sin errores.
+
+**Lo que no se ha comprobado:**
+- **Entrega real del correo de la invitación:** va a la consola del backend (sin proveedor, DEP-05); la prueba visual solo ve «Invitación enviada a …».
+- **Lectores de pantalla reales:** el foco, las etiquetas y los `aria-*` se comprueban con Playwright, no con NVDA, VoiceOver ni TalkBack. En WebKit el teclado se ejerce con `focus()` y `Enter`, no con la tabulación de Safari.
+- **Alguien con más de 50 accesos o más de 200 anotaciones:** las anotaciones no se paginan (el servidor limita a 200) y la lista de accesos tampoco; con el límite de 5 invitaciones abiertas no es alcanzable en la v1.
+- **El E2E definitivo `e2e/gestor.spec.ts`**, la batería completa en tres motores y los ajustes de `roles.spec` y `responsive.spec` para la pantalla del gestor: hito 5. La prueba visual de este hito era desechable y se ha borrado.
+
+**Para el hito 4** (pantallas del gestor): `/cartera` sigue siendo la portada «Próximamente»; usa `get_gestor_portfolio` y `list_gestor_invitations`, pide las listas por páginas (facturas con `offset`, gastos con `next_cursor`) y las descargas devuelven `{url, expires_in}`. Reutiliza `Feedback`, `FormRow`, las insignias (`TAG`) y el patrón de confirmación en línea. Ojo con las pruebas visuales: la cuenta del autónomo admite **5 invitaciones abiertas**, así que una prueba que invite debe revocar lo que cree.

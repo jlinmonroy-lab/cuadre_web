@@ -23,11 +23,11 @@ test("las etiquetas están en español", () => {
   assert.equal(roleLabel("admin"), "Administrador");
 });
 
-test("navegación del autónomo: Inicio, Clientes, Facturas, Gastos, Trimestres y Perfil están activos; el resto, próximamente", () => {
+test("navegación del autónomo: Inicio, Clientes, Facturas, Gastos, Trimestres, Mi gestor y Perfil están activos; el resto, próximamente", () => {
   const nav = navFor("usuario");
   assert.deepEqual(
     nav.map((item) => item.label),
-    ["Inicio", "Clientes", "Facturas", "Gastos", "Contabilidad mensual", "Trimestres", "Perfil"],
+    ["Inicio", "Clientes", "Facturas", "Gastos", "Contabilidad mensual", "Trimestres", "Mi gestor", "Perfil"],
   );
   const active = nav.filter((item) => item.href !== null);
   assert.deepEqual(active, [
@@ -36,9 +36,23 @@ test("navegación del autónomo: Inicio, Clientes, Facturas, Gastos, Trimestres 
     { label: "Facturas", href: "/facturas" },
     { label: "Gastos", href: "/gastos" },
     { label: "Trimestres", href: "/trimestres" },
+    { label: "Mi gestor", href: "/gestor" },
     { label: "Perfil", href: "/perfil" },
   ]);
   for (const future of nav.filter((item) => item.href === null)) assert.deepEqual(future, { label: future.label, href: null });
+});
+
+test("«Mi gestor» es del autónomo: el gestor tiene «Cartera» y el administrador ninguno de los dos", () => {
+  const labels = (role: "usuario" | "gestor" | "admin") => navFor(role).map((item) => item.label);
+  assert.ok(labels("usuario").includes("Mi gestor") && !labels("usuario").includes("Cartera"));
+  assert.ok(labels("gestor").includes("Cartera") && !labels("gestor").includes("Mi gestor"));
+  assert.ok(!labels("admin").includes("Mi gestor") && !labels("admin").includes("Cartera"));
+});
+
+test("«Mi gestor» va entre «Trimestres» y «Perfil»", () => {
+  const labels = navFor("usuario").map((item) => item.label);
+  assert.equal(labels.indexOf("Mi gestor"), labels.indexOf("Trimestres") + 1);
+  assert.equal(labels.indexOf("Perfil"), labels.indexOf("Mi gestor") + 1);
 });
 
 test("navegación del gestor: Cartera activa", () => {
@@ -74,11 +88,13 @@ test("los apartados con pantalla propia pertenecen a un solo rol, respetando el 
   assert.equal(sectionOwner("/facturas/3f2a/pdf"), "usuario");
   assert.equal(sectionOwner("/trimestres"), "usuario");
   assert.equal(sectionOwner("/trimestres/2025"), "usuario");
+  assert.equal(sectionOwner("/gestor"), "usuario");
+  assert.equal(sectionOwner("/gestor/algo"), "usuario");
   // Las portadas siguen siendo suyas.
   assert.equal(sectionOwner("/inicio"), "usuario");
   assert.equal(sectionOwner("/cartera/ana"), "gestor");
   assert.equal(sectionOwner("/admin"), "admin");
-  for (const none of ["/", "/403", "/login", "/gastosx", "/gastos-x", "/x/gastos", "/mis-gastos", "/Gastos", "/perfilx", "/perfil-x", "/Perfil", "/clientesx", "/clientes-x", "/x/clientes", "/Clientes", "/facturasx", "/facturas-x", "/x/facturas", "/Facturas", "/trimestresx", "/trimestres-x", "/x/trimestres", "/Trimestres"]) {
+  for (const none of ["/", "/403", "/login", "/gastosx", "/gastos-x", "/x/gastos", "/mis-gastos", "/Gastos", "/perfilx", "/perfil-x", "/Perfil", "/clientesx", "/clientes-x", "/x/clientes", "/Clientes", "/facturasx", "/facturas-x", "/x/facturas", "/Facturas", "/trimestresx", "/trimestres-x", "/x/trimestres", "/Trimestres", "/gestores", "/gestor-x", "/x/gestor", "/Gestor", "/mi-gestor"]) {
     assert.equal(sectionOwner(none), null, none);
   }
 });

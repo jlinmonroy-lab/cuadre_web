@@ -23,7 +23,7 @@ function Party({ title, name, taxIdLine, address, country }: { title: string; na
  * La factura como documento (lo que lleva su PDF): emisora y cliente con las COPIAS que congeló al emitirse, el concepto, los importes, la mención
  * legal y la relación con sus rectificativas. Todo viene de la API; aquí no se calcula nada.
  */
-export function InvoiceDocument({ invoice }: { invoice: Invoice }) {
+export function InvoiceDocument({ invoice, invoiceHref = (id) => `/facturas/${id}` }: { invoice: Invoice; invoiceHref?: (id: string) => string }) {
   const { client, issuer } = invoice;
   const noVat = Number(invoice.vat_rate) === 0;
   const rectifying = invoice.kind === "rectifying";
@@ -42,7 +42,7 @@ export function InvoiceDocument({ invoice }: { invoice: Invoice }) {
       {invoice.rectifies ? (
         <p className="rounded-md bg-muted px-3 py-2 text-[15px]">
           Rectifica la factura{" "}
-          <Link href={`/facturas/${invoice.rectifies.id}`} className="font-semibold text-action underline underline-offset-2 hover:text-action-hover">
+          <Link href={invoiceHref(invoice.rectifies.id)} className="font-semibold text-action underline underline-offset-2 hover:text-action-hover">
             {invoice.rectifies.display_number}
           </Link>{" "}
           del {formatLongDate(invoice.rectifies.issue_date)}.

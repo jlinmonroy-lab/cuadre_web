@@ -1,12 +1,12 @@
 import { BoxLine } from "@/components/tax/box-row";
-import { boxView130, groupBoxes130, quarterTitle, resultText130, withheldShareText, type Modelo130, type Quarter } from "@/lib/tax";
+import { OWNER_LINKS, boxView130, groupBoxes130, quarterTitle, resultText130, withheldShareText, type Modelo130, type Quarter, type TaxLinks } from "@/lib/tax";
 
 /**
  * La hoja del modelo 130 como el prototipo: cabecera oscura, las casillas agrupadas y el resultado al pie, con el porcentaje de ingresos con retención como
  * información. Todo lo que enseña lo calculó el servidor; aquí solo se ordena y se escribe. Es un borrador orientativo, acumulado desde el 1 de enero: no hay
  * botón de presentar.
  */
-export function Modelo130Sheet({ model }: { model: Modelo130 }) {
+export function Modelo130Sheet({ model, links = OWNER_LINKS }: { model: Modelo130; links?: TaxLinks }) {
   const groups = groupBoxes130(model.boxes);
   const title = quarterTitle(model.year, model.quarter as Quarter);
   const share = withheldShareText(model.withheld_share_percent);
@@ -28,7 +28,7 @@ export function Modelo130Sheet({ model }: { model: Modelo130 }) {
           <h3 className="mb-2 text-[13px] text-ink-soft">{entry.label}</h3>
           <ul className="m-0 list-none p-0">
             {entry.boxes.map((box) => (
-              <BoxLine key={box.code} view={boxView130(box, model.year)} />
+              <BoxLine key={box.code} view={boxView130(box, model.year, links)} expensesHref={links.expenses} />
             ))}
           </ul>
         </div>

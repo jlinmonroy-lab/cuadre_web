@@ -13,6 +13,7 @@ import {
   formatWhen,
   isUuid,
   noteTarget,
+  OWNER_NOTE_LINKS,
   openCount,
   parseCursor,
   type AccessStatus,
@@ -111,6 +112,19 @@ test("una anotación enlaza a su factura o a su gasto y nombra un documento sin 
   assert.deepEqual(noteTarget({ entity_type: "invoice", entity_id: ACCESS_ID }), { label: "Sobre una factura", href: `/facturas/${ACCESS_ID}` });
   assert.deepEqual(noteTarget({ entity_type: "expense", entity_id: ACCESS_ID }), { label: "Sobre un gasto", href: `/gastos/${ACCESS_ID}` });
   assert.deepEqual(noteTarget({ entity_type: "document", entity_id: ACCESS_ID }), { label: "Sobre un documento", href: null });
+});
+
+test("por defecto, los enlaces de una anotación son los del autónomo; con otros, se usan los otros", () => {
+  assert.equal(OWNER_NOTE_LINKS.invoice(ACCESS_ID), `/facturas/${ACCESS_ID}`);
+  assert.equal(OWNER_NOTE_LINKS.expense(ACCESS_ID), `/gastos/${ACCESS_ID}`);
+  const gestor = { invoice: (id: string) => `/cartera/x/facturas/${id}`, expense: () => null };
+  assert.deepEqual(noteTarget({ entity_type: "invoice", entity_id: ACCESS_ID }, gestor), { label: "Sobre una factura", href: `/cartera/x/facturas/${ACCESS_ID}` });
+  assert.deepEqual(noteTarget({ entity_type: "expense", entity_id: ACCESS_ID }, gestor), { label: "Sobre un gasto", href: null });
+  assert.deepEqual(noteTarget({ entity_type: "document", entity_id: ACCESS_ID }, gestor), { label: "Sobre un documento", href: null });
+  // un id que no es UUID no llega ni a la función de enlaces
+  const calls: string[] = [];
+  noteTarget({ entity_type: "invoice", entity_id: "../x" }, { invoice: (id) => (calls.push(id), null), expense: () => null });
+  assert.deepEqual(calls, []);
 });
 
 test("sin entidad, o con una desconocida, una anotación no apunta a nada; un id raro no se convierte en enlace", () => {

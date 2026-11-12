@@ -9,9 +9,23 @@ const paidValue = (paid: boolean | undefined) => (paid === undefined ? "" : paid
  * Año, ámbito y cobro de la lista. Es un formulario `GET` normal: funciona sin JavaScript, el filtro vive en la dirección (`?year=&scope=&paid=`)
  * y la lista la lee el servidor. Los nombres de campo son los de la dirección.
  */
-export function InvoiceFilters({ query, currentYear }: { query: ListQuery; currentYear: number }) {
+export function InvoiceFilters({
+  query,
+  currentYear,
+  action = "/facturas",
+  hidden = {},
+}: {
+  query: ListQuery;
+  currentYear: number;
+  /** A dónde va el formulario y qué campos fijos lleva (en la ficha del gestor, su ruta y `tab=facturas`). */
+  action?: string;
+  hidden?: Record<string, string>;
+}) {
   return (
-    <form method="get" action="/facturas" className="flex flex-wrap items-end gap-3" aria-label="Filtros de la lista de facturas">
+    <form method="get" action={action} className="flex flex-wrap items-end gap-3" aria-label="Filtros de la lista de facturas">
+      {Object.entries(hidden).map(([name, value]) => (
+        <input key={name} type="hidden" name={name} value={value} />
+      ))}
       <div className="grid gap-1.5">
         <Label htmlFor="filtro-year" className="text-[13px] font-semibold text-ink-soft">
           Año

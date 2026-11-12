@@ -13,7 +13,8 @@ for (const role of ROLE_KEYS) {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Hola, ${person.name}`);
     await expect(page.getByRole("main").getByText(person.roleLabel, { exact: true })).toBeVisible();
     await expectNavigation(page, person);
-    await expect(page.getByRole("heading", { level: 2, name: "Próximamente" })).toBeVisible();
+    // Cada portada enseña lo suyo: el gestor ya tiene su cartera (SPEC-W-010); las otras siguen con «Próximamente».
+    await expect(page.getByRole("heading", { level: 2, name: role === "gina" ? "Tu cartera" : "Próximamente" })).toBeVisible();
   });
 
   test(`portada por rol · «/» lleva a la portada de ${role}`, async ({ pageAs }) => {

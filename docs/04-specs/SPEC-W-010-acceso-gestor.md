@@ -274,6 +274,7 @@ npm --prefix frontend exec -- playwright test e2e/gestor.spec.ts       # AC-19 a
 4. **Hito 3 · pantalla del autónomo** `/gestor`: invitar, estados, revocar, anotaciones y registro de actividad; menú y roles; unitarias y comprobación visual en tres motores.
    **Hecho el 2026-11-12** (`/gestor` con invitar, accesos con su estado, revocar con confirmación en línea, anotaciones y registro de actividad paginado; «Mi gestor» en el menú entre Trimestres y Perfil; 33 unitarias nuevas y 293 en verde; 43 mutaciones detectadas; `roles.spec` 51 de 51 en Chromium y comprobación visual desechable en tres motores y dos anchos; Anexo B.4).
 5. **Hito 4 · pantallas del gestor** `/cartera` y `/cartera/{ownerId}`: invitaciones, cartera con pendientes, ficha con pestañas y descargas; unitarias y comprobación visual.
+   **Hecho el 2026-11-12** (`/cartera` con invitaciones y cartera con el número de pendientes; ficha de solo consulta con seis pestañas, detalle de factura y descargas por URL firmada; componentes de lectura parametrizados sin cambiar al autónomo; 26 unitarias nuevas y 319 en verde; 41 mutaciones detectadas; 187 E2E existentes en Chromium; comprobación visual desechable en tres motores y dos anchos, incluido el flujo real con PDF y original; Anexo B.5).
 6. **Hito 5 · E2E y cierre**: `e2e/gestor.spec.ts`, ajustes de `roles.spec.ts` y `responsive.spec.ts`, mutaciones de la interfaz, batería completa, Anexo B final, `tasks.json` y `en-revision`.
 
 ## Anexo B · Decisiones que esta spec deja a la implementación
@@ -419,3 +420,49 @@ Lo que comprobó la visual: los cuatro `h2` y el menú con «Mi gestor» activo;
 - **El E2E definitivo `e2e/gestor.spec.ts`**, la batería completa en tres motores y los ajustes de `roles.spec` y `responsive.spec` para la pantalla del gestor: hito 5. La prueba visual de este hito era desechable y se ha borrado.
 
 **Para el hito 4** (pantallas del gestor): `/cartera` sigue siendo la portada «Próximamente»; usa `get_gestor_portfolio` y `list_gestor_invitations`, pide las listas por páginas (facturas con `offset`, gastos con `next_cursor`) y las descargas devuelven `{url, expires_in}`. Reutiliza `Feedback`, `FormRow`, las insignias (`TAG`) y el patrón de confirmación en línea. Ojo con las pruebas visuales: la cuenta del autónomo admite **5 invitaciones abiertas**, así que una prueba que invite debe revocar lo que cree.
+
+### B.5 Hito 4 · pantallas del gestor · 2026-11-12
+
+**Qué hay.** `/cartera` (el gestor: invitaciones recibidas con aceptar y rechazar, y su cartera con los pendientes marcados con su número y con texto) y la ficha de solo consulta de cada autónomo, `/cartera/{ownerId}`, con las pestañas **Facturas, Gastos, Documentos, Trimestres, Perfil y clientes y Anotaciones** (`?tab=`), el detalle de una factura (`/cartera/{ownerId}/facturas/{id}`) y dos descargas por URL firmada (`…/facturas/{id}/pdf` y `…/documentos/{id}/original`). Lógica pura en `lib/gestor-cartera.ts`, lecturas de servidor en `lib/gestor-reads-api.ts`, Server Actions en `lib/gestor-cartera-actions.ts`, la lógica de las descargas en `lib/gestor-routes.ts` y componentes en `components/cartera/`. **Solo frontend**: sin cambios de backend ni de contrato. La portada del gestor ya no dice «Próximamente».
+
+**Decisiones al implementar:**
+
+| Tema | Decisión |
+|---|---|
+| **Pestañas** | Enlaces en un `<nav>` con `aria-current` (no `role="tab"`): la pestaña vive en la dirección, se recorren con el teclado como cualquier enlace y funcionan sin JavaScript. La elegida se distingue por la forma (fondo oscuro) y no solo por el color; en móvil se parten en varias líneas |
+| **Reutilizar sin tocar al autónomo** | Los componentes de lectura del autónomo enlazaban a rutas que el gestor no puede abrir. Se les añadió una prop opcional **con un valor por defecto idéntico al de antes**: `TaxLinks` (`lib/tax`: hojas del 303 y 130 y selector de trimestre), `invoiceHref` (`InvoiceList`, `InvoiceDocument`), `hrefFor` y `extraBadges` (`ExpenseList`), `hrefFor` y `extra` (`DocumentList`), `links`, `empty` y `author` (`NotesList`) y `action` y `hidden` (`InvoiceFilters`). Lo vigilan las unitarias de siempre (sin cambios) y los E2E del autónomo |
+| **Facturas paginadas** | `?pagina=` de 50 en 50; se piden 51 para saber si hay otra página sin un recuento. Los filtros (año, ámbito y cobro) y la pestaña viven en la dirección y lo que vale lo de por defecto no se escribe |
+| **Gastos** | Por cursor (`?cursor=`, validado con la misma forma que el del autónomo; uno manipulado vuelve a la primera página). Los anulados salen con la marca «Anulado»; el gasto no tiene detalle para el gestor, así que su nombre no es un enlace |
+| **Documentos** | Los «para revisar» y «no se pudo leer», con su estado; sin enlace a la pantalla de revisión del autónomo, y con «Abrir el original» |
+| **Descargas** | Route Handlers `GET` que piden una URL firmada **nueva** (≈ 60 s) con la sesión del gestor y **redirigen** (302, `no-store`, `no-referrer`), como el original de Gastos. Enlaces `<a>` normales y sin precarga: cada pulsación es una lectura registrada (P-05). Un PDF que aún no existe se dice con texto («Esta factura aún no tiene PDF»): el gestor nunca lo genera |
+| **Anotaciones** | Desde la pestaña (generales) y desde el detalle de una factura (ligadas a ella, AC-15); el error del texto va junto al campo y el de lo enlazado, en el resumen. `problems.ts` reconoce los campos de `invalid_note` (`body` y `entity`, lista cerrada) |
+| **Autor de las anotaciones** | El gestor no recibe su propio correo en sus anotaciones: la lista dice «Tú» |
+| **404 uniforme** | Sin vínculo, revocado, de otro gestor, un UUID inexistente o un id que ni es un UUID: la misma página «No encontramos a ese autónomo»; una descarga contesta `404` con texto. Tras revocar, la ficha y las descargas dejan de abrirse en la petición siguiente |
+| **Lecturas que deja cada vista** | La ficha pide el resumen (una entrada `portfolio`) y los datos de su pestaña (otra); una descarga, otra (una por petición, P-05). Es lo diseñado; **no se midió** con una prueba |
+
+**Pruebas y resultados medidos (2026-11-12):**
+
+| Qué | Resultado |
+|---|---|
+| Unitarias del frontend | **319 de 319** (293 antes; 26 nuevas: `gestor-cartera.test.ts`, `tax-links.test.ts` y las de `gestor` y `problems`) |
+| `lint`, `typecheck` (también los E2E), `build` y `check:bundle` | código 0 |
+| **41 mutaciones** de la lógica nueva y de los enlaces parametrizados (ejecutor desechable fuera del repositorio) | **41 detectadas, ninguna equivalente** (una, la de leer otro campo como texto de la anotación, sobrevivió a la primera pasada: era un hueco de prueba real y se cerró) |
+| E2E ya existentes afectados (`roles`, `trimestres`, `modelo-130`, `factura`, `gastos-registro` y `responsive`, este último con la cartera nueva), Chromium, 390 y 1.440 px | **187 de 187** |
+| **Comprobación visual desechable** (7 pruebas por motor y ancho, sin commitear) en **Chromium, Firefox y WebKit**, 390 y 1.440 px | **7 de 7 en cada uno de los seis casos** |
+
+La visual comprobó: las dos secciones de la cartera, el **4** con su texto y los pendientes primero; aceptar una invitación y rechazar otra; las seis pestañas en este orden y con `aria-current`; el teclado (foco y Enter en una pestaña); direcciones raras (`tab`, `pagina`, `cursor`, `year` y `model`) sin romper; **el 303 y el 130 de B.1 de SPEC-W-008 y SPEC-W-009, de cuatro trimestres, iguales de texto, casilla a casilla y con los documentos de cada casilla, a los que ve el propio autónomo**, y los enlaces de la hoja apuntando a la ficha; el gasto anulado rotulado, el cliente archivado y el IBAN visible; **ningún botón ni enlace de emitir, registrar, editar, archivar, rectificar o generar PDF**; otro gestor, un autónomo y el administrador sin acceso; una anotación creada y vista por el autónomo en «Mi gestor» con el correo del gestor; y, con una cuenta nueva, **el flujo real de punta a punta**: el autónomo invita desde «Mi gestor», la gestora acepta, ve su factura emitida con un **PDF real** y su documento subido con un **original real**, descarga ambos por redirección a una URL firmada (el PDF empieza por `%PDF`), el autónomo ve las descargas y la aceptación en su registro, revoca, y la ficha y la descarga dejan de abrirse. Sin scroll horizontal, con la consola limpia. Las capturas se miraron a mano a 390 y a 1.440 px.
+
+**Lo que la comprobación encontró** (ninguno era un fallo del producto):
+- Un marcador de archivo inválido para el servidor de agentes de E2E: el documento acabó «no se pudo leer» y no contaba como pendiente.
+- A 390 px Playwright apuntaba al centro del texto solo-lector «Factura » de la tarjeta (un rectángulo de 1 px que no recibe el puntero); es el mismo marcado que la lista del autónomo y una persona pulsa sobre el texto visible.
+- `innerText` de un `<details>` cerrado incluye o no su contenido según el motor y el momento: la comparación del 303 y el 130 se hizo determinista con `textContent` (que además compara los documentos de cada casilla) y se repitió en los seis casos.
+- Dos veces una prueba dependía del estado que dejaba otra (invitaciones ya aceptadas, o varias cuentas con acceso activo tras un fallo): cada pasada resiembra.
+- Un `rm -rf` mío con un comodín, para limpiar un directorio temporal, fue bloqueado por el control de seguridad del entorno; no se rodeó (se extrajo la traza en un directorio nuevo).
+
+**Lo que no se ha comprobado:**
+- **Más de 50 facturas o de 50 gastos en el navegador:** la paginación (`splitPage`, `parsePage`, `pageOffset`, enlaces y cursor) está probada con unitarias y por construcción, pero la siembra de B.1 tiene 23 facturas y ningún autónomo tuvo más de una página de gastos.
+- **Lectores de pantalla reales** y el recorrido completo con la tecla de tabulación (solo foco directo y Enter en las pestañas).
+- **Cuántas entradas deja cada vista en el registro** (ver la tabla de decisiones).
+- **El E2E definitivo `e2e/gestor.spec.ts`**, la batería completa en tres motores y los ajustes de `responsive.spec` para las pantallas nuevas: hito 5. La prueba visual de este hito era desechable y se ha borrado; solo se cambió en `roles.spec.ts` la expectativa de la portada del gestor.
+
+**Para el hito 5.** Reutiliza los datos que se sembraron aquí como modelo (un gestor con tres autónomos, cuatro pendientes, un anulado, un cliente archivado y las invitaciones por aceptar y rechazar), el flujo real con `gastosPage` y `biller` para el PDF y el original, `settle` y `watchBrowserErrors`, y recuerda que la cuenta del autónomo admite **5 invitaciones abiertas** y que las pruebas que consumen invitaciones deben crear las suyas.

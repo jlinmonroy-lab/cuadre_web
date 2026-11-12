@@ -6,13 +6,17 @@ import { formatDate, retentionText, vatText, type Invoice } from "@/lib/invoices
 import { formatCents } from "@/lib/money";
 
 const NUM = "tabular-nums text-right whitespace-nowrap";
+const ownerInvoiceHref = (id: string): string => `/facturas/${id}`;
 
-function InvoiceCard({ invoice }: { invoice: Invoice }) {
+/** A dónde lleva el número de una factura (por defecto, su detalle del autónomo; la ficha del gestor pasa el suyo). */
+export type InvoiceHref = (id: string) => string;
+
+function InvoiceCard({ invoice, invoiceHref }: { invoice: Invoice; invoiceHref: InvoiceHref }) {
   return (
     <article className="grid gap-3 rounded-panel border border-rule bg-sheet p-4">
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
         <h3 className="text-[15px] leading-snug">
-          <Link href={`/facturas/${invoice.id}`} className="text-action underline underline-offset-2 hover:text-action-hover">
+          <Link href={invoiceHref(invoice.id)} className="text-action underline underline-offset-2 hover:text-action-hover">
             <span className="sr-only">Factura </span>
             {invoice.display_number}
           </Link>
@@ -53,7 +57,7 @@ function InvoiceCard({ invoice }: { invoice: Invoice }) {
  * muestra (la otra va con `display: none`, así que no existe para el lector de pantalla). Es un Server Component: los importes y las fechas ya
  * salen formateados del servidor, así que no hay nada que hidratar.
  */
-export function InvoiceList({ invoices, empty }: { invoices: Invoice[]; empty: string }) {
+export function InvoiceList({ invoices, empty, invoiceHref = ownerInvoiceHref }: { invoices: Invoice[]; empty: string; invoiceHref?: InvoiceHref }) {
   if (invoices.length === 0) {
     return <p className="rounded-panel border border-rule bg-sheet px-5 py-6 text-center text-ink-soft">{empty}</p>;
   }
@@ -62,7 +66,7 @@ export function InvoiceList({ invoices, empty }: { invoices: Invoice[]; empty: s
       <ul className="grid gap-3 min-[1280px]:hidden">
         {invoices.map((invoice) => (
           <li key={invoice.id}>
-            <InvoiceCard invoice={invoice} />
+            <InvoiceCard invoice={invoice} invoiceHref={invoiceHref} />
           </li>
         ))}
       </ul>
@@ -105,7 +109,7 @@ export function InvoiceList({ invoices, empty }: { invoices: Invoice[]; empty: s
             {invoices.map((invoice) => (
               <tr key={invoice.id} className="border-b border-rule align-top hover:bg-sheet">
                 <th scope="row" className="py-3 pr-4 font-bold whitespace-nowrap">
-                  <Link href={`/facturas/${invoice.id}`} className="text-action underline underline-offset-2 hover:text-action-hover">
+                  <Link href={invoiceHref(invoice.id)} className="text-action underline underline-offset-2 hover:text-action-hover">
                     {invoice.display_number}
                   </Link>
                   {invoice.kind === "rectifying" ? (

@@ -221,3 +221,23 @@ test("los errores de cliente no facturable, serie agotada y fecha fuera de orden
   }
   assert.equal(describeProblem({ status: 409, body: { code: "client_not_billable", detail: "Mal.", field: "owner_id" } }).field, undefined);
 });
+
+test("invalid_note: solo los campos `body` y `entity` de la lista cerrada, y solo con ese código", () => {
+  const body = {
+    code: "invalid_note",
+    detail: "Lo que enlazas no existe o no es de este autónomo.",
+    fields: [
+      { field: "entity", message: "No válido." },
+      { field: "owner_id", message: "No válido." },
+      { field: "body", message: "<b>x</b>" },
+      { field: "body", message: "No válido." },
+    ],
+  };
+  assert.deepEqual(describeProblem({ status: 422, body }).noteFields, [
+    { field: "entity", message: "No válido." },
+    { field: "body", message: "No válido." },
+  ]);
+  assert.equal(describeProblem({ status: 500, body }).noteFields, undefined);
+  assert.equal(describeProblem({ status: 422, body: { ...body, code: "invalid_client" } }).noteFields, undefined);
+  assert.equal(describeProblem({ status: 422, body: { code: "invalid_note", detail: "x" } }).noteFields, undefined);
+});

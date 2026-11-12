@@ -22,6 +22,8 @@ export type Problem = {
   clientFields?: { field: string; message: string }[];
   /** `invalid_invoice`: TODOS los campos de la factura (o de la rectificativa) que fallan, cada uno con su texto. */
   invoiceFields?: { field: string; message: string }[];
+  /** `invalid_note`: qué campo de la anotación falla (`body` o `entity`); el texto útil es el `message` del problema. */
+  noteFields?: { field: string; message: string }[];
   /** `profile_incomplete`: lo que falta en el perfil para poder emitir, por nombre. */
   missing?: { field: string; label: string }[];
 };
@@ -71,6 +73,9 @@ const CLIENT_FIELD_SET: ReadonlySet<string> = new Set(CLIENT_FIELDS);
 // SPEC-W-007: los campos que puede señalar `invalid_invoice` (factura y rectificativa), en el orden de la pantalla.
 export const INVOICE_FIELDS = ["client_id", "series_id", "issue_date", "concept", "base_cents", "vat_rate", "reason", "corrected_base_cents"] as const;
 const INVOICE_FIELD_SET: ReadonlySet<string> = new Set(INVOICE_FIELDS);
+// SPEC-W-010: los campos que puede señalar `invalid_note`.
+export const NOTE_FIELDS = ["body", "entity"] as const;
+const NOTE_FIELD_SET: ReadonlySet<string> = new Set(NOTE_FIELDS);
 const FIELD_LOCS = new Map([
   ["body.expense_date", "expense_date"],
   ["body.concept", "concept"],
@@ -127,6 +132,7 @@ export function describeProblem(input: { status: number; body: unknown; retryAft
   const profileFields = client && code === "invalid_profile" ? fieldsOf(PROFILE_FIELD_SET) : [];
   const clientFields = client && code === "invalid_client" ? fieldsOf(CLIENT_FIELD_SET) : [];
   const invoiceFields = client && code === "invalid_invoice" ? fieldsOf(INVOICE_FIELD_SET) : [];
+  const noteFields = client && code === "invalid_note" ? fieldsOf(NOTE_FIELD_SET) : [];
 
   // `missing` de un `profile_incomplete`: solo campos del perfil y etiquetas cortas y seguras.
   const rawMissing = body["missing"];
@@ -152,6 +158,7 @@ export function describeProblem(input: { status: number; body: unknown; retryAft
     ...(profileFields.length > 0 ? { profileFields } : {}),
     ...(clientFields.length > 0 ? { clientFields } : {}),
     ...(invoiceFields.length > 0 ? { invoiceFields } : {}),
+    ...(noteFields.length > 0 ? { noteFields } : {}),
     ...(missing.length > 0 ? { missing } : {}),
   };
 }

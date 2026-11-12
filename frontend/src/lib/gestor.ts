@@ -81,12 +81,18 @@ export function parseCursor(value: string | string[] | undefined): string | unde
 
 export type NoteTarget = { label: string; href: string | null };
 
-/** A qué se refiere una anotación: una factura y un gasto tienen su página; un documento, no. Sin entidad (o con una desconocida), nada. */
-export function noteTarget(note: Pick<GestorNote, "entity_type" | "entity_id">): NoteTarget | null {
+/** A dónde llevan las anotaciones ligadas a una factura o a un gasto; `null` = sin enlace. Solo se llama con un UUID válido. */
+export type NoteLinks = { invoice: (id: string) => string | null; expense: (id: string) => string | null };
+
+/** Las del autónomo: la factura y el gasto tienen su página. */
+export const OWNER_NOTE_LINKS: NoteLinks = { invoice: (id) => `/facturas/${id}`, expense: (id) => `/gastos/${id}` };
+
+/** A qué se refiere una anotación: una factura y un gasto tienen su página (según `links`); un documento, no. Sin entidad (o con una desconocida), nada. */
+export function noteTarget(note: Pick<GestorNote, "entity_type" | "entity_id">, links: NoteLinks = OWNER_NOTE_LINKS): NoteTarget | null {
   const { entity_type: type, entity_id: id } = note;
   if (type === null || id === null) return null;
-  if (type === "invoice") return { label: "Sobre una factura", href: isUuid(id) ? `/facturas/${id}` : null };
-  if (type === "expense") return { label: "Sobre un gasto", href: isUuid(id) ? `/gastos/${id}` : null };
+  if (type === "invoice") return { label: "Sobre una factura", href: isUuid(id) ? links.invoice(id) : null };
+  if (type === "expense") return { label: "Sobre un gasto", href: isUuid(id) ? links.expense(id) : null };
   if (type === "document") return { label: "Sobre un documento", href: null };
   return null;
 }

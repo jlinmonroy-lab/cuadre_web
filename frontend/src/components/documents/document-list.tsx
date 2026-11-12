@@ -1,44 +1,59 @@
 import { CircleAlert, ShieldAlert } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { StatusBadge } from "@/components/documents/status-badge";
 import { docTypeLabel, formatMoment } from "@/lib/documents";
 import type { DocumentSummary } from "@/lib/documents-api";
 import { formatCents } from "@/lib/money";
 
+const ownerDocumentHref = (id: string): string | null => `/gastos/${id}`;
+
 /**
  * Lista de documentos en tarjetas apiladas, no en tabla: a 390 px una tabla obligaría a desplazarse en horizontal (T2-11).
  * Todo lo que viene del agente (proveedor, nombre) se pinta como texto: React lo escapa y nunca se interpreta.
  */
-export function DocumentList({ documents }: { documents: DocumentSummary[] }) {
+export function DocumentList({
+  documents,
+  hrefFor = ownerDocumentHref,
+  empty = "Todavía no has subido ninguna factura de compra. Cuando subas una, aparecerá aquí con su estado.",
+  extra,
+}: {
+  documents: DocumentSummary[];
+  /** A dónde lleva el nombre de un documento; `null` = sin enlace (el gestor no abre la pantalla de revisión). */
+  hrefFor?: (id: string) => string | null;
+  empty?: string;
+  /** Algo debajo de cada tarjeta (en la ficha del gestor, «Abrir el original»). */
+  extra?: (document: DocumentSummary) => ReactNode;
+}) {
   if (documents.length === 0) {
-    return (
-      <p className="rounded-panel border border-rule bg-sheet px-5 py-8 text-center text-ink-soft">
-        Todavía no has subido ninguna factura de compra. Cuando subas una, aparecerá aquí con su estado.
-      </p>
-    );
+    return <p className="rounded-panel border border-rule bg-sheet px-5 py-8 text-center text-ink-soft">{empty}</p>;
   }
   return (
     <ul className="grid gap-3">
       {documents.map((document) => (
         <li key={document.id}>
-          <DocumentCard document={document} />
+          <DocumentCard document={document} href={hrefFor(document.id)} extra={extra?.(document)} />
         </li>
       ))}
     </ul>
   );
 }
 
-function DocumentCard({ document }: { document: DocumentSummary }) {
+function DocumentCard({ document, href, extra }: { document: DocumentSummary; href: string | null; extra: ReactNode }) {
   const title = document.supplier_name ?? document.original_filename;
   return (
     <article className="relative grid gap-2 rounded-panel border border-rule bg-sheet p-4 transition-colors hover:border-rule-strong hover:bg-white sm:grid-cols-[1fr_auto] sm:items-start sm:gap-x-6">
       <div className="grid min-w-0 gap-1.5">
         <h3 className="text-[15px] leading-snug font-bold">
           {/* El enlace cubre toda la tarjeta (::after), pero su nombre accesible es solo el título. */}
-          <Link href={`/gastos/${document.id}`} className="[overflow-wrap:anywhere] after:absolute after:inset-0 after:content-['']">
-            {title}
-          </Link>
+          {href !== null ? (
+            <Link href={href} className="[overflow-wrap:anywhere] after:absolute after:inset-0 after:content-['']">
+              {title}
+            </Link>
+          ) : (
+            <span className="[overflow-wrap:anywhere]">{title}</span>
+          )}
         </h3>
         {document.supplier_name ? <p className="text-[13px] text-ink-soft [overflow-wrap:anywhere]">{document.original_filename}</p> : null}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -59,6 +74,7 @@ function DocumentCard({ document }: { document: DocumentSummary }) {
             <span>{document.error.message}</span>
           </p>
         ) : null}
+        {extra ? <div className="relative z-10">{extra}</div> : null}
       </div>
       <p className="text-lg font-bold tabular-nums sm:text-right">{formatCents(document.total_cents)}</p>
     </article>

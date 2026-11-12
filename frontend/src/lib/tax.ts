@@ -69,6 +69,21 @@ export function parseModel(params: Record<string, string | string[] | undefined>
 export const quarterHref = (year: number, quarter: Quarter, model: ModelKey = "303"): string =>
   model === "130" ? `/trimestres?model=130&year=${year}&quarter=${quarter}` : `/trimestres?year=${year}&quarter=${quarter}`;
 
+/**
+ * A dónde llevan los enlaces de una hoja. Por defecto, las pantallas del autónomo (`/facturas/…`, `/trimestres`, `/gastos`); la ficha del gestor
+ * (SPEC-W-010) pasa las suyas, porque el gestor no puede abrir las del autónomo.
+ */
+export type TaxLinks = {
+  /** El detalle de una factura. */
+  invoice: (id: string) => string;
+  /** Un trimestre de un modelo (el selector y los «trimestres anteriores» del 130). */
+  quarter: (year: number, quarter: Quarter, model: ModelKey) => string;
+  /** La lista de gastos. */
+  expenses: string;
+};
+
+export const OWNER_LINKS: TaxLinks = { invoice: (id) => `/facturas/${id}`, quarter: (year, quarter, model) => quarterHref(year, quarter, model), expenses: "/gastos" };
+
 export type Banner = { label: string; text: string; tone: "neutral" | "doubt" | "ok" };
 
 /** El estado del plazo, siempre escrito: el color solo refuerza. La fecha es la del calendario que manda el servidor (el mismo en los dos modelos). */
@@ -133,8 +148,8 @@ export function itemSummary(box: Pick<Box303, "items">): string | null {
 }
 
 /** A dónde lleva un documento: la factura tiene su detalle; los gastos, solo su lista. */
-export function itemHref(item: Pick<Item303, "kind" | "id">): string {
-  return item.kind === "invoice" ? `/facturas/${item.id}` : "/gastos";
+export function itemHref(item: Pick<Item303, "kind" | "id">, links: TaxLinks = OWNER_LINKS): string {
+  return item.kind === "invoice" ? links.invoice(item.id) : links.expenses;
 }
 
 /** El importe de un documento que cuenta en una casilla: la base o la cuota, según lo que suma la casilla. */
@@ -173,7 +188,7 @@ export type BoxLineView = {
 };
 
 /** La fila de una casilla del 303: lo mismo que la pantalla del 303 ya enseñaba. */
-export function boxView303(box: Box303): BoxLineView {
+export function boxView303(box: Box303, links: TaxLinks = OWNER_LINKS): BoxLineView {
   return {
     code: box.code,
     label: box.label,
@@ -186,7 +201,7 @@ export function boxView303(box: Box303): BoxLineView {
       label: item.label,
       date: formatDate(item.date),
       amount: itemAmount(item, box.measure),
-      href: item.kind === "invoice" ? itemHref(item) : null,
+      href: item.kind === "invoice" ? itemHref(item, links) : null,
     })),
     expensesLink: box.items.some((item) => item.kind === "expense"),
   };
@@ -248,17 +263,17 @@ export function itemSummary130(box: Pick<Box130, "code" | "items">): string | nu
 }
 
 /** A dónde lleva un documento del 130: la factura, a su detalle; el trimestre anterior, a su propio 130; el gasto, a ningún sitio (la lista va aparte). */
-export function itemHref130(item: Pick<Item130, "kind" | "id">, year: number): string | null {
-  if (item.kind === "invoice") return `/facturas/${item.id}`;
+export function itemHref130(item: Pick<Item130, "kind" | "id">, year: number, links: TaxLinks = OWNER_LINKS): string | null {
+  if (item.kind === "invoice") return links.invoice(item.id);
   if (item.kind === "quarter") {
     const quarter = Number(item.id.slice(1));
-    return item.id.startsWith("T") && isQuarter(quarter) ? quarterHref(year, quarter, "130") : null;
+    return item.id.startsWith("T") && isQuarter(quarter) ? links.quarter(year, quarter, "130") : null;
   }
   return null;
 }
 
 /** La fila de una casilla del 130. `year` es el del borrador: de él cuelgan los enlaces a los trimestres anteriores. */
-export function boxView130(box: Box130, year: number): BoxLineView {
+export function boxView130(box: Box130, year: number, links: TaxLinks = OWNER_LINKS): BoxLineView {
   return {
     code: box.code,
     label: box.label,
@@ -271,7 +286,7 @@ export function boxView130(box: Box130, year: number): BoxLineView {
       label: item.label,
       date: formatDate(item.date),
       amount: formatCents(item.amount_cents),
-      href: itemHref130(item, year),
+      href: itemHref130(item, year, links),
     })),
     expensesLink: box.items.some((item) => item.kind === "expense"),
   };

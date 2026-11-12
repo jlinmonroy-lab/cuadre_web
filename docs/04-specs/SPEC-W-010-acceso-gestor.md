@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-010
 titulo: Acceso del gestor: invitar, aceptar, revocar, cartera, lectura registrada, anotaciones y registro de actividad
-estado: en-revision
+estado: hecha
 prioridad: must
 riesgo: medio
 historias: [US-004, US-010]
@@ -276,7 +276,7 @@ npm --prefix frontend exec -- playwright test e2e/gestor.spec.ts       # AC-19 a
 5. **Hito 4 · pantallas del gestor** `/cartera` y `/cartera/{ownerId}`: invitaciones, cartera con pendientes, ficha con pestañas y descargas; unitarias y comprobación visual.
    **Hecho el 2026-11-12** (`/cartera` con invitaciones y cartera con el número de pendientes; ficha de solo consulta con seis pestañas, detalle de factura y descargas por URL firmada; componentes de lectura parametrizados sin cambiar al autónomo; 26 unitarias nuevas y 319 en verde; 41 mutaciones detectadas; 187 E2E existentes en Chromium; comprobación visual desechable en tres motores y dos anchos, incluido el flujo real con PDF y original; Anexo B.5).
 6. **Hito 5 · E2E y cierre**: `e2e/gestor.spec.ts`, ajustes de `roles.spec.ts` y `responsive.spec.ts`, mutaciones de la interfaz, batería completa, Anexo B final, `tasks.json` y `en-revision`.
-   **Hecho el 2026-11-12** (`e2e/gestor.spec.ts` con 10 pruebas por proyecto y los ayudantes `GestorApi` y el fixture `gestor`; cinco pruebas nuevas en `roles.spec.ts` y `/gestor` en `responsive.spec.ts`; 24 mutaciones de la interfaz detectadas; baterías completas de Chromium, Firefox y WebKit a 390 y 1.440 px; backend sin RLS 4.133 y RLS 1.652 correctas; P-01 a P-05 resueltas; Anexo B.6). **La spec queda en `en-revision`** hasta que la persona confirme el CI.
+   **Hecho el 2026-11-12** (`e2e/gestor.spec.ts` con 10 pruebas por proyecto y los ayudantes `GestorApi` y el fixture `gestor`; cinco pruebas nuevas en `roles.spec.ts` y `/gestor` en `responsive.spec.ts`; 24 mutaciones de la interfaz detectadas; baterías completas de Chromium, Firefox y WebKit a 390 y 1.440 px; backend sin RLS 4.133 y RLS 1.652 correctas; P-01 a P-05 resueltas; Anexo B.6). **CI de `557b4b7` en verde, confirmado por la persona el 2026-11-12: la spec queda `hecha`.**
 
 ## Anexo B · Decisiones que esta spec deja a la implementación
 
@@ -498,10 +498,10 @@ La visual comprobó: las dos secciones de la cartera, el **4** con su texto y lo
 **P-01 a P-05, resueltas por la persona el 2026-11-12, tal como están implementadas:** P-01 el IBAN se enseña al gestor; P-02 el gestor puede descargar el PDF de una factura y el original de un documento por URL firmada, registrado; P-03 las anotaciones solo se añaden (ni editar ni borrar); P-04 como máximo 5 invitaciones abiertas por autónomo; P-05 una entrada de registro por petición de datos, sin deduplicar.
 
 **Lo que no se ha comprobado:**
-- **El CI de GitHub:** la verificación es local; la spec queda en `en-revision` hasta que la persona confirme el CI sobre el head empujado. El job de E2E tiene `timeout-minutes: 40`: en local, un motor y un worker, la batería suma unos 13 min (Chromium) y 14 min (Firefox y WebKit) con tres motores, ≈ 42 min en serie; con los 2 workers del CI debería caber, pero **no se ha medido en el CI** y no se ha tocado el límite.
+- **El tiempo del job de E2E en el CI:** el CI de `557b4b7` terminó en verde (confirmado por la persona), luego cupo en `timeout-minutes: 40`, pero **no se ha medido ni se conoce su duración** y no se ha tocado el límite; en local, un motor y un worker, la batería suma ≈ 42 min en serie (13 min Chromium, 14 Firefox y 14 WebKit).
 - **El correo real de la invitación** (DEP-05): va a la consola del servidor; los E2E comprueban «Invitación enviada…», no un buzón.
 - **El estado «PDF pendiente»** del detalle del gestor en el navegador (ver arriba) y la paginación de 51 elementos fuera de `chromium-1440`.
 - **Lectores de pantalla reales** y el recorrido completo con la tecla de tabulación (se prueba el foco directo, `Enter` y `Escape`).
 - **Los seis proyectos en paralelo** (la configuración del CI): se ejecutó un motor y un ancho por vez.
 
-**Estado de la spec.** Todos los hitos hechos y la verificación local en verde: **`en-revision`** (2026-11-12). `SPEC-W-001`, `002` y `003` siguen en `en-revision` en `tasks.json` (se notó desde el hito 0 y no se tocan aquí). Pasará a `hecha` cuando la persona confirme el CI en verde sobre el head empujado; el último push es `66d1962` (hitos 2 a 4), y este cambio (hito 5) aún no se ha subido.
+**Estado de la spec.** Todos los hitos hechos, la verificación local en verde y el CI de GitHub en verde sobre `557b4b7` (el head con el E2E de este hito), confirmado por la persona el 2026-11-12: **`hecha`**. `SPEC-W-001`, `002` y `003` siguen en `en-revision` en `tasks.json` (se notó desde el hito 0 y no se tocan aquí).

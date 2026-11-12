@@ -13,6 +13,7 @@ from cuadre.api import (
     routes_clients,
     routes_documents,
     routes_expenses,
+    routes_gestor,
     routes_health,
     routes_invoices,
     routes_me,
@@ -29,6 +30,7 @@ from cuadre.core.routing import require_operation_id
 from cuadre.db import open_pool
 from cuadre.documents.storage import HttpStorage
 from cuadre.invoicing.storage import invoice_storage
+from cuadre.notifications import get_email_sender
 from cuadre.profile.limits import LOGO_BUCKET, LOGO_PATH
 
 POOL_MAX_SIZE = 10
@@ -72,6 +74,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.clock = SystemClock()
     # VIES simulado (SPEC-W-006 D-05, RES-04): el estado se calcula, no se consulta. La costura para el real (Should) es este atributo.
     app.state.vies_checker = FakeViesChecker()
+    # Correo transaccional (ADR-0008): consola en desarrollo; en producción sin proveedor real la API no arranca (DEP-05).
+    app.state.email_sender = get_email_sender(settings)
 
     register_error_handlers(app)
     # Orden: lo último que se añade es lo más externo. CORS envuelve a RequestContext para que hasta los 500 lleven sus cabeceras.
@@ -95,6 +99,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(routes_invoices.router)
     app.include_router(routes_clients.router)
     app.include_router(routes_tax.router)
+    app.include_router(routes_gestor.router)
     return app
 
 

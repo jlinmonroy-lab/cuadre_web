@@ -31,10 +31,21 @@ class Settings(BaseSettings):
     # Presupuesto total de una lectura, reintento incluido.
     agents_timeout_seconds: int = Field(default=45, ge=1, le=120)
 
+    # Correo transaccional (ADR-0008). `console` escribe en consola (nunca en production: aún no hay proveedor real, DEP-05).
+    email_provider: str = "console"
+
     # Solo cuadre.jobs y cuadre.cli.
     database_service_url: str | None = None
     supabase_service_role_key: SecretStr | None = None
     admin_password: SecretStr | None = None
+
+    @field_validator("email_provider", mode="before")
+    @classmethod
+    def _email_provider_default(cls, value: object) -> object:
+        """`EMAIL_PROVIDER=` vacío es «el de por defecto» (consola), y el valor se compara sin mayúsculas ni espacios."""
+        if isinstance(value, str):
+            return value.strip().lower() or "console"
+        return value
 
     @field_validator("agents_base_url", "agents_api_key", mode="before")
     @classmethod

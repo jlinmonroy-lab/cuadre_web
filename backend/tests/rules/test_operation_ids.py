@@ -28,6 +28,8 @@ VERBS = {
     "accept",
     "decline",
     "revoke",
+    # SPEC-W-010 §5.3: invitar a un gestor.
+    "invite",
     "send",
     # SPEC-W-002 §5.1 fija estos operation_id (el prototipo y la spec los nombran así).
     "complete",

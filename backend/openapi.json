@@ -1282,6 +1282,85 @@
         "title": "Extraction",
         "type": "object"
       },
+      "GestorAccess": {
+        "description": "Un acceso (o invitación) que el autónomo ha dado a un gestor.",
+        "properties": {
+          "expires_at": {
+            "description": "Caducidad de la invitación pendiente (14 días desde que se envió)",
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "gestor_email": {
+            "title": "Gestor Email",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invited_at": {
+            "format": "date-time",
+            "title": "Invited At",
+            "type": "string"
+          },
+          "status": {
+            "description": "`expired` es una invitación pendiente cuya fecha de caducidad ya pasó (no es un estado de la base de datos)",
+            "enum": [
+              "pending",
+              "active",
+              "revoked",
+              "declined",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "gestor_email",
+          "status",
+          "invited_at",
+          "expires_at"
+        ],
+        "title": "GestorAccess",
+        "type": "object"
+      },
+      "GestorInvitation": {
+        "description": "Una invitación pendiente dirigida al gestor que pregunta.",
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invited_at": {
+            "format": "date-time",
+            "title": "Invited At",
+            "type": "string"
+          },
+          "owner_name": {
+            "description": "Nombre de quien invita",
+            "title": "Owner Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "owner_name",
+          "invited_at",
+          "expires_at"
+        ],
+        "title": "GestorInvitation",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1312,6 +1391,73 @@
           "version"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "InviteInput": {
+        "description": "El correo del gestor. Se recorta y pasa a minúsculas en la base; su formato lo valida la función `app.invite_gestor_access`.",
+        "properties": {
+          "email": {
+            "description": "Correo electrónico del gestor al que se invita",
+            "maxLength": 320,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "InviteInput",
+        "type": "object"
+      },
+      "InvitedAccess": {
+        "description": "El acceso recién creado. `email_sent` es `false` si el correo no se pudo entregar: la invitación existe igualmente y queda pendiente.",
+        "properties": {
+          "email_sent": {
+            "title": "Email Sent",
+            "type": "boolean"
+          },
+          "expires_at": {
+            "description": "Caducidad de la invitación pendiente (14 días desde que se envió)",
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "gestor_email": {
+            "title": "Gestor Email",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invited_at": {
+            "format": "date-time",
+            "title": "Invited At",
+            "type": "string"
+          },
+          "status": {
+            "description": "`expired` es una invitación pendiente cuya fecha de caducidad ya pasó (no es un estado de la base de datos)",
+            "enum": [
+              "pending",
+              "active",
+              "revoked",
+              "declined",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "gestor_email",
+          "status",
+          "invited_at",
+          "expires_at",
+          "email_sent"
+        ],
+        "title": "InvitedAccess",
         "type": "object"
       },
       "Invoice": {
@@ -5224,6 +5370,423 @@
         "summary": "Anular un gasto: deja de contar y su documento vuelve a revisión",
         "tags": [
           "gastos"
+        ]
+      }
+    },
+    "/api/gestor/accesos": {
+      "get": {
+        "operationId": "list_gestor_accesses",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GestorAccess"
+                  },
+                  "title": "Response List Gestor Accesses",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar esta ruta o la cuenta está suspendida"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Los accesos e invitaciones que el autónomo ha dado, el más reciente primero",
+        "tags": [
+          "gestor"
+        ]
+      },
+      "post": {
+        "operationId": "invite_gestor_access",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitedAccess"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar esta ruta o la cuenta está suspendida"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "La invitación o el acceso no está en el estado que esta acción necesita"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Correo no válido, invitación a uno mismo o demasiadas invitaciones abiertas"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Invitar a un gestor por correo (la respuesta no revela si el correo es de una cuenta)",
+        "tags": [
+          "gestor"
+        ]
+      }
+    },
+    "/api/gestor/accesos/{access_id}/revocar": {
+      "post": {
+        "operationId": "revoke_gestor_access",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "access_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Access Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar esta ruta o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El acceso o la invitación no existe (también si es de otra persona)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "La invitación o el acceso no está en el estado que esta acción necesita"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Revocar un acceso o retirar una invitación pendiente (el gestor pierde el acceso al instante)",
+        "tags": [
+          "gestor"
+        ]
+      }
+    },
+    "/api/gestor/invitaciones": {
+      "get": {
+        "operationId": "list_gestor_invitations",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GestorInvitation"
+                  },
+                  "title": "Response List Gestor Invitations",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar esta ruta o la cuenta está suspendida"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Las invitaciones pendientes dirigidas al gestor, con el nombre de quien invita",
+        "tags": [
+          "gestor"
+        ]
+      }
+    },
+    "/api/gestor/invitaciones/{access_id}/aceptar": {
+      "post": {
+        "operationId": "accept_gestor_invitation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "access_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Access Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar esta ruta o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El acceso o la invitación no existe (también si es de otra persona)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "La invitación o el acceso no está en el estado que esta acción necesita"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Aceptar una invitación dirigida al correo del gestor",
+        "tags": [
+          "gestor"
+        ]
+      }
+    },
+    "/api/gestor/invitaciones/{access_id}/rechazar": {
+      "post": {
+        "operationId": "decline_gestor_invitation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "access_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Access Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar esta ruta o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El acceso o la invitación no existe (también si es de otra persona)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "La invitación o el acceso no está en el estado que esta acción necesita"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Rechazar una invitación dirigida al correo del gestor",
+        "tags": [
+          "gestor"
         ]
       }
     },

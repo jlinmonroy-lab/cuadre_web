@@ -114,15 +114,19 @@ Que el **autónomo** invite a su gestor, vea el estado de la invitación, la rev
 
 ### 5.2 Base de datos
 
-**`public.gestor_notes`** (en su propia migración): `RLS` activada y forzada; `revoke all` a todos los roles y `grant select, insert (owner_id, gestor_id, body, entity_type, entity_id) to authenticated`; políticas: `select` del dueño (`owner_id = auth.uid()`), `select` del gestor (`private.gestor_has_access(owner_id) and gestor_id = auth.uid()`), `insert` del gestor (`private.gestor_has_access(owner_id) and gestor_id = auth.uid()`); ninguna política de `update` ni `delete`; **ninguna** del administrador. Índice por (`owner_id`, `created_at desc`). Se registra en `rls_matrix.yaml` (`test_rls_guard`).
+**`public.gestor_notes`** (en su propia migración): `RLS` activada y forzada; `revoke all` a todos los roles y `grant select` a `authenticated`; políticas: `select` del dueño (`owner_id = auth.uid()`) y `select` del gestor (`private.gestor_has_access(owner_id) and gestor_id = auth.uid()`); **ninguna** de escritura y **ninguna** del administrador. **Se escribe solo por `app.add_gestor_note`** (decidido en el hito 1: así el vínculo, que lo anotado es del autónomo y el registro van en una sola transacción). Un trigger la hace **solo de añadir** aunque venga de una función `SECURITY DEFINER`. Sin claves foráneas a `profiles` (sobrevive al borrado de una cuenta). Índices por (`owner_id`, `created_at desc`) y (`gestor_id`, `created_at desc`). Se registra en `rls_matrix.yaml` (`test_rls_guard`).
 
-**`app.log_gestor_read(p_owner uuid, p_entity_type text, p_entity_id text)`**: `SECURITY DEFINER`, `search_path = ''`; comprueba `private.app_role() = 'gestor'` y `private.gestor_has_access(p_owner)` (si no, `42501`); escribe la entrada de §5.1 con `private.log_activity`. Es ejecutable solo por `authenticated`. **`app.add_gestor_note(...)`** puede hacer el `insert` y el registro en la misma transacción.
+**`app.log_gestor_read(p_owner uuid, p_entity_type text, p_entity_id text, p_metadata jsonb default null)`**: `SECURITY DEFINER`, `search_path = ''`; comprueba `private.app_role() = 'gestor'` y `private.gestor_has_access(p_owner)` (si no, `42501`); `entity_type` entre los de §5.1 y `metadata` solo con `year` y `quarter` numéricos (si no, `invalid_read`); escribe la entrada de §5.1 con `private.log_activity`. Es ejecutable solo por `authenticated`.
+
+**`app.add_gestor_note(p_owner uuid, p_body text, p_entity_type text, p_entity_id uuid) returns uuid`**: solo `gestor` con vínculo activo (`42501`); texto recortado de 1 a 2.000 (`invalid_note`, `detail = body`); si se liga a algo, el tipo (`invoice`, `expense` o `document`) y el id van juntos y la entidad **existe y es de ese autónomo** (`invalid_note`, `detail = entity`); inserta y registra `gestor.note_added` (solo ids, nunca el texto) en la misma transacción.
+
+**`app.invite_gestor_access(p_email text) returns uuid`** (añadida en el hito 1): solo `usuario`; recorta y pasa a minúsculas; `invalid_email`, `cannot_invite_self`; **retira** (a `revoked`) las invitaciones pendientes caducadas de esa pareja (el índice parcial único las cuenta como abiertas y bloquearía volver a invitar para siempre); `gestor_access_already_open`; `too_many_open_invitations` (5 abiertas no caducadas, P-04) con un cerrojo asesor por persona; inserta y registra `gestor_access.invited` en la misma transacción. **`app.list_gestor_invitations()`** (añadida en el hito 1): solo `gestor`; las pendientes no caducadas dirigidas a su correo, con `id`, nombre de quien invita, `invited_at` y `expires_at` (antes de aceptar, el gestor no puede leer el perfil del autónomo). La política de inserción directa de `gestor_access` de SPEC-W-001 se mantiene (sus pruebas la usan); la API solo usa `app.invite_gestor_access` y retirar la directa queda como endurecimiento posterior.
 
 ### 5.3 API HTTP
 
 | Operación | Ruta | Quién | Respuesta |
 |---|---|---|---|
-| `invite_gestor_access` | `POST /api/gestor/accesos` `{email}` | `usuario` | `201` con el acceso (`id`, `gestor_email`, `status`, `invited_at`, `expires_at`); `409 invitation_already_open`; `422 cannot_invite_self` / `invalid_email`; `422 too_many_open_invitations` |
+| `invite_gestor_access` | `POST /api/gestor/accesos` `{email}` | `usuario` | `201` con el acceso (`id`, `gestor_email`, `status`, `invited_at`, `expires_at`) y `email_sent` (`false` si el correo no se pudo entregar: la invitación existe y queda pendiente); `409 invitation_already_open`; `422 cannot_invite_self` / `invalid_email`; `422 too_many_open_invitations` |
 | `list_gestor_accesses` | `GET /api/gestor/accesos` | `usuario` | `200` con sus accesos (más reciente primero; los caducados salen como `expired`) |
 | `revoke_gestor_access` | `POST /api/gestor/accesos/{id}/revocar` | `usuario` | `204`; `404 gestor_access_not_found`; `409 gestor_access_not_open` |
 | `list_gestor_notes` | `GET /api/gestor/anotaciones` | `usuario` | `200`, las anotaciones de su cuenta |
@@ -264,6 +268,7 @@ npm --prefix frontend exec -- playwright test e2e/gestor.spec.ts       # AC-19 a
 
 1. **Hito 0 · la spec y las decisiones**: se redacta esta spec; D-01 a D-10 y P-01 a P-05 se confirman o se corrigen.
 2. **Hito 1 · SQL y acceso**: migración de `gestor_notes` y `app.log_gestor_read` (con `app.add_gestor_note`), matriz de RLS, `cuadre.notifications` y las rutas de invitar, listar, aceptar, rechazar y revocar, con sus pruebas.
+   **Hecho el 2026-11-12** (migraciones `gestor_notes` y funciones `app.*`; `cuadre.notifications`; `cuadre.gestor` y las seis rutas de acceso; OpenAPI y cliente regenerados; Anexo B.2).
 3. **Hito 2 · API de lectura del gestor**: `owner_scope`, cartera, lecturas por autónomo con dueño explícito (también 303 y 130), anotaciones, registro de lecturas y de actividad; OpenAPI y cliente.
 4. **Hito 3 · pantalla del autónomo** `/gestor`: invitar, estados, revocar, anotaciones y registro de actividad; menú y roles; unitarias y comprobación visual en tres motores.
 5. **Hito 4 · pantallas del gestor** `/cartera` y `/cartera/{ownerId}`: invitaciones, cartera con pendientes, ficha con pestañas y descargas; unitarias y comprobación visual.
@@ -284,3 +289,53 @@ npm --prefix frontend exec -- playwright test e2e/gestor.spec.ts       # AC-19 a
 - **Estado de SPEC-W-001, 002 y 003:** siguen en `en-revision` en `tasks.json` aunque su verificación está en verde y todo lo posterior depende de ellas; no se tocan aquí.
 - **Sin prototipo.** `docs/cuadre-interfaz.html` no trae pantallas de gestor ni de «Mi gestor»; el diseño sale de los tokens y de componentes ya hechos (hoja del 303 y del 130, listas de facturas y de gastos). Lo que el prototipo no fija lo decide la skill de diseño sin cambiar los tokens.
 - **El IBAN** que la política de `business_profiles` deja leer al gestor se enseña tal cual (P-01); si se decide ocultarlo, es una columna menos en la lectura del perfil del gestor, no un cambio de política.
+
+### B.2 Hito 1 · SQL, correo y acceso · 2026-11-12
+
+**Qué hay.** Dos migraciones nuevas (`20261112100000_gestor_notes.sql` y `20261112100100_gestor_functions.sql`), el paquete `cuadre/notifications/` (correo detrás de `EmailSender`), el paquete `cuadre/gestor/` y `api/routes_gestor.py` con las seis rutas de acceso, y `gestor_notes` en `rls_matrix.yaml`. Sin pantallas y sin lecturas del gestor (hitos 2 a 4).
+
+| Pieza | Contenido |
+|---|---|
+| `public.gestor_notes` | Solo de añadir (trigger, también para funciones `SECURITY DEFINER`), sin claves foráneas, RLS forzada: el dueño lee las de su cuenta, el gestor las suyas con vínculo activo, el administrador ninguna; **sin escritura directa** |
+| `app.invite_gestor_access` | Minúsculas, formato, no a uno mismo, retira las caducadas de esa pareja, límite de 5 con cerrojo asesor, registra `gestor_access.invited` |
+| `app.list_gestor_invitations` | Las pendientes no caducadas del gestor con el nombre de quien invita |
+| `app.log_gestor_read` | `gestor.read` solo con vínculo activo; tipos cerrados y `metadata` solo con `year` y `quarter` numéricos |
+| `app.add_gestor_note` | Vínculo activo, texto 1 a 2.000, entidad existente **y del autónomo**; registra `gestor.note_added` sin el texto |
+| `cuadre/notifications/` | `EmailMessage`, `EmailSender`, `ConsoleEmailSender` (dirección enmascarada y tipo; nunca asunto ni cuerpo), `MemoryEmailSender` (con `fail`), `UnavailableEmailSender`, `get_email_sender` y la plantilla de la invitación |
+| `cuadre/gestor/` y rutas | `invite_gestor_access`, `list_gestor_accesses`, `revoke_gestor_access` (`usuario`) y `list_gestor_invitations`, `accept_gestor_invitation`, `decline_gestor_invitation` (`gestor`), con errores en problem+json |
+
+**Decisiones al implementar** (corrigen o completan la spec, ya actualizada en §5.2 y §5.3):
+
+| Tema | Decisión |
+|---|---|
+| **`gestor_notes` sin `INSERT` directo** | Se escribe solo por `app.add_gestor_note` (la spec decía `grant insert` y una política): así el vínculo, que lo anotado es del autónomo y el registro van en una sola transacción |
+| **Invitar es una función** | La política de inserción directa de SPEC-W-001 se **mantiene** (sus pruebas la usan); la API solo usa `app.invite_gestor_access`. Retirar la directa queda anotado como endurecimiento posterior |
+| **Caducadas** | El índice único parcial cuenta una invitación pendiente caducada como abierta; la función la retira (a `revoked`) al volver a invitar y la API la muestra como `expired` (derivado, no es un estado de la base) |
+| **Correo después del commit** | Se envía en la misma petición, tras confirmar la transacción (ADR-0016); si falla, la invitación sigue pendiente y la respuesta lleva `email_sent: false` (se registra solo el id) |
+| **Producción sin proveedor** | Una primera versión hacía fallar el arranque de la API; rompía dos pruebas que construyen la aplicación en producción y bloqueaba todo por una sola ruta. Ahora se avisa al arrancar (`email_provider_missing`) y `UnavailableEmailSender` hace fallar cada envío de forma explícita |
+| **`not_the_owner`** | Se traduce a `404` igual que «no encontrado»; en la práctica la API no lo alcanza (revocar exige el rol `usuario`), pero una prueba directa fija la tabla de traducciones |
+| **Función de tabla** | `app.list_gestor_invitations()` se consulta con `SELECT * FROM`; el gestor no puede leer el perfil del autónomo antes de aceptar |
+
+**Pruebas.** **70 de API y correo** (`backend/tests/gestor`, 57, y `backend/tests/notifications`, 13) y **77 de SQL** (`test_gestor_functions.py`, 71, y `test_gestor_functions_extra.py`, 6) más la fila nueva de la matriz de RLS; 16 de ellas (las 6 extra y las 10 de `test_error_mapping.py`) nacieron de las mutaciones. Lo que cubren: invitar y su correo; **sin enumeración** (misma respuesta y mismo correo para un gestor, un autónomo, el administrador y nadie); límites (a uno mismo, duplicado, 5 abiertas, con una **carrera real** de dos transacciones); aceptar, rechazar y revocar (revocar corta el acceso a la petición siguiente) y quién puede cada cosa; registro de lecturas y de anotaciones sin datos; privacidad en los registros (consola enmascarada); contrato.
+
+**Resultados medidos:**
+
+| Qué | Resultado |
+|---|---|
+| `backend/tests/gestor`, `backend/tests/notifications` y `agents/test_selection.py` y `api/test_errors.py` (los dos que rompió la primera versión del guardia de producción) | **125 correctas** (tras el arreglo) |
+| RLS completa, con la base recién reiniciada, **antes** de añadir las 6 pruebas extra | **1.652 correctas** (1.561 + 91); las 6 extra pasan por separado |
+| Backend sin RLS completo, **antes** del arreglo de producción | 4.028 correctas y 2 fallos (los de arriba); los 2 pasan ya por separado |
+| `ruff`, `export_openapi --check`, `gen:api --check`, `lint`, `typecheck` y 260 unitarias del frontend | código 0 |
+
+**Pendiente de repetir:** la pasada completa del backend sin RLS **después** del arreglo (y la de RLS con las 6 pruebas extra). La primera repetición la cortó el sistema por falta de memoria (se paró la tarea; no se relanzó por iniciativa propia). Por eso esta nota no da por limpia una pasada completa que no se ha visto terminar.
+
+**Mutaciones.** **45 mutaciones** (27 de las funciones SQL aplicadas con `create or replace` y restauradas, 18 de Python), con un ejecutor desechable fuera del repositorio: **45 detectadas, ninguna equivalente** (la del guardia de producción se rehízo tras el arreglo: detectada). La primera tanda dejó cinco vivas: el cerrojo asesor (la prueba con hilos no forzaba la carrera: ahora una transacción abierta retiene el límite para la siguiente), una factura y un documento de otro autónomo (solo se probaba un gasto), un tipo de entidad libre (el id coincidía con un documento) y el `403` por SQL (no es alcanzable por la API: se fijó con una prueba de la tabla de traducciones).
+
+**Lo que no se ha comprobado:**
+- **Un proveedor de correo real**: solo consola, memoria y el «no disponible» de producción (DEP-05).
+- **El `INSERT` directo de `gestor_access`**: sigue vivo y se salta el límite y el registro de `gestor_access.invited`; no es alcanzable por la API (Data API desactivada).
+- **Pantallas y lecturas del gestor**: hitos 2 a 4.
+
+**Para el hito 2** (API de lectura del gestor):
+- `owner_scope` con `app.log_gestor_read` en la **misma transacción** que la lectura (si falla el registro, no se devuelve el dato), `404` uniforme sin vínculo vigente, cartera con pendientes (`documents.status = 'review'`) y las lecturas por autónomo con dueño explícito (también el 303 y el 130), descargas por URL firmada y rutas de anotaciones (`app.add_gestor_note`) y de actividad (`activity_log` por cursor).
+- Lecturas de `cuadre.quarters`, facturas, gastos, documentos, clientes y perfil: hoy filtran por `auth.uid()`; pasan a recibir el dueño y siguen apoyándose en la RLS.

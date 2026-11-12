@@ -141,6 +141,26 @@ tables:
       default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
       active: { gina: [alicia] }
 
+  gestor_notes:
+    kind: financial
+    owner_column: owner_id
+    grants:
+      table: [SELECT]       # toda escritura pasa por app.add_gestor_note (SPEC-W-010 §5.2); solo de añadir
+    # Una anotación de Gina por usuario del reparto antes de comparar: con la tabla vacía la prueba no demostraría nada. El seed solo conoce al dueño;
+    # a Gina la localiza por el sufijo único del reparto (alicia.<sufijo>@example.test -> gina.<sufijo>@example.test).
+    seed: >-
+      insert into public.gestor_notes (owner_id, gestor_id, body)
+      select %(owner)s, g.id, 'Anotación de matriz'
+        from public.profiles o
+        join public.profiles g on g.email = 'gina.' || substring(o.email from '\.([0-9a-f]{10})@') || '@example.test'
+       where o.id = %(owner)s
+    probe_insert: "insert into public.gestor_notes (owner_id, gestor_id, body) values (%(owner)s, %(owner)s, 'probe')"
+    probe_update: { column: body, value: hacked }
+    select:
+      # El dueño ve las de su cuenta; el gestor, solo las suyas y solo con vínculo activo (revocado, ninguna); el administrador, ninguna (D3).
+      default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
+      active: { gina: [alicia] }
+
   invoices:
     kind: financial
     owner_column: owner_id

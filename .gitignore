@@ -17,6 +17,10 @@ __pycache__/
 /private/
 /real-data/
 
+# Documentos de alcance: solo en local, no se suben al repo
+/docs/00-charter.md
+/docs/03-prd.md
+
 # Artefactos de build y test
 .next/
 out/

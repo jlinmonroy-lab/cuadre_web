@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-009
 titulo: Modelo 130: borrador orientativo del pago fraccionado del IRPF, acumulado desde enero y con cada casilla enlazada a sus facturas y gastos
-estado: en-revision
+estado: hecha
 prioridad: must
 riesgo: medio
 historias: [US-003]
@@ -238,7 +238,7 @@ npm --prefix frontend exec -- playwright test e2e/modelo-130.spec.ts   # AC-19 a
 
 ### 8.4 Definición de hecho
 
-- [ ] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001, 002, 003, 005, 006, 007 y 008 §8.2 siguen en verde. *(Local, verificado el 2026-11-11 —Anexo B.6— con la batería completa en los tres motores; el CI lo confirma la persona.)*
+- [x] La secuencia de §8.2 termina con código 0 en local y en el CI, y las de SPEC-W-001, 002, 003, 005, 006, 007 y 008 §8.2 siguen en verde. *(Local, verificado el 2026-11-11 —Anexo B.6— con la batería completa en los tres motores; CI de GitHub en verde en `a4b0418`, confirmado por la persona el 2026-11-12.)*
 - [x] Los **cinco ejercicios simulados** del Anexo B.1 coinciden al céntimo (NFR-03, P-05). La **validación externa de DEP-01** queda como mejora pendiente y se anota en el Anexo B al cerrar; si la persona la exige antes de cerrar, la spec no pasa de `en-revision`. *(Simulados, no externos: Anexo B.6.)*
 - [x] El 100 % de las casillas con documentos enumera sus items y su suma es la casilla (NFR-08).
 - [x] La pestaña «Modelo 130» de `/trimestres` está activa y hace todo lo de AC-19 a AC-23; el 303 no ha cambiado (AC-20).
@@ -1066,4 +1066,4 @@ La batería incluye W-001, 002, 003, 005, 006, 007 y 008. **Primera pasada con d
 - **Lectores de pantalla reales** y **periodos con miles de documentos** en el navegador (la respuesta máxima mide 2,51 MB en la API).
 - **Un 07 negativo en el E2E**: la cuenta del worker acumula facturas y no se puede garantizar; lo cubren el dominio, la API y los ejercicios de B.1.
 
-**Estado de la spec.** Todos los hitos hechos y la verificación local en verde: `en-revision`. Pasará a `hecha` cuando la persona confirme el CI (como W-005 a W-007) y deje escrito si da por buena la validación simulada o exige la externa de DEP-01.
+**Estado de la spec.** Todos los hitos hechos, verificación local en verde y CI de GitHub en verde en `a4b0418`, confirmado por la persona el 2026-11-12: **`hecha`** (2026-11-12). Los ejercicios simulados del Anexo B.1 se dan por buenos por decisión de la persona del 2026-11-12; la validación externa de DEP-01 sigue como mejora pendiente (si llegan ejercicios externos, se añaden con la misma prueba).

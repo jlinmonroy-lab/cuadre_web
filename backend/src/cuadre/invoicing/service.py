@@ -243,6 +243,23 @@ class InvoiceService:
     def get_invoice(self, user: CurrentUser, invoice_id: UUID) -> Invoice:
         return self._in_tx(user, lambda conn: self._invoice(conn, invoice_id))
 
+    # Lecturas sobre una conexión YA abierta (sin transacción propia): las usa el gestor, que lee y registra en la misma transacción (SPEC-W-010).
+    def read_invoice(self, conn: Connection[DictRow], invoice_id: UUID) -> Invoice:
+        return self._invoice(conn, invoice_id)
+
+    def read_invoices(
+        self,
+        conn: Connection[DictRow],
+        year: int | None,
+        scope: str | None,
+        paid: bool | None,
+        *,
+        limit: int,
+        offset: int,
+    ) -> list[Invoice]:
+        chosen = year if year is not None else self._today().year
+        return self._invoices(conn, repository.list_invoices(conn, chosen, scope, paid, limit=limit, offset=offset))
+
     def list_invoices(self, user: CurrentUser, year: int | None, scope: str | None, paid: bool | None) -> list[Invoice]:
         chosen = year if year is not None else self._today().year
         return self._in_tx(user, lambda conn: self._invoices(conn, repository.list_invoices(conn, chosen, scope, paid)))

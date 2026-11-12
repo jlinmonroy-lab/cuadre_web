@@ -63,7 +63,7 @@ def translate_db_error(exc: psycopg.Error) -> ProblemError | None:
 def get(conn: Connection[DictRow], expense_id: UUID) -> DictRow | None:
     """El gasto de quien llama (también uno anulado), o `None`. `owner_id` se filtra además de la RLS."""
     return conn.execute(
-        f"SELECT {COLUMNS} FROM public.expenses WHERE id = %(id)s AND owner_id = (SELECT auth.uid())",  # noqa: S608
+        f"SELECT {COLUMNS} FROM public.expenses WHERE id = %(id)s AND owner_id = (SELECT private.read_owner())",  # noqa: S608
         {"id": expense_id},
     ).fetchone()
 
@@ -76,9 +76,13 @@ def list_page(
     year: int | None,
     month: int | None,
     category: str | None,
+    include_voided: bool = False,
 ) -> list[DictRow]:
-    """Una página de gastos vivos, del más reciente al más antiguo, en el orden del índice `expenses_by_owner_date`."""
-    where = ["owner_id = (SELECT auth.uid())", "voided_at IS NULL"]
+    """Una página de gastos vivos, del más reciente al más antiguo, en el orden del índice `expenses_by_owner_date`. `include_voided` (solo el gestor, que ve
+    los anulados rotulados) añade también los anulados; con el valor por defecto la consulta es la de siempre."""
+    where = ["owner_id = (SELECT private.read_owner())"]
+    if not include_voided:
+        where.append("voided_at IS NULL")
     params: dict[str, Any] = {"limit": limit}
     if year is not None:
         first = date(year, month or 1, 1)

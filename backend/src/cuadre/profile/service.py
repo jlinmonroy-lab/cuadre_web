@@ -120,6 +120,13 @@ class ProfileService:
     def get_profile(self, user: CurrentUser) -> Profile:
         return self._in_tx(user, self._profile)
 
+    # Lecturas sobre una conexión YA abierta (sin transacción propia): las usa el gestor, que lee y registra en la misma transacción (SPEC-W-010).
+    def read_profile(self, conn: Connection[DictRow]) -> Profile:
+        return self._profile(conn)
+
+    def read_series(self, conn: Connection[DictRow]) -> list[InvoiceSeries]:
+        return [self._series(row) for row in repository.list_series(conn)]
+
     def update_profile(self, user: CurrentUser, body: ProfileInput) -> Profile:
         result = validate_profile(
             RawProfile(

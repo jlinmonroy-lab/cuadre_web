@@ -46,7 +46,7 @@ def translate_db_error(exc: psycopg.Error) -> ProblemError | None:
 def get(conn: Connection[DictRow], document_id: UUID) -> DictRow | None:
     """El documento de quien llama (aunque esté descartado), o `None`. `owner_id` se filtra además de la RLS."""
     return conn.execute(
-        f"SELECT {COLUMNS} FROM public.documents WHERE id = %(id)s AND owner_id = (SELECT auth.uid())",
+        f"SELECT {COLUMNS} FROM public.documents WHERE id = %(id)s AND owner_id = (SELECT private.read_owner())",
         {"id": document_id, "timeout": PROCESSING_TIMEOUT_SECONDS},
     ).fetchone()
 
@@ -55,7 +55,7 @@ def list_visible(conn: Connection[DictRow]) -> list[DictRow]:
     """Los documentos de quien llama que siguen en el flujo (ni `uploading`, ni `discarded`, ni `registered`: esos ya son gastos)."""
     return conn.execute(
         f"SELECT {COLUMNS} FROM public.documents "
-        "WHERE owner_id = (SELECT auth.uid()) AND status NOT IN ('uploading', 'discarded', 'registered') "
+        "WHERE owner_id = (SELECT private.read_owner()) AND status NOT IN ('uploading', 'discarded', 'registered') "
         "ORDER BY created_at DESC, id LIMIT %(limit)s",
         {"timeout": PROCESSING_TIMEOUT_SECONDS, "limit": LIST_LIMIT},
     ).fetchall()

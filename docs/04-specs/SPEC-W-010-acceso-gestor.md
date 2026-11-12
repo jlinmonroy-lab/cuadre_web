@@ -102,15 +102,15 @@ Que el **autónomo** invite a su gestor, vea el estado de la invitación, la rev
 
 **Sin enumeración.** `invite_gestor_access` responde igual (mismo estado y mismo cuerpo, y un correo equivalente) si el correo es de un gestor, de un autónomo, del administrador o de nadie. El correo dice «te han invitado a dar acceso a su contabilidad en Cuadre; entra y acéptalo», sin ningún dato financiero. No incluye enlace con token.
 
-**Vínculo y lectura.** Toda ruta `/api/gestor/autonomos/{owner_id}/…` pasa por `owner_scope`: rol `gestor` (en caso contrario `403`, como el resto de rutas por rol); vínculo `active` con `gestor_id = el gestor` y no caducado; si no, `404` con el mismo cuerpo. La lectura corre con la identidad del gestor (RLS); nunca con la service key ni con el JWT del autónomo.
+**Vínculo y lectura.** Toda ruta `/api/gestor/autonomos/{owner_id}/…` pasa por `owner_scope`: rol `gestor` (en caso contrario `403`, como el resto de rutas por rol); vínculo `active` con `gestor_id = el gestor` y no caducado; si no, `404` con el mismo cuerpo. La lectura corre con la identidad del gestor (RLS); nunca con la service key ni con el JWT del autónomo. **Cómo se elige a quién se mira (decidido en el hito 2):** en vez de un parámetro `owner` en cada consulta, las lecturas del autónomo filtran por `private.read_owner()` (= el ajuste local `cuadre.read_owner` si existe, y si no `auth.uid()`); `owner_scope` lo fija con `set_config(..., true)` (local a la transacción) **solo después** de que `app.log_gestor_read` haya comprobado el vínculo. El camino del autónomo no lo fija nunca y queda idéntico; la RLS sigue siendo la que decide qué filas se ven.
 
-**Registro de lecturas.** Cada petición de datos de `owner_scope` escribe **una** entrada: `category = 'access'`, `actor_id`/`actor_role = gestor`, `owner_id`, `action = 'gestor.read'`, `entity_type` (`invoices`, `invoice`, `invoice_pdf`, `expenses`, `documents`, `document_original`, `profile`, `clients`, `modelo_303`, `modelo_130`, `notes`) y `entity_id` (id del recurso o `null` en las listas); `metadata` solo con identificadores y el periodo pedido, **nunca** importes, nombres, NIF, IBAN, conceptos ni URLs firmadas. Se escribe en la **misma transacción** que la lectura: si el registro falla, no se entrega el dato.
+**Registro de lecturas.** Cada petición de datos de `owner_scope` escribe **una** entrada: `category = 'access'`, `actor_id`/`actor_role = gestor`, `owner_id`, `action = 'gestor.read'`, `entity_type` (`portfolio`, `invoices`, `invoice`, `invoice_pdf`, `expenses`, `documents`, `document_original`, `profile`, `clients`, `modelo_303`, `modelo_130`, `notes`) y `entity_id` (id del recurso o `null` en las listas); `metadata` solo con identificadores y el periodo pedido, **nunca** importes, nombres, NIF, IBAN, conceptos ni URLs firmadas. Se escribe en la **misma transacción** que la lectura: si el registro falla, no se entrega el dato.
 
 **Anotaciones.** `gestor_notes(id, owner_id, gestor_id, body 1..2000, entity_type?, entity_id?, created_at)`; solo `insert` (por el gestor con vínculo activo, con `gestor_id = auth.uid()` y `owner_id` del vínculo) y `select` (el gestor las suyas con vínculo activo; el autónomo las de su cuenta); ni `update` ni `delete`. Crear una anotación se registra (`gestor.note_added`, solo ids).
 
-**Cartera.** Un autónomo aparece mientras el vínculo esté `active`. Sus pendientes son los documentos con `status = 'review'` del autónomo; en la respuesta, `pending_count` (entero ≥ 0) y el nombre a mostrar. Los autónomos sin vínculo activo no aparecen. Leer la cartera no se registra por autónomo (no abre sus datos), pero sí queda `gestor.read` con `entity_type = 'portfolio'`.
+**Cartera.** Un autónomo aparece mientras el vínculo esté `active`. Sus pendientes son los documentos con `status = 'review'` del autónomo; en la respuesta, `pending_count` (entero ≥ 0) y el nombre a mostrar. Los autónomos sin vínculo activo no aparecen. Leer la cartera (y abrir la ficha de un autónomo) deja `gestor.read` con `entity_type = 'portfolio'`: **una entrada por cada autónomo cuyo nombre y pendientes se enseñan** (la función de SQL registra por dueño; corregido en el hito 2, la spec decía «no se registra por autónomo»). Una cartera sin autónomos no registra nada.
 
-**Registro de actividad (autónomo).** Devuelve, más reciente primero y con paginación por cursor, las entradas `access` donde `owner_id` es el autónomo: `action`, `occurred_at`, correo del gestor (el de la invitación o el del actor), `entity_type` y `entity_id`. Las entradas de lectura se describen con texto («Tu gestor consultó tus facturas») en la interfaz, no en la API.
+**Registro de actividad (autónomo).** Devuelve, más reciente primero y con paginación por cursor (el `id` de la última entrada, páginas de 50), las entradas `access` donde `owner_id` es el autónomo: `action`, `occurred_at`, `actor_role`, `actor_email` (el del gestor que actuó; `null` si actuó el propio autónomo), `entity_type`, `entity_id` y el periodo (`year`, `quarter`) de los borradores. Nunca devuelve el texto de una anotación ni datos financieros. Las entradas de lectura se describen con texto («Tu gestor consultó tus facturas») en la interfaz, no en la API.
 
 ### 5.2 Base de datos
 
@@ -135,8 +135,8 @@ Que el **autónomo** invite a su gestor, vea el estado de la invitación, la rev
 | `accept_gestor_invitation` / `decline_gestor_invitation` | `POST /api/gestor/invitaciones/{id}/aceptar` · `/rechazar` | `gestor` | `204`; `404 gestor_access_not_found`; `409 gestor_access_not_pending`; `409 gestor_access_expired` (solo al aceptar) |
 | `get_gestor_portfolio` | `GET /api/gestor/cartera` | `gestor` | `200` con los autónomos activos y sus pendientes |
 | `get_gestor_autonomo` | `GET /api/gestor/autonomos/{owner_id}` | `gestor` + vínculo | `200` con nombre, pendientes y los contadores de la ficha |
-| `list_gestor_autonomo_invoices` · `get_gestor_autonomo_invoice` · `get_gestor_autonomo_invoice_pdf` | `…/facturas`, `…/facturas/{id}`, `…/facturas/{id}/pdf` | `gestor` + vínculo | `200`; el PDF, por **URL firmada** de ≈ 60 s |
-| `list_gestor_autonomo_expenses` | `…/gastos` | `gestor` + vínculo | `200` (los anulados llevan `voided_at`) |
+| `list_gestor_autonomo_invoices` · `get_gestor_autonomo_invoice` · `get_gestor_autonomo_invoice_pdf` | `…/facturas?year=&scope=&paid=&limit=&offset=`, `…/facturas/{id}`, `…/facturas/{id}/pdf` | `gestor` + vínculo | `200` (lista **paginada**: `limit` 1–200, por defecto 100, y `offset`; AC-23); el PDF, por **URL firmada** de ≈ 60 s (`{url, expires_in}`; `409 invoice_pdf_pending` si aún no hay PDF) |
+| `list_gestor_autonomo_expenses` | `…/gastos?page=&limit=&year=&month=` | `gestor` + vínculo | `200` `{items, next_cursor}` con cursor como el del autónomo, hasta 100 por página (los anulados llevan `voided_at`) |
 | `list_gestor_autonomo_documents` · `get_gestor_autonomo_document_original` | `…/documentos`, `…/documentos/{id}/original` | `gestor` + vínculo | `200`; el original, por URL firmada |
 | `get_gestor_autonomo_profile` · `list_gestor_autonomo_clients` | `…/perfil`, `…/clientes` | `gestor` + vínculo | `200` |
 | `get_gestor_autonomo_modelo_303` · `get_gestor_autonomo_modelo_130` | `…/trimestres/303?year=&quarter=` · `…/trimestres/130?…` | `gestor` + vínculo | `200` con **el mismo cuerpo** que `get_modelo_303` y `get_modelo_130`; los mismos `422` de periodo |
@@ -145,7 +145,7 @@ Que el **autónomo** invite a su gestor, vea el estado de la invitación, la rev
 Errores en `application/problem+json` con `code` estable y `detail` en español, sin repetir lo enviado ni datos del autónomo. `Cache-Control: private, no-store` en todas. Sin vínculo vigente: `404` uniforme (`code: not_found`). Rol equivocado: `403 forbidden`; sin sesión: `401`.
 
 ### 5.4 Backend
-`cuadre/gestor/` (servicio, repositorio, modelos y errores), `cuadre/notifications/` (`EmailSender` y sus implementaciones), `cuadre/api/routes_gestor.py`, la dependencia `owner_scope` en `cuadre/core/` y las lecturas con dueño explícito en `cuadre/quarters/`, `cuadre/invoicing/`, `cuadre/expenses/`, `cuadre/documents/`, `cuadre/clients/` y `cuadre/profile/`. Ninguna conexión a la base fuera de `cuadre.db`; ninguna service key en estas rutas.
+`cuadre/gestor/` (servicio, repositorio, modelos y errores), `cuadre/notifications/` (`EmailSender` y sus implementaciones), `cuadre/api/routes_gestor.py`, `cuadre/gestor/scope.py` (`owner_scope`: registro y dueño de la lectura en una transacción), `cuadre/gestor/reads.py` y `cuadre/api/routes_gestor_reads.py` (hito 2), y las lecturas con `private.read_owner()` en `cuadre/quarters/`, `cuadre/invoicing/`, `cuadre/expenses/`, `cuadre/documents/`, `cuadre/clients/` y `cuadre/profile/`. Ninguna conexión a la base fuera de `cuadre.db`; ninguna service key en estas rutas.
 
 ### 5.5 Frontend
 `app/(app)/gestor/page.tsx` (autónomo), `app/(app)/cartera/page.tsx` y `app/(app)/cartera/[ownerId]/page.tsx` (gestor, con la pestaña elegida por `?tab=`), `lib/gestor.ts` (puro: textos de estado, marca de pendientes, agrupación y direcciones), `lib/gestor-api.ts` (lecturas de servidor y acciones), componentes en `components/gestor/`. `lib/roles.ts`: «Mi gestor» (`/gestor`) para `usuario` y las rutas `/cartera/…` como sección del gestor. Ninguna regla de acceso en el navegador: el servidor decide y la interfaz solo enseña.
@@ -270,6 +270,7 @@ npm --prefix frontend exec -- playwright test e2e/gestor.spec.ts       # AC-19 a
 2. **Hito 1 · SQL y acceso**: migración de `gestor_notes` y `app.log_gestor_read` (con `app.add_gestor_note`), matriz de RLS, `cuadre.notifications` y las rutas de invitar, listar, aceptar, rechazar y revocar, con sus pruebas.
    **Hecho el 2026-11-12** (migraciones `gestor_notes` y funciones `app.*`; `cuadre.notifications`; `cuadre.gestor` y las seis rutas de acceso; OpenAPI y cliente regenerados; Anexo B.2).
 3. **Hito 2 · API de lectura del gestor**: `owner_scope`, cartera, lecturas por autónomo con dueño explícito (también 303 y 130), anotaciones, registro de lecturas y de actividad; OpenAPI y cliente.
+   **Hecho el 2026-11-12** (migración `read_owner`; `cuadre.gestor.scope` y `reads`; 16 rutas; OpenAPI y cliente regenerados; Anexo B.3).
 4. **Hito 3 · pantalla del autónomo** `/gestor`: invitar, estados, revocar, anotaciones y registro de actividad; menú y roles; unitarias y comprobación visual en tres motores.
 5. **Hito 4 · pantallas del gestor** `/cartera` y `/cartera/{ownerId}`: invitaciones, cartera con pendientes, ficha con pestañas y descargas; unitarias y comprobación visual.
 6. **Hito 5 · E2E y cierre**: `e2e/gestor.spec.ts`, ajustes de `roles.spec.ts` y `responsive.spec.ts`, mutaciones de la interfaz, batería completa, Anexo B final, `tasks.json` y `en-revision`.
@@ -327,7 +328,7 @@ npm --prefix frontend exec -- playwright test e2e/gestor.spec.ts       # AC-19 a
 | Backend sin RLS completo, **antes** del arreglo de producción | 4.028 correctas y 2 fallos (los de arriba); los 2 pasan ya por separado |
 | `ruff`, `export_openapi --check`, `gen:api --check`, `lint`, `typecheck` y 260 unitarias del frontend | código 0 |
 
-**Pendiente de repetir:** la pasada completa del backend sin RLS **después** del arreglo (y la de RLS con las 6 pruebas extra). La primera repetición la cortó el sistema por falta de memoria (se paró la tarea; no se relanzó por iniciativa propia). Por eso esta nota no da por limpia una pasada completa que no se ha visto terminar.
+**Pendiente de repetir (resuelto en el hito 2):** la pasada completa del backend sin RLS tras el arreglo (4.133 correctas) y la de RLS (1.652 correctas, con la base reiniciada) se repitieron el 2026-11-12; ver B.3.
 
 **Mutaciones.** **45 mutaciones** (27 de las funciones SQL aplicadas con `create or replace` y restauradas, 18 de Python), con un ejecutor desechable fuera del repositorio: **45 detectadas, ninguna equivalente** (la del guardia de producción se rehízo tras el arreglo: detectada). La primera tanda dejó cinco vivas: el cerrojo asesor (la prueba con hilos no forzaba la carrera: ahora una transacción abierta retiene el límite para la siguiente), una factura y un documento de otro autónomo (solo se probaba un gasto), un tipo de entidad libre (el id coincidía con un documento) y el `403` por SQL (no es alcanzable por la API: se fijó con una prueba de la tabla de traducciones).
 
@@ -339,3 +340,41 @@ npm --prefix frontend exec -- playwright test e2e/gestor.spec.ts       # AC-19 a
 **Para el hito 2** (API de lectura del gestor):
 - `owner_scope` con `app.log_gestor_read` en la **misma transacción** que la lectura (si falla el registro, no se devuelve el dato), `404` uniforme sin vínculo vigente, cartera con pendientes (`documents.status = 'review'`) y las lecturas por autónomo con dueño explícito (también el 303 y el 130), descargas por URL firmada y rutas de anotaciones (`app.add_gestor_note`) y de actividad (`activity_log` por cursor).
 - Lecturas de `cuadre.quarters`, facturas, gastos, documentos, clientes y perfil: hoy filtran por `auth.uid()`; pasan a recibir el dueño y siguen apoyándose en la RLS.
+
+### B.3 Hito 2 · API de lectura del gestor · 2026-11-12
+
+**Qué hay.** Una migración (`20261112100200_read_owner.sql`), `cuadre/gestor/scope.py` (`owner_scope`), `cuadre/gestor/reads.py` (`GestorReadService`), `api/routes_gestor_reads.py` con 16 rutas (la cartera, la ficha, facturas con su PDF, gastos, documentos con su original, perfil, clientes, 303, 130, anotaciones del gestor, anotaciones del autónomo y actividad) y cambios mínimos en los repositorios de facturas, gastos, documentos, perfil, clientes y trimestres. `backend/openapi.json` y `frontend/src/api/schema.d.ts` regenerados. Sin pantallas.
+
+**Decisiones al implementar** (corrigen o completan la spec, ya actualizada en §5.1, §5.3 y §5.4):
+
+| Tema | Decisión |
+|---|---|
+| **Dueño de la lectura** | En lugar de un parámetro `owner` en cada consulta (el plan), las lecturas filtran por `private.read_owner()`, que devuelve el ajuste local `cuadre.read_owner` o, si no existe, `auth.uid()`. Se fija con `set_config(..., true)` solo **después** de que `app.log_gestor_read` haya comprobado el vínculo. El camino del autónomo no lo fija nunca: sus consultas devuelven lo mismo y su suite entera sigue en verde sin tocarla. Menos superficie que añadir un parámetro a una decena de funciones |
+| **404 uniforme** | El `42501` de `app.log_gestor_read` se traduce a un único `404` (`not_found`): sin vínculo, revocado, caducado, de otro gestor o inexistente son indistinguibles |
+| **Registro y lectura, una transacción** | Si la lectura falla después del registro (p. ej. una factura que no existe), tampoco queda la entrada; un periodo rechazado (`422`) no abre nada ni registra nada |
+| **Cartera** | Una entrada `portfolio` **por autónomo enseñado** (la spec decía que no se registraba por autónomo); sin autónomos, nada |
+| **Paginación** | Facturas: `limit` 1–200 y `offset`; gastos: cursor y hasta 100; actividad: cursor por `id`, de 50 en 50. Las del autónomo no cambian (AC-23) |
+| **Descargas** | URL firmada de ≈ 60 s con el JWT **del gestor** (RLS del Storage), después del commit; se registra el recurso, nunca la URL |
+| **Gastos anulados** | El gestor los ve con `voided_at`; el autónomo no (parámetro `include_voided` solo en el camino del gestor) |
+| **Documentos** | Solo `review` y `extraction_failed`; el original de un descartado o en subida es `404` |
+| **Periodo de los borradores** | Va en `metadata` (`year`, `quarter`), ya resuelto si no se pidió; se registra solo si el periodo es válido |
+
+**Pruebas.** `backend/tests/gestor` tiene **160 pruebas**: 57 del hito 1 y **103 de este** — cartera (14), aislamiento y revocación (14), lecturas contra los 303 y 130 de B.1 de SPEC-W-008 y SPEC-W-009 comparadas **cuerpo a cuerpo** con las del propio autónomo (31), registro de lecturas (8), anotaciones (9), actividad (5), solo lectura (15, con todas las tablas financieras), privacidad y tamaños (3) y extras nacidos de las mutaciones (4). Las 2.602 pruebas de SPEC-W-005 a 009 siguieron en verde tras tocar sus repositorios.
+
+**Resultados medidos (2026-11-12, todos con código 0):**
+
+| Qué | Resultado |
+|---|---|
+| Backend sin RLS completo (incluye la pasada pendiente del hito 1) | **4.133 correctas**, 1.652 deseleccionadas (RLS) |
+| RLS completa, con la base recién reiniciada (`supabase db reset`; aplica `read_owner` desde cero) | **1.652 correctas** |
+| `ruff check`, `ruff format --check`, `export_openapi --check`, `gen:api --check` | código 0 |
+| Frontend: `lint`, `typecheck` y `test:unit` con el esquema nuevo | código 0; **260 de 260** unitarias |
+
+**Mutaciones.** Ejecutor desechable fuera del repositorio, **37 mutantes** (2 de `private.read_owner`, 5 de `scope.py`, 30 de `reads.py` y de las rutas): **35 detectadas y 2 equivalentes**. Los dos equivalentes son P03 (cartera que admite también `pending`) y P04 (cartera sin filtrar por gestor): los cubre otra capa, no la consulta — la RLS de `gestor_access` limita al gestor a sus filas y la de `profiles` solo le deja leer el perfil con vínculo **activo**, así que la unión descarta cualquier otra fila (se comprobó con una fila pendiente que ya nombra al gestor). **Un hueco real:** P15 (el gestor sin los clientes archivados) sobrevivió porque ninguna prueba tenía un cliente archivado; se añadió la prueba y ahora se detecta. Una tanda previa cortada por falta de memoria dejó P15 aplicado en `reads.py`; se detectó, se restauró y se comprobó.
+
+**Lo que no se ha comprobado:**
+- **Tamaño de respuesta a escala:** AC-23 está cubierto por construcción y con la siembra de B.1, no con 5.000 autónomos ni 200 facturas reales.
+- **Descargas con Storage real:** las URL firmadas se prueban con un Storage de mentira que apunta lo que se le pide (ruta, JWT del gestor y vida de 60 s); no se ha firmado contra el Storage local ni el de producción.
+- **Pantallas y E2E:** hitos 3 a 5.
+
+**Para los hitos 3 y 4.** Las pantallas piden las listas del gestor por páginas (facturas con `offset`, gastos con `next_cursor`, actividad con `next_cursor`); la ficha usa `get_gestor_autonomo` y las descargas devuelven `{url, expires_in}`, no bytes.

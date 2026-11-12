@@ -6,6 +6,7 @@ borrador con el dominio puro y lo presenta. Los errores del dominio salen como p
 """
 
 import logging
+from collections.abc import Callable
 from datetime import date
 
 from psycopg import Connection
@@ -53,12 +54,27 @@ class QuarterService:
             raise errors.period_in_future() from None
         return today, year, quarter
 
-    def modelo_303(self, user: CurrentUser, year: int | None, quarter: int | None) -> Modelo303:
-        """El 303 del trimestre pedido; sin año o sin trimestre se usan los de hoy en Europe/Madrid."""
+    def resolve_period(self, year: int | None, quarter: int | None) -> tuple[int, int]:
+        """El año y el trimestre pedidos (por defecto, los de hoy en Madrid), ya validados: lo usa el gestor para registrar el periodo antes de leer."""
+        _, resolved_year, resolved_quarter = self._period(year, quarter)
+        return resolved_year, resolved_quarter
+
+    def modelo_303(
+        self,
+        user: CurrentUser,
+        year: int | None,
+        quarter: int | None,
+        *,
+        on_read: Callable[[Connection[DictRow]], None] | None = None,
+    ) -> Modelo303:
+        """El 303 del trimestre pedido; sin año o sin trimestre se usan los de hoy en Europe/Madrid. `on_read` (solo el gestor) se ejecuta en la misma
+        transacción ANTES de leer: ahí se comprueba el vínculo y se registra la lectura."""
         today, year, quarter = self._period(year, quarter)
         start, end = quarter_bounds(year, quarter)
         try:
             with user_transaction(self.pool, user.id, user.claims) as conn:
+                if on_read is not None:
+                    on_read(conn)
                 invoices = invoice_rows(conn, start, end)
                 expenses = expense_rows(conn, start, end)
             model = build_modelo_303(year, quarter, invoices, expenses, today)
@@ -69,12 +85,21 @@ class QuarterService:
             raise errors.unsupported_vat_rate() from None
         return present(model)
 
-    def modelo_130(self, user: CurrentUser, year: int | None, quarter: int | None) -> Modelo130:
-        """El 130 del trimestre pedido, acumulado desde el 1 de enero; mismo periodo por defecto que el 303. No lee las líneas de IVA."""
+    def modelo_130(
+        self,
+        user: CurrentUser,
+        year: int | None,
+        quarter: int | None,
+        *,
+        on_read: Callable[[Connection[DictRow]], None] | None = None,
+    ) -> Modelo130:
+        """El 130 del trimestre pedido, acumulado desde el 1 de enero; mismo periodo por defecto que el 303. No lee las líneas de IVA. `on_read`: como en el 303."""
         today, year, quarter = self._period(year, quarter)
         _, end = quarter_bounds(year, quarter)
         try:
             with user_transaction(self.pool, user.id, user.claims) as conn:
+                if on_read is not None:
+                    on_read(conn)
                 incomes = income_rows(conn, year_start(year), end)
                 costs = cost_rows(conn, year_start(year), end)
             model = build_modelo_130(year, quarter, incomes, costs, today)

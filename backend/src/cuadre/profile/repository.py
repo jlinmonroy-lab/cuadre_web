@@ -65,7 +65,7 @@ def translate_db_error(exc: psycopg.Error) -> ProblemError | None:
 
 def get_profile(conn: Connection[DictRow]) -> DictRow | None:
     return conn.execute(
-        f"SELECT {PROFILE_COLUMNS} FROM public.business_profiles WHERE owner_id = (SELECT auth.uid())"
+        f"SELECT {PROFILE_COLUMNS} FROM public.business_profiles WHERE owner_id = (SELECT private.read_owner())"
     ).fetchone()
 
 
@@ -121,7 +121,7 @@ def logo_path(conn: Connection[DictRow]) -> str | None:
 def list_series(conn: Connection[DictRow]) -> list[DictRow]:
     """La predeterminada primero y después por código; incluye las archivadas y no las rectificativas `R-AAAA` (SPEC-W-007: las crea la emisión)."""
     return conn.execute(
-        f"SELECT {SERIES_COLUMNS} FROM public.invoice_series WHERE owner_id = (SELECT auth.uid()) AND kind = 'standard' "
+        f"SELECT {SERIES_COLUMNS} FROM public.invoice_series WHERE owner_id = (SELECT private.read_owner()) AND kind = 'standard' "
         "ORDER BY is_default DESC, code, id"
     ).fetchall()
 

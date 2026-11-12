@@ -48,7 +48,7 @@ def translate_db_error(exc: psycopg.Error) -> ProblemError | None:
 def list_clients(conn: Connection[DictRow], include_archived: bool) -> list[DictRow]:
     """Los clientes de quien llama, por nombre en el orden del español (la ñ después de la n; Anexo B.1-C)."""
     return conn.execute(
-        f"SELECT {COLUMNS} FROM public.clients WHERE owner_id = (SELECT auth.uid()) AND (%(all)s OR archived_at IS NULL) "
+        f"SELECT {COLUMNS} FROM public.clients WHERE owner_id = (SELECT private.read_owner()) AND (%(all)s OR archived_at IS NULL) "
         'ORDER BY name COLLATE "es-x-icu", id',
         {"all": include_archived},
     ).fetchall()

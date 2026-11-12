@@ -54,3 +54,24 @@ def gestor_access_expired() -> ProblemError:
     return ProblemError(
         409, "gestor_access_expired", "Invitación caducada", "Esa invitación ha caducado: pide que te inviten de nuevo."
     )
+
+
+def not_found() -> ProblemError:
+    """El `404` uniforme de las lecturas del gestor: igual sin vínculo, con vínculo revocado, caducado o de otro gestor, y para un id que no existe (T10-04)."""
+    return ProblemError(404, "not_found", "No encontrado", "No existe o no tienes acceso a este recurso.")
+
+
+def invalid_note(field: str) -> ProblemError:
+    return ProblemError(
+        422,
+        "invalid_note",
+        "Anotación no válida",
+        "El texto debe tener entre 1 y 2.000 caracteres."
+        if field == "body"
+        else "Lo que enlazas no existe o no es de este autónomo.",
+        extra={"fields": [{"field": field, "message": "No válido."}]},
+    )
+
+
+def invalid_cursor() -> ProblemError:
+    return ProblemError(422, "invalid_cursor", "Página no válida", "El cursor de la página no es válido.")

@@ -42,7 +42,7 @@ SELECT i.id, i.series_code, i.number, i.kind::text AS kind, i.issue_date,
   FROM public.invoices i
   LEFT JOIN public.invoices o ON o.id = i.rectifies_id
 """
-_OWN = "i.owner_id = (SELECT auth.uid())"
+_OWN = "i.owner_id = (SELECT private.read_owner())"
 
 _PLAIN = {
     "invoice_not_found": errors.invoice_not_found,
@@ -149,15 +149,30 @@ def get_invoice(conn: Connection[DictRow], invoice_id: UUID) -> DictRow | None:
     return conn.execute(f"{INVOICE_SELECT} WHERE i.id = %s AND {_OWN}", (invoice_id,)).fetchone()
 
 
-def list_invoices(conn: Connection[DictRow], year: int, scope: str | None, paid: bool | None) -> list[DictRow]:
+def list_invoices(
+    conn: Connection[DictRow],
+    year: int,
+    scope: str | None,
+    paid: bool | None,
+    *,
+    limit: int | None = None,
+    offset: int = 0,
+) -> list[DictRow]:
     """Las del año por fecha de expedición, la más reciente primero. `paid` filtra solo las ordinarias: una rectificativa no se cobra, así que ni
-    es «cobrada» ni está «pendiente de cobro»."""
+    es «cobrada» ni está «pendiente de cobro». `limit` y `offset` (solo el gestor, que pide por páginas) acotan la respuesta; sin ellos, todas."""
     return conn.execute(
         f"{INVOICE_SELECT} WHERE {_OWN} AND i.issue_date >= %(start)s AND i.issue_date < %(end)s "
         "AND (%(scope)s::text IS NULL OR i.client_scope::text = %(scope)s::text) "
         "AND (%(paid)s::boolean IS NULL OR (i.kind = 'standard' AND (i.paid_at IS NOT NULL) = %(paid)s::boolean)) "
-        "ORDER BY i.issue_date DESC, i.created_at DESC, i.id DESC",
-        {"start": date(year, 1, 1), "end": date(year + 1, 1, 1), "scope": scope, "paid": paid},
+        "ORDER BY i.issue_date DESC, i.created_at DESC, i.id DESC LIMIT %(limit)s OFFSET %(offset)s",
+        {
+            "start": date(year, 1, 1),
+            "end": date(year + 1, 1, 1),
+            "scope": scope,
+            "paid": paid,
+            "limit": limit,
+            "offset": offset,
+        },
     ).fetchall()
 
 
@@ -178,7 +193,7 @@ def pdf_source(conn: Connection[DictRow], invoice_id: UUID) -> DictRow | None:
 def get_file(conn: Connection[DictRow], invoice_id: UUID) -> DictRow | None:
     """El registro del PDF de una factura propia: ruta, huella y tamaño. `None` si aún no tiene."""
     return conn.execute(
-        "SELECT storage_path, sha256, size_bytes FROM public.invoice_files WHERE invoice_id = %s AND owner_id = (SELECT auth.uid())",
+        "SELECT storage_path, sha256, size_bytes FROM public.invoice_files WHERE invoice_id = %s AND owner_id = (SELECT private.read_owner())",
         (invoice_id,),
     ).fetchone()
 
@@ -189,7 +204,7 @@ def rectified_by(conn: Connection[DictRow], invoice_ids: list[UUID]) -> dict[UUI
         return {}
     rows = conn.execute(
         "SELECT rectifies_id, series_code, number FROM public.invoices "
-        "WHERE rectifies_id = ANY(%s) AND owner_id = (SELECT auth.uid()) ORDER BY issue_date, created_at, id",
+        "WHERE rectifies_id = ANY(%s) AND owner_id = (SELECT private.read_owner()) ORDER BY issue_date, created_at, id",
         (invoice_ids,),
     ).fetchall()
     found: dict[UUID, list[tuple[str, int]]] = {}

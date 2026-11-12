@@ -24,7 +24,7 @@ YEAR_DEFAULT_LIMIT = YEAR_MAX_DOCUMENTS + 1
 INVOICES_SQL = """
 SELECT id, series_code, number, issue_date, tax_treatment::text AS tax_treatment, vat_rate, base_cents, vat_cents
   FROM public.invoices
- WHERE owner_id = (SELECT auth.uid()) AND issue_date >= %(start)s AND issue_date < %(end)s
+ WHERE owner_id = (SELECT private.read_owner()) AND issue_date >= %(start)s AND issue_date < %(end)s
  ORDER BY issue_date, id
  LIMIT %(limit)s
 """
@@ -32,7 +32,7 @@ SELECT id, series_code, number, issue_date, tax_treatment::text AS tax_treatment
 EXPENSES_SQL = """
 SELECT id, supplier_name, expense_date, deductible_vat, tax_breakdown
   FROM public.expenses
- WHERE owner_id = (SELECT auth.uid()) AND voided_at IS NULL AND expense_date >= %(start)s AND expense_date < %(end)s
+ WHERE owner_id = (SELECT private.read_owner()) AND voided_at IS NULL AND expense_date >= %(start)s AND expense_date < %(end)s
  ORDER BY expense_date, id
  LIMIT %(limit)s
 """
@@ -87,7 +87,7 @@ def expense_rows(conn: Connection[DictRow], start: date, end: date, *, limit: in
 INCOME_SQL = """
 SELECT id, series_code, number, issue_date, base_cents, irpf_cents
   FROM public.invoices
- WHERE owner_id = (SELECT auth.uid()) AND issue_date >= %(start)s AND issue_date < %(end)s
+ WHERE owner_id = (SELECT private.read_owner()) AND issue_date >= %(start)s AND issue_date < %(end)s
  ORDER BY issue_date, id
  LIMIT %(limit)s
 """
@@ -96,7 +96,7 @@ SELECT id, series_code, number, issue_date, base_cents, irpf_cents
 COST_SQL = """
 SELECT id, supplier_name, expense_date, base_cents, vat_cents, deductible_vat
   FROM public.expenses
- WHERE owner_id = (SELECT auth.uid()) AND voided_at IS NULL AND expense_date >= %(start)s AND expense_date < %(end)s
+ WHERE owner_id = (SELECT private.read_owner()) AND voided_at IS NULL AND expense_date >= %(start)s AND expense_date < %(end)s
  ORDER BY expense_date, id
  LIMIT %(limit)s
 """

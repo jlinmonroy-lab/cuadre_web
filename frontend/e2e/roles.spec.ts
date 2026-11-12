@@ -151,3 +151,46 @@ for (const role of ["gina", "adan"] as const) {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("No tienes acceso a esta sección");
   });
 }
+
+// SPEC-W-010 AC-21 · «Mi gestor» es solo del autónomo y «Cartera» solo del gestor: el otro rol no ve el apartado ajeno y sus rutas (también la ficha de un
+// autónomo) lo llevan a /403.
+test("Mi gestor · el autónomo lo ve activo en el menú, entre Trimestres y Perfil, y llega a su pantalla", async ({ pageAs }) => {
+  const page = await pageAs("alicia");
+  await page.goto(PEOPLE.alicia.home);
+  const nav = page.getByRole("navigation", { name: "Apartados" });
+  const labels = await nav.getByRole("listitem").allInnerTexts();
+  const trimestres = labels.findIndex((label) => label.startsWith("Trimestres"));
+  expect(labels[trimestres + 1]).toBe("Mi gestor");
+  expect(labels[trimestres + 2]).toBe("Perfil");
+  await expect(nav.getByText("Cartera", { exact: true })).toHaveCount(0);
+  await nav.getByRole("link", { name: "Mi gestor" }).click();
+  await expect(page).toHaveURL("/gestor");
+  await expect(page.getByRole("heading", { level: 1, name: "Mi gestor" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Mi gestor" })).toHaveAttribute("aria-current", "page");
+});
+
+for (const role of ["gina", "adan"] as const) {
+  test(`Mi gestor · ${role} no lo ve en el menú y /gestor lo lleva a /403`, async ({ pageAs }) => {
+    const page = await pageAs(role);
+    await page.goto(PEOPLE[role].home);
+    await expect(page.getByRole("navigation", { name: "Apartados" }).getByText("Mi gestor", { exact: true })).toHaveCount(0);
+    await settle(page);
+    await page.goto("/gestor");
+    await expect(page).toHaveURL("/403");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("No tienes acceso a esta sección");
+  });
+}
+
+for (const role of ["alicia", "adan"] as const) {
+  test(`Cartera · ${role} no la ve y /cartera y la ficha de un autónomo lo llevan a /403`, async ({ pageAs }) => {
+    const page = await pageAs(role);
+    await page.goto(PEOPLE[role].home);
+    await expect(page.getByRole("navigation", { name: "Apartados" }).getByText("Cartera", { exact: true })).toHaveCount(0);
+    for (const target of ["/cartera", "/cartera/3f2a9c1e-5b7d-4e8a-9c3b-1a2b3c4d5e6f", "/cartera/3f2a9c1e-5b7d-4e8a-9c3b-1a2b3c4d5e6f?tab=facturas"]) {
+      await settle(page);
+      await page.goto(target);
+      await expect(page).toHaveURL("/403");
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText("No tienes acceso a esta sección");
+    }
+  });
+}

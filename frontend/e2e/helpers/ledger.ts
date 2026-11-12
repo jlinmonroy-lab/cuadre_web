@@ -112,6 +112,16 @@ export class Ledger {
     }
   }
 
+  /** Crea un gasto sin factura con concepto y fecha propios (los sembrados por `seed` son de enero de 2026 y quedan lejos de la primera página de una lista larga). */
+  async create(concept: string, date: string, amountCents: number): Promise<{ id: string }> {
+    return this.call<{ id: string }>("POST", "/api/expenses", { expense_date: date, concept, category: "other", amount_cents: amountCents });
+  }
+
+  /** Anula un gasto concreto. */
+  async void(id: string): Promise<void> {
+    await this.call("POST", `/api/expenses/${id}/void`);
+  }
+
   /** Anula todos los gastos vivos de la cuenta (los anulados no cuentan para duplicados ni salen en la lista). */
   async voidAll(): Promise<void> {
     const ids: string[] = [];

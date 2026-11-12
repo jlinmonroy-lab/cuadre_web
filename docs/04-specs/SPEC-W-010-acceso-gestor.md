@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-010
 titulo: Acceso del gestor: invitar, aceptar, revocar, cartera, lectura registrada, anotaciones y registro de actividad
-estado: en-progreso
+estado: en-revision
 prioridad: must
 riesgo: medio
 historias: [US-004, US-010]
@@ -276,6 +276,7 @@ npm --prefix frontend exec -- playwright test e2e/gestor.spec.ts       # AC-19 a
 5. **Hito 4 · pantallas del gestor** `/cartera` y `/cartera/{ownerId}`: invitaciones, cartera con pendientes, ficha con pestañas y descargas; unitarias y comprobación visual.
    **Hecho el 2026-11-12** (`/cartera` con invitaciones y cartera con el número de pendientes; ficha de solo consulta con seis pestañas, detalle de factura y descargas por URL firmada; componentes de lectura parametrizados sin cambiar al autónomo; 26 unitarias nuevas y 319 en verde; 41 mutaciones detectadas; 187 E2E existentes en Chromium; comprobación visual desechable en tres motores y dos anchos, incluido el flujo real con PDF y original; Anexo B.5).
 6. **Hito 5 · E2E y cierre**: `e2e/gestor.spec.ts`, ajustes de `roles.spec.ts` y `responsive.spec.ts`, mutaciones de la interfaz, batería completa, Anexo B final, `tasks.json` y `en-revision`.
+   **Hecho el 2026-11-12** (`e2e/gestor.spec.ts` con 10 pruebas por proyecto y los ayudantes `GestorApi` y el fixture `gestor`; cinco pruebas nuevas en `roles.spec.ts` y `/gestor` en `responsive.spec.ts`; 24 mutaciones de la interfaz detectadas; baterías completas de Chromium, Firefox y WebKit a 390 y 1.440 px; backend sin RLS 4.133 y RLS 1.652 correctas; P-01 a P-05 resueltas; Anexo B.6). **La spec queda en `en-revision`** hasta que la persona confirme el CI.
 
 ## Anexo B · Decisiones que esta spec deja a la implementación
 
@@ -466,3 +467,41 @@ La visual comprobó: las dos secciones de la cartera, el **4** con su texto y lo
 - **El E2E definitivo `e2e/gestor.spec.ts`**, la batería completa en tres motores y los ajustes de `responsive.spec` para las pantallas nuevas: hito 5. La prueba visual de este hito era desechable y se ha borrado; solo se cambió en `roles.spec.ts` la expectativa de la portada del gestor.
 
 **Para el hito 5.** Reutiliza los datos que se sembraron aquí como modelo (un gestor con tres autónomos, cuatro pendientes, un anulado, un cliente archivado y las invitaciones por aceptar y rechazar), el flujo real con `gastosPage` y `biller` para el PDF y el original, `settle` y `watchBrowserErrors`, y recuerda que la cuenta del autónomo admite **5 invitaciones abiertas** y que las pruebas que consumen invitaciones deben crear las suyas.
+
+### B.6 Hito 5 · E2E y cierre · 2026-11-12
+
+**Qué hay.** `e2e/gestor.spec.ts` (10 pruebas por proyecto, seis proyectos), los ayudantes `e2e/helpers/gestor.ts` (`GestorApi`: invitar, aceptar, rechazar, revocar y leer la cartera por la API con el token de GoTrue de cada cuenta, nunca la service key) y el fixture `gestor`, que **revoca todo lo abierto del autónomo al empezar y al terminar cada prueba**. `Ledger` gana `create` (un gasto con fecha propia) y `void`, y `gastosUser` pasa a tener un **nombre único por worker** (`Gastos <sufijo>`; antes «Gastos E2E» para todos), que es como la gestora compartida (Gina) encuentra a SU autónomo. En `roles.spec.ts`, cinco pruebas nuevas por proyecto (AC-21) y, en `responsive.spec.ts`, `/gestor` como Alicia. **Sin código de producto nuevo.**
+
+**Pruebas por proyecto** (`gestor.spec.ts`): (1) «Mi gestor»: errores junto al campo (formato, a uno mismo, duplicada), éxito, fila pendiente, **revocar con confirmación y con teclado** y el registro; (2) el límite de cinco invitaciones abiertas con el texto del servidor; (3) **la paginación del registro de actividad** (55 lecturas por la API: 50 por página, «Ver actividad anterior» y «Volver a lo más reciente»); (4) Gina acepta y Gus rechaza, y el autónomo ve «Activo» y «Rechazada»; (5) la cartera con **los pendientes con su número y con palabras** y el **original real** por URL firmada; (6) la ficha de facturas con una rectificativa y el **PDF real** (empieza por `%PDF`), sin botón de generar; (7) gastos con el anulado rotulado, perfil con IBAN, cliente archivado y **el 303 y el 130 iguales, casilla a casilla, a los del autónomo**; (8) anotaciones (general y ligada a una factura) y lo que ve el autónomo; (9) otro gestor (el mismo «no encontrado»), un autónomo y el administrador (`/403`), **revocar corta la ficha y la descarga al instante**, ningún botón ni enlace de escritura y, en `/cartera`, la ficha, sus seis pestañas y el detalle: sin scroll horizontal, campos etiquetados y consola limpia (AC-22); (10) **más de 50 facturas y 50 gastos** (página siguiente y cursor): solo en `chromium-1440`, el resto lo omite con el motivo escrito para no emitir 51 facturas por proyecto. Cierra el hueco que B.5 dejó sin comprobar.
+
+**Resultados medidos (2026-11-12, `--workers=1`, una invocación por motor y ancho):**
+
+| Qué | Resultado |
+|---|---|
+| Batería completa de Chromium (390 y 1.440 px, W-001 a W-010) | **336 correctas**, 1 omitida (la paginación a 390 px), 12,8 min |
+| Batería completa de Firefox, 390 px / 1.440 px | **165 y 165 correctas**, 4 y 4 omitidas |
+| Batería completa de WebKit, 390 px / 1.440 px | **165 y 165 correctas**, 4 y 4 omitidas (390 px: a la tercera pasada, ver abajo) |
+| Omitidas en Firefox y WebKit | Las tres que ya se omitían en esos motores (la prueba de la tabla desde 1.280 px de Clientes, Facturas y Perfil) y la paginación de 51 elementos, que solo corre en `chromium-1440` |
+| `gestor.spec.ts` tras el último cambio de la prueba, Chromium y Firefox, ambos anchos | 22 correctas y 1 omitida; 21 correctas y 2 omitidas |
+| Backend sin RLS | **4.133 correctas** |
+| RLS, con la base recién reiniciada (`db reset`) | **1.652 correctas** |
+| `ruff check`, `ruff format --check`, `export_openapi --check`, `gen:api --check`, `lint`, `typecheck` (también los E2E), `check:bundle` | código 0 |
+| Unitarias del frontend | **319 de 319** |
+
+**Mutaciones de la interfaz.** **24 mutaciones** de `access-list`, `invite-form`, `activity-list`, `ficha-tabs`, `portfolio`, `invitations`, `ficha-tabs-content`, `note-form`, `owner-profile`, `owner-clients`, `notes-list`, `gestor-routes`, la cartera y la ficha (ejecutor desechable fuera del repositorio, `next build` y `gestor.spec.ts` en Chromium a 1.440 px por mutante, restauración por huella): **24 detectadas, ninguna superviviente**. Se barajaron 28: una (M24, que el detalle ofrezca «Descargar PDF» también cuando el PDF está pendiente) no se pudo ejecutar porque **ninguna cuenta de E2E tiene una factura sin PDF**, así que ese estado solo lo cubre el razonamiento (el detalle usa `pdf_status === "ready"`) y no una prueba; otras tres se descartaron al preparar la lista. Al preparar la lista se vio que **faltaba una prueba de la paginación del registro de actividad** (una mutación de esa lista habría sobrevivido): se añadió la (3) antes de ejecutar ninguna.
+
+**Lo que la verificación encontró** (ninguno era un fallo del producto):
+- **Una carrera de mi prueba en WebKit a 390 px** (primera pasada): tras un envío con error, React 19 reinicia el formulario un instante después y mi `fill` inmediato se perdió (la captura mostraba el correo anterior y el error repetido). Es el caso que el repositorio ya trata con `settleForm`; se aplicó en las dos pruebas que escriben tras un error.
+- **Un fallo intermitente de una prueba preexistente de SPEC-W-007** (`factura.spec.ts`, «rectificar (AC-14, AC-15)», WebKit a 390 px, segunda pasada: la URL no pasó a `?emitida=1` en 30 s). Repetida **4 de 4 en verde** aislada y limpia en la tercera pasada completa. Se parece a la misma carrera, pero **no se ha verificado**; no se ha tocado esa prueba.
+- **Dos cortes del sistema por falta de memoria** (la segunda tanda de mutaciones y la primera batería de Firefox): el primero dejó el mutante M19 aplicado en `owner-profile.tsx`, se detectó con `git status` y se restauró a mano antes de continuar; el segundo dejó vivos Playwright, su Firefox y los tres servidores, que se cerraron por PID tras mirar sus líneas de comando. Ninguna de esas baterías se dio por pasada: se repitieron enteras, un motor y un ancho por invocación.
+
+**P-01 a P-05, resueltas por la persona el 2026-11-12, tal como están implementadas:** P-01 el IBAN se enseña al gestor; P-02 el gestor puede descargar el PDF de una factura y el original de un documento por URL firmada, registrado; P-03 las anotaciones solo se añaden (ni editar ni borrar); P-04 como máximo 5 invitaciones abiertas por autónomo; P-05 una entrada de registro por petición de datos, sin deduplicar.
+
+**Lo que no se ha comprobado:**
+- **El CI de GitHub:** la verificación es local; la spec queda en `en-revision` hasta que la persona confirme el CI sobre el head empujado. El job de E2E tiene `timeout-minutes: 40`: en local, un motor y un worker, la batería suma unos 13 min (Chromium) y 14 min (Firefox y WebKit) con tres motores, ≈ 42 min en serie; con los 2 workers del CI debería caber, pero **no se ha medido en el CI** y no se ha tocado el límite.
+- **El correo real de la invitación** (DEP-05): va a la consola del servidor; los E2E comprueban «Invitación enviada…», no un buzón.
+- **El estado «PDF pendiente»** del detalle del gestor en el navegador (ver arriba) y la paginación de 51 elementos fuera de `chromium-1440`.
+- **Lectores de pantalla reales** y el recorrido completo con la tecla de tabulación (se prueba el foco directo, `Enter` y `Escape`).
+- **Los seis proyectos en paralelo** (la configuración del CI): se ejecutó un motor y un ancho por vez.
+
+**Estado de la spec.** Todos los hitos hechos y la verificación local en verde: **`en-revision`** (2026-11-12). `SPEC-W-001`, `002` y `003` siguen en `en-revision` en `tasks.json` (se notó desde el hito 0 y no se tocan aquí). Pasará a `hecha` cuando la persona confirme el CI en verde sobre el head empujado; el último push es `66d1962` (hitos 2 a 4), y este cambio (hito 5) aún no se ha subido.

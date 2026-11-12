@@ -64,3 +64,6 @@ export const PEOPLE: Record<RoleKey, Person> = {
 };
 
 export const ROLE_KEYS = Object.keys(PEOPLE) as RoleKey[];
+
+/** El segundo gestor del seed: no tiene sesión guardada ni cuenta en `PEOPLE`; las pruebas que lo usan inician sesión por la interfaz. */
+export const GUS = { email: "gus@example.test", name: "Gus" } as const;

@@ -1,9 +1,11 @@
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 
 import { test as base, expect, type BrowserContext, type Page } from "@playwright/test";
 
 import { ClientsApi, type ListedClient } from "./clients";
-import { API_URL, AUTH_DIR, type RoleKey } from "./env";
+import { API_URL, AUTH_DIR, FIRST_PASSWORD, GUS, PEOPLE, SEED_PASSWORD, type RoleKey } from "./env";
+import { GestorApi } from "./gestor";
 import { InvoicesApi } from "./invoices";
 import { Ledger } from "./ledger";
 import { ProfileApi } from "./profile";
@@ -98,6 +100,11 @@ type Fixtures = {
   biller: Biller;
   /** El borrador del 303 de `gastosUser` por la API: el oráculo de `trimestres.spec.ts` (solo lee). */
   tax: TaxApi;
+  /**
+   * El acceso del gestor de `gastosUser` por la API (SPEC-W-010): `owner` es la cuenta, `gina` y `gus` los dos gestores del seed. **Revoca todo lo abierto de la
+   * cuenta al empezar y al terminar**: la gestora es compartida entre workers y proyectos y la cuenta admite 5 invitaciones abiertas (T10-12).
+   */
+  gestor: { owner: GestorApi; gina: GestorApi; gus: GestorApi };
 };
 
 type WorkerFixtures = {
@@ -106,7 +113,7 @@ type WorkerFixtures = {
    * simultáneas por persona (AC-12) y la lista de documentos es de la cuenta: compartir a Alicia entre seis proyectos en paralelo
    * daría 429 y listas ajenas. Las pruebas buscan su documento por un nombre de archivo único.
    */
-  gastosUser: { email: string; storageState: StorageState };
+  gastosUser: { email: string; /** Nombre único por worker: la gestora compartida lo usa para encontrar a SU autónomo en la cartera. */ name: string; storageState: StorageState };
 };
 
 export const test = base.extend<Fixtures, WorkerFixtures>({
@@ -115,10 +122,11 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
       const { baseURL, viewport, locale, timezoneId } = workerInfo.project.use;
       const context = await browser.newContext({ baseURL, viewport, locale, timezoneId });
       const email = uniqueEmail(`gastos-${workerInfo.project.name}`);
-      await signUpAndConfirm(await context.newPage(), { name: "Gastos E2E", email });
+      const name = `Gastos ${randomUUID().slice(0, 8)}`;
+      await signUpAndConfirm(await context.newPage(), { name, email });
       const storageState = await context.storageState();
       await closeQuietly(context);
-      await use({ email, storageState });
+      await use({ email, name, storageState });
     },
     { scope: "worker", timeout: 90_000 },
   ],
@@ -171,6 +179,17 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
 
   tax: async ({ request, gastosUser }, use) => {
     await use(new TaxApi(request, gastosUser.email, API_URL));
+  },
+
+  gestor: async ({ request, gastosUser }, use) => {
+    const owner = new GestorApi(request, gastosUser.email, FIRST_PASSWORD, API_URL);
+    await owner.revokeOpen();
+    await use({
+      owner,
+      gina: new GestorApi(request, PEOPLE.gina.email, SEED_PASSWORD, API_URL),
+      gus: new GestorApi(request, GUS.email, SEED_PASSWORD, API_URL),
+    });
+    await owner.revokeOpen();
   },
 
   page: async ({ page }, use) => {

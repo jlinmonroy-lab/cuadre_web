@@ -16,9 +16,11 @@ from cuadre.api import (
     routes_gestor,
     routes_gestor_reads,
     routes_health,
+    routes_internal,
     routes_invoices,
     routes_me,
     routes_profile,
+    routes_reminders,
     routes_tax,
 )
 from cuadre.clients import FakeViesChecker
@@ -96,12 +98,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(routes_documents.router)
     app.include_router(routes_expenses.router)
     app.include_router(routes_profile.router)
+    app.include_router(routes_reminders.router)
     # `/api/clients/billing` va ANTES que `/api/clients/{client_id}`: si no, «billing» se leería como un uuid y daría 422.
     app.include_router(routes_invoices.router)
     app.include_router(routes_clients.router)
     app.include_router(routes_tax.router)
     app.include_router(routes_gestor.router)
     app.include_router(routes_gestor_reads.router)
+    app.include_router(routes_internal.router)
     return app
 
 

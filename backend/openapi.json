@@ -3218,6 +3218,46 @@
         "title": "RectificationInput",
         "type": "object"
       },
+      "ReminderSettings": {
+        "properties": {
+          "enabled": {
+            "description": "`true` si la persona recibe un correo antes de cada plazo trimestral",
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "lead_days": {
+            "description": "Días de antelación del aviso respecto al plazo del 303 y el 130 (1 a 30)",
+            "title": "Lead Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "lead_days"
+        ],
+        "title": "ReminderSettings",
+        "type": "object"
+      },
+      "ReminderSettingsInput": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "lead_days": {
+            "description": "De 1 a 30; fuera de ese rango responde `422 invalid_lead_days`",
+            "title": "Lead Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "lead_days"
+        ],
+        "title": "ReminderSettingsInput",
+        "type": "object"
+      },
       "Retention": {
         "properties": {
           "reduced_until_year": {
@@ -8809,6 +8849,116 @@
         "summary": "Obtener la cuenta autenticada y su rol",
         "tags": [
           "cuenta"
+        ]
+      }
+    },
+    "/api/me/reminders": {
+      "get": {
+        "operationId": "get_reminder_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReminderSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar los recordatorios (solo `usuario`) o la cuenta está suspendida"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Leer los ajustes de recordatorios (sin ajustes guardados: activados y 10 días)",
+        "tags": [
+          "recordatorios"
+        ]
+      },
+      "put": {
+        "operationId": "update_reminder_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReminderSettingsInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReminderSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar los recordatorios (solo `usuario`) o la cuenta está suspendida"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Antelación fuera de 1 a 30 días (`invalid_lead_days`) o cuerpo con la forma incorrecta"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Guardar los ajustes de recordatorios (activar o no, y de 1 a 30 días de antelación)",
+        "tags": [
+          "recordatorios"
         ]
       }
     },

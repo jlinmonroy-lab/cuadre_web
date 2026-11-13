@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     # Correo transaccional (ADR-0008). `console` escribe en consola (nunca en production: aún no hay proveedor real, DEP-05).
     email_provider: str = "console"
 
+    # Secreto con el que el planificador llama a `/internal/jobs/{name}` (ADR-0016). Sin él, la ruta responde siempre 401.
+    cron_secret: SecretStr | None = None
+
     # Solo cuadre.jobs y cuadre.cli.
     database_service_url: str | None = None
     supabase_service_role_key: SecretStr | None = None
@@ -47,7 +50,7 @@ class Settings(BaseSettings):
             return value.strip().lower() or "console"
         return value
 
-    @field_validator("agents_base_url", "agents_api_key", mode="before")
+    @field_validator("agents_base_url", "agents_api_key", "cron_secret", mode="before")
     @classmethod
     def _blank_means_absent(cls, value: object) -> object:
         """`.env.example` trae `AGENTS_BASE_URL=` vacío: una cadena vacía es «sin servicio», no una URL vacía."""

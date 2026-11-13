@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 
 import { LogoPanel } from "@/components/profile/logo-panel";
 import { ProfileForm } from "@/components/profile/profile-form";
+import { RemindersSection } from "@/components/profile/reminders-section";
 import { SeriesSection } from "@/components/profile/series-section";
 import { getProfile, listInvoiceSeries } from "@/lib/profile-api";
 import { valuesFromProfile } from "@/lib/profile-form";
+import { getReminderSettings } from "@/lib/reminders-api";
 import { requireRole } from "@/lib/session";
 
 // Depende de la sesión en cada navegación (ver el layout de (app)): no es «instantánea» y no se valida como tal.
@@ -14,7 +16,7 @@ export const metadata: Metadata = { title: "Perfil" };
 
 export default async function PerfilPage() {
   await requireRole("usuario"); // el gestor y el administrador van a /403; la API vuelve a decidirlo
-  const [profile, series] = await Promise.all([getProfile(), listInvoiceSeries()]);
+  const [profile, series, reminders] = await Promise.all([getProfile(), listInvoiceSeries(), getReminderSettings()]);
   const { can_issue: canIssue, missing_for_invoicing: missing } = profile.completeness;
 
   return (
@@ -33,6 +35,7 @@ export default async function PerfilPage() {
           {canIssue ? "Tu perfil está listo para emitir facturas." : `Para emitir facturas te falta: ${missing.map((item) => item.label).join(", ")}.`}
         </p>
         <ProfileForm initial={valuesFromProfile(profile)} retention={profile.retention} />
+        <RemindersSection initial={reminders} />
         <section aria-labelledby="logo-titulo" className="grid gap-3 rounded-panel border border-rule bg-sheet p-4 sm:p-5">
           <h2 id="logo-titulo">Logo</h2>
           <LogoPanel hasLogo={profile.has_logo} />

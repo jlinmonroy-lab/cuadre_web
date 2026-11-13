@@ -56,9 +56,22 @@ export class ProfileApi {
     await this.call("PUT", "/api/profile", fields);
   }
 
-  /** Deja la cuenta como nació: perfil vacío, sin logo y solo la serie del año (la predeterminada) activa. */
+  /** Guarda los ajustes de recordatorios (SPEC-W-014) y devuelve lo que dejó la API. */
+  async reminders(settings: { enabled: boolean; lead_days: number }): Promise<void> {
+    await this.call("PUT", "/api/me/reminders", settings);
+  }
+
+  /** Lee los ajustes de recordatorios guardados (sin fila: activados y 10 días). */
+  async readReminders(): Promise<{ enabled: boolean; lead_days: number }> {
+    const settings = await this.call<{ enabled: boolean; lead_days: number }>("GET", "/api/me/reminders");
+    if (!settings) throw new Error("GET /api/me/reminders no devolvió ajustes.");
+    return settings;
+  }
+
+  /** Deja la cuenta como nació: perfil vacío, sin logo, recordatorios por defecto y solo la serie del año (la predeterminada) activa. */
   async restore(): Promise<void> {
     await this.call("PUT", "/api/profile", {});
+    await this.reminders({ enabled: true, lead_days: 10 });
     await this.call("DELETE", "/api/profile/logo");
     const series = (await this.call<ListedSeries[]>("GET", "/api/invoice-series")) ?? [];
     const year = series.find((item) => /^\d{4}$/.test(item.code));

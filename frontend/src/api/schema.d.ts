@@ -779,6 +779,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me/reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Leer los ajustes de recordatorios (sin ajustes guardados: activados y 10 días) */
+        get: operations["get_reminder_settings"];
+        /** Guardar los ajustes de recordatorios (activar o no, y de 1 a 30 días de antelación) */
+        put: operations["update_reminder_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/profile": {
         parameters: {
             query?: never;
@@ -2180,6 +2198,29 @@ export interface components {
             issue_date?: string | null;
             /** Reason */
             reason?: string | null;
+        };
+        /** ReminderSettings */
+        ReminderSettings: {
+            /**
+             * Enabled
+             * @description `true` si la persona recibe un correo antes de cada plazo trimestral
+             */
+            enabled: boolean;
+            /**
+             * Lead Days
+             * @description Días de antelación del aviso respecto al plazo del 303 y el 130 (1 a 30)
+             */
+            lead_days: number;
+        };
+        /** ReminderSettingsInput */
+        ReminderSettingsInput: {
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Lead Days
+             * @description De 1 a 30; fuera de ese rango responde `422 invalid_lead_days`
+             */
+            lead_days: number;
         };
         /** Retention */
         Retention: {
@@ -5782,6 +5823,95 @@ export interface operations {
             };
             /** @description No se puede comprobar la sesión ahora mismo */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_reminder_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReminderSettings"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar los recordatorios (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    update_reminder_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReminderSettingsInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReminderSettings"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar los recordatorios (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Antelación fuera de 1 a 30 días (`invalid_lead_days`) o cuerpo con la forma incorrecta */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

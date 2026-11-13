@@ -158,6 +158,8 @@ test("Mi gestor · el autónomo lo ve activo en el menú, entre Trimestres y Per
   const page = await pageAs("alicia");
   await page.goto(PEOPLE.alicia.home);
   const nav = page.getByRole("navigation", { name: "Apartados" });
+  // `allInnerTexts()` no espera: sin esto, a 390 px leía la lista antes de que el menú estuviera pintado y fallaba ~1 de cada 2 veces.
+  await expect(nav.getByRole("link", { name: "Perfil" })).toBeAttached();
   const labels = await nav.getByRole("listitem").allInnerTexts();
   const trimestres = labels.findIndex((label) => label.startsWith("Trimestres"));
   expect(labels[trimestres + 1]).toBe("Mi gestor");

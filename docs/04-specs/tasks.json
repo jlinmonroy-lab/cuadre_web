@@ -512,9 +512,9 @@
     },
     {
       "id": "SPEC-W-012",
-      "title": "Cierre mensual automático e idempotente",
-      "file": null,
-      "status": "propuesta",
+      "title": "Cierre mensual automático e idempotente y pantalla «Contabilidad mensual»",
+      "file": "SPEC-W-012-cierre-mensual.md",
+      "status": "en-revision",
       "priority": "must",
       "risk": "bajo",
       "stories": [
@@ -524,11 +524,16 @@
         "RF-012"
       ],
       "nfr": [
-        "NFR-09"
+        "NFR-09",
+        "NFR-06"
       ],
-      "constraints": [],
+      "constraints": [
+        "RES-02",
+        "RES-07"
+      ],
       "adr": [
-        "0007"
+        "0007",
+        "0016"
       ],
       "depends_on": [
         "SPEC-W-003",
@@ -540,9 +545,11 @@
         "SPEC-006"
       ],
       "verification": [
-        "pytest backend/tests/jobs -k cierre_mensual"
+        "pytest backend/tests/rls -m rls",
+        "pytest backend/tests/jobs -k cierre_mensual",
+        "npm --prefix frontend exec -- playwright test e2e/mensual.spec.ts"
       ],
-      "notes": "Job con reloj inyectado (Europe/Madrid), INSERT … ON CONFLICT; reapertura si llega una factura atrasada. Añade monthly_closings."
+      "notes": "Job con reloj inyectado (Europe/Madrid), INSERT ... ON CONFLICT; reapertura si llega una factura o un gasto atrasado (recalculo diario de los ultimos 12 meses, sin disparadores). Añade monthly_closings (foto del cierre; el acumulado del año se deriva). Reutiliza la infraestructura de jobs de SPEC-W-014 (runner, ruta interna con CRON_SECRET, cli run-job). Alcance decidido por la persona el 2026-11-13: job, API y pantalla Contabilidad mensual (SPEC-W-013 sigue siendo el reporte visual). Hito 1 hecho (spec con 20 criterios y decisiones D-01 a D-10 propuestas, pendientes de confirmar)."
     },
     {
       "id": "SPEC-W-013",

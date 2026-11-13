@@ -81,11 +81,11 @@ Que cada mes terminado quede cerrado de forma automática, repetible y verificab
 - **Ámbito** de un ingreso: el `client_scope` guardado en la factura (`national`, `eu`, `non_eu`), no el actual del cliente.
 - **`total_cents`** = `national_cents + eu_cents + non_eu_cents` (puede ser negativo si hay más rectificaciones que facturas).
 - **`expenses_cents`** = suma, de los gastos no anulados del mes, de `base_cents + (0 si deductible_vat, vat_cents si no)`.
-- **Desglose por cliente** (`by_client`): una entrada por `client_id` con al menos una factura (ordinaria o rectificativa) en el mes: `{client_id, name, scope, base_cents, invoice_count}`; el nombre es el de la última factura del cliente en el mes; orden por `base_cents` descendente, después nombre y `client_id`. La suma de `base_cents` del desglose es igual a `total_cents`.
+- **Desglose por cliente** (`by_client`): una entrada por cliente **y ámbito** con al menos una factura (ordinaria o rectificativa) en el mes (lo normal es una por cliente: solo hay dos si sus facturas cambiaron de ámbito dentro del mes): `{client_id, name, scope, base_cents, invoice_count}`, donde `invoice_count` cuenta solo las ordinarias; el nombre es el de la última factura del cliente en el mes; orden por `base_cents` descendente, después nombre y `client_id`. El desglose suma `total_cents`, cada ámbito y el `invoice_count` del mes.
 - **Primer mes con actividad** de una persona: el más antiguo entre el mes de `profiles.created_at` en Madrid, el de su primera factura y el de su primer gasto. Antes de él no hay cierres.
 - **Ventana**: del mes anterior al de `hoy` (Madrid) hacia atrás, 12 meses como máximo y sin pasar del primer mes con actividad. Con `--month`, solo ese mes (tiene que haber terminado y no ser anterior a `2000-01`).
 - **Idempotencia**: ejecutar el job con el mismo estado de los datos no cambia nada (`revision`, `closed_at` ni `first_closed_at`). Si la foto difiere de la guardada, se reescribe, `revision` sube en 1 y `closed_at` se actualiza; `first_closed_at` no cambia.
-- **Estado de un mes en la API**: `closed` (hay cierre, se devuelve la foto), `pending` (terminó y aún no hay cierre: cifras en vivo), `in_progress` (es el mes de «hoy»: cifras en vivo). Los meses futuros no se listan.
+- **Estado de un mes en la API**: `closed` (hay cierre, se devuelve la foto), `pending` (terminó y aún no hay cierre: cifras en vivo), `in_progress` (es el mes de «hoy»: cifras en vivo). Los meses futuros no se listan. Un mes antiguo sin cierre (anterior a los 12 meses que recalcula el job) también es `pending`. La lista empieza en el primer mes con actividad (un año anterior da `months: []`), pero un cierre que ya existe sale siempre.
 - **Importes**: enteros en céntimos en la base y en la API; el cliente los formatea con `Intl.NumberFormat('es-ES')`. Ningún `float`.
 - **Registros**: `user_id`, `period` (`AAAA-MM`), resultado y duración. Nunca nombres de clientes, importes ni correos.
 
@@ -117,11 +117,11 @@ create table public.monthly_closings (
 ### 5.3 API HTTP
 | `operation_id` | Ruta | Rol | Respuesta |
 |---|---|---|---|
-| `get_monthly_closings` | `GET /api/monthly-closings?year=AAAA` | `usuario` | `{year, months: [{month, status, invoice_count, national_cents, eu_cents, non_eu_cents, total_cents, expenses_cents, ytd_cents, revision, closed_at}], totals}` |
+| `get_monthly_closings` | `GET /api/monthly-closings?year=AAAA` | `usuario` | `{year, months: [{month, status, invoice_count, national_cents, eu_cents, non_eu_cents, total_cents, expenses_cents, result_cents, ytd_cents, revision, closed_at}], totals}` |
 | `get_monthly_closing` | `GET /api/monthly-closings/{year}/{month}` | `usuario` | lo mismo para un mes más `by_client` |
 | (interna) | `GET /internal/jobs/monthly_closing` | planificador | `{closed, reopened, unchanged, failed}`, con las reglas de SPEC-W-014 (`401` sin secreto) |
 
-`year` por defecto, el de hoy en Madrid. `422 invalid_period` si el año o el mes no existen y `422 period_in_future` si todavía no ha empezado. `gestor` y `admin` reciben `403`. Cabecera `Cache-Control: private, no-store`.
+`year` por defecto, el de hoy en Madrid. `result_cents` es ingresos menos gastos del mes. `422 invalid_period` si el año o el mes no existen, `422 period_in_future` si todavía no ha empezado y, en el detalle, `404 closing_not_found` para un mes anterior al primero con actividad. `gestor` y `admin` reciben `403`. Cabecera `Cache-Control: private, no-store`.
 
 ### 5.4 Backend
 - `cuadre.closing.rules` (puro, sin base de datos ni reloj): `MonthTotals`, `ClientTotals`, `build_month(year, month, invoices, expenses)`, `closing_window(today, first_month, months=12)`, `previous_month`.
@@ -170,9 +170,9 @@ create table public.monthly_closings (
 
 **AC-15 · Ruta interna y CLI.** *Then* `GET /internal/jobs/monthly_closing` sin secreto o con otro responde `401`, con el correcto devuelve `{closed, reopened, unchanged, failed}`; `python -m cuadre.cli run-job monthly_closing --now … --user … [--month AAAA-MM]` imprime solo contadores y sale con 1 si algún cierre falló.
 
-**AC-16 · API de la lista.** *Given* un año con meses cerrados, el mes en curso y uno terminado sin cierre; *Then* salen como `closed`, `in_progress` y `pending` con sus cifras; un año futuro o inexistente da `422`; el gestor y el administrador reciben `403`; sin cierres la lista está vacía.
+**AC-16 · API de la lista.** *Given* un año con meses cerrados, el mes en curso y uno terminado sin cierre; *Then* salen como `closed`, `in_progress` y `pending` con sus cifras; un año futuro o inexistente da `422`; el gestor y el administrador reciben `403`; una cuenta nueva ve su mes de alta como `in_progress` y un año anterior a su actividad da una lista vacía.
 
-**AC-17 · API del detalle.** *Then* el detalle de un mes trae el desglose por cliente ordenado; el mes en curso se calcula en vivo; un mes futuro da `422 period_in_future`.
+**AC-17 · API del detalle.** *Then* el detalle de un mes trae el desglose por cliente ordenado; el mes en curso se calcula en vivo; un mes futuro da `422 period_in_future` y un mes anterior al primero con actividad, `404 closing_not_found`.
 
 **AC-18 · Pantalla.** *Given* un usuario en `/mensual`; *Then* ve la tabla de meses con su estado y el acumulado, elige un mes y ve sus clientes y su resultado, cambia de año, y «Contabilidad mensual» está activa en el menú entre «Gastos» y «Trimestres» solo para `usuario`; todos los campos tienen etiqueta y no hay scroll horizontal a 390 y 1.440 px.
 
@@ -199,14 +199,25 @@ python backend/scripts/export_openapi.py --check
 npm --prefix frontend run gen:api -- --check
 npm --prefix frontend run lint ; npm --prefix frontend run typecheck ; npm --prefix frontend run test:unit
 npm --prefix frontend run build ; npm --prefix frontend run check:bundle
-E2E_WEB_PORT=3100 npm --prefix frontend exec -- playwright test e2e/mensual.spec.ts e2e/roles.spec.ts --workers=1   # AC-18
+E2E_WEB_PORT=3100 npm --prefix frontend exec -- playwright test e2e/mensual.spec.ts e2e/roles.spec.ts e2e/responsive.spec.ts --workers=1   # AC-18 (E2E_WEB_PORT solo si el 3000 está ocupado)
 ```
 
 **Comando único de la spec** (el de `tasks.json`): `pytest backend/tests/jobs -k cierre_mensual`, además de `pytest backend/tests/rls -m rls` y el E2E.
 
 ### 8.3 Correspondencia criterio → prueba
 
-Se rellena con los archivos reales al cerrar el hito 6 (la de SPEC-W-014 citaba archivos que no existían). Previsto: `tests/jobs/test_cierre_mensual_{rules,job,runner,internal_route,cli}.py`, `tests/api/test_monthly_api.py`, `tests/rls/test_monthly_closings.py`, `frontend/src/lib/monthly-*.test.ts` y `frontend/e2e/mensual.spec.ts`.
+| Criterio | Prueba |
+|---|---|
+| AC-01, AC-02, AC-03, AC-04 | `backend/tests/jobs/test_cierre_mensual_job.py` (cierre, mes a cero, repetir, dos ejecuciones a la vez) y `test_cierre_mensual_rules.py` |
+| AC-05, AC-06, AC-07 | `test_cierre_mensual_job.py` (gasto atrasado, factura en otra serie, anulación posterior, rectificativa) y `tests/api/test_monthly_api.py` (la foto no cambia hasta que corre el job) |
+| AC-08, AC-09, AC-10 | `test_cierre_mensual_job.py`, `test_cierre_mensual_window.py` (ventana, primer mes, mes pedido, día de Madrid y cambio de año), con el alta de la cuenta desplazada para no depender del reloj real |
+| AC-11 | `test_cierre_mensual_properties.py` (casilla 01 y gastos del 130 con documentos aleatorios) y `test_cierre_mensual_job.py` (130 por trimestre con base real) |
+| AC-12, AC-13, AC-14 | `test_cierre_mensual_job.py` (quién se cierra, fallo aislado y registros sin datos, aislamiento) |
+| AC-15 | `test_cierre_mensual_internal_route.py`, `test_cierre_mensual_runner.py` y `test_cierre_mensual_cli.py` |
+| AC-16, AC-17 | `backend/tests/api/test_monthly_api.py` |
+| AC-18 | `frontend/e2e/mensual.spec.ts`, `roles.spec.ts`, `responsive.spec.ts` y `frontend/src/lib/monthly.test.ts` |
+| AC-19 | `backend/tests/rls/test_monthly_closings.py`, la matriz de RLS y `test_rls_guard.py` |
+| AC-20 | `test_monthly_closings.py` (22 payloads incoherentes y las CHECK), `test_cierre_mensual_payload.py` (deriva contra la base) y `test_cierre_mensual_rules.py` (sin `float`) |
 
 ### 8.4 Definición de hecho
 La secuencia termina con código 0 en local y en CI; `tasks.json` actualizado; ADR-0007 y ADR-0016 enlazados; sin secretos ni datos reales; el cron propuesto queda anotado para el despliegue.
@@ -218,7 +229,7 @@ La secuencia termina con código 0 en local y en CI; `tasks.json` actualizado; A
 3. Reglas puras: `build_month` y `closing_window`. **Hecho** (B.2).
 4. Job, ruta interna y CLI. **Hecho** (B.3).
 5. API, cliente generado y pantalla `/mensual`. **Hecho** (B.4).
-6. Pruebas restantes, mutaciones y cierre (`hecha` solo con el CI de GitHub confirmado por la persona).
+6. Pruebas restantes, mutaciones y cierre. **Hecho en local** (B.5); `hecha` cuando la persona confirme el CI de GitHub sobre el head empujado.
 
 ## Anexo B · Decisiones que esta spec deja a la implementación
 
@@ -262,3 +273,14 @@ La secuencia termina con código 0 en local y en CI; `tasks.json` actualizado; A
 - Frontend: página `/mensual` (selector de año como formulario `GET`, `?anio=&mes=` en la dirección, mes por defecto el último cerrado), tarjetas por debajo de 1.280 px y tabla desde ahí (el patrón de la lista de facturas, sin scroll horizontal a 390 ni a 1.440 px), detalle con ingresos por cliente y su ámbito, resultado y la nota de cierre y reapertura. La interfaz no suma ni resta: usa `ytd_cents`, `total_cents`, `result_cents` y `by_client` tal cual. «Contabilidad mensual» pasa a enlace activo del menú (entre Gastos y Trimestres), entra en las secciones del autónomo y sale de «Próximamente» en la portada, donde queda «Reporte mensual» (SPEC-W-013).
 - **E2E:** la cuenta del worker acumula facturas que no se pueden borrar, así que `mensual.spec.ts` usa un oráculo por la API (`helpers/monthly.ts`). Prepara el mes anterior con una serie nueva (`createSeries`), una factura y un gasto con fecha de ese mes y lo cierra con `python -m cuadre.cli close-month --user …` (la ruta interna recorre todas las cuentas, que en la base de pruebas son miles). Cubre mes cerrado con sus clientes, mes en curso, cambio de mes, reapertura por un gasto atrasado, selector de año, año futuro y maqueta; `roles.spec.ts` y `responsive.spec.ts` incluyen el apartado.
 - Verificado: `pytest backend/tests/api -k monthly` 25 pasan; `pytest backend/tests -m "not rls"` 4446 y `rls` 1799; `npm run test:unit` 333 (7 nuevas); `lint`, `typecheck`, `build` y `check:bundle` en verde; `gen:api -- --check` y `export_openapi.py --check` al día; `playwright e2e/mensual.spec.ts` 42 pasan (3 navegadores x 390/1.440, 1 worker); `roles.spec.ts` y `responsive.spec.ts` 309 pasan. Revisión visual a 390 y 1.440 px con capturas desechables (sin errores de maqueta).
+
+### B.5 Hito 6 · Cierre · 2026-11-13
+
+- **Matriz criterio -> prueba** escrita en §8.3 con los archivos reales; §5.1, §5.3, AC-16 y AC-17 puestos al día con lo decidido en los hitos 3 a 5 (una entrada por cliente y ámbito, `result_cents`, `closing_not_found`, lista vacía solo antes de la actividad, cierres existentes siempre visibles) y `E2E_WEB_PORT` en §8.2.
+- **Pruebas atadas al reloj real, corregidas.** Varias pruebas daban por hecho que la cuenta de prueba «nació en noviembre de 2026»: el primer mes de una cuenta sin documentos es el de su alta y la cuenta se crea con la hora real. Habrían fallado el 1 de diciembre. Ahora leen el mes de alta de la base (`tests/jobs/closing_support.py`: `signup_month`, `now_to_close`, `iso_to_close`) y construyen el reloj a partir de él; las que cuentan con una cuenta nueva se repiten además con el alta desplazada a marzo de 2031 (`SHIFTS`) para demostrar que no dependen del mes real. Las pruebas con facturas fechadas en 2026 no dependen del alta (el primer mes lo fija la factura).
+- **Mutaciones: 49 (15 en las reglas, 6 en el job, 9 en el servicio y la API, 5 en la interfaz y 14 en SQL), todas detectadas al final.** Cubren el signo y el ámbito de los ingresos, los gastos anulados y el IVA no deducible, el recuento de facturas, el nombre y el orden del desglose, el desglose sin ámbito, la ventana (11, 12 y 13 meses), el mes en curso, el mes pedido, el día de Madrid, el límite de documentos y la validación de entradas; el primer mes con actividad, el aislamiento de fallos y los contadores del job; el acumulado, los estados, el primer mes visible, `result_cents`, los años y meses futuros, el 404 y el rol de la ruta; el mes por defecto, la nota de reapertura y las etiquetas de la pantalla; y en SQL la cláusula de «foto distinta», la revisión, `first_closed_at`, la validación de importes, ámbito y sumas, los candidatos, la RLS forzada, una política abierta, los permisos y la comprobación del total. **Dos sobrevivieron y se cubrieron con una prueba nueva:** (1) la lista no enseñaba un cierre guardado si el documento que fijaba el primer mes se anulaba después (`test_a_closing_that_exists_is_listed_even_if_its_month_is_no_longer_the_first_with_activity`); (2) `close_month` no distinguía un ámbito inventado cuyas sumas cuadraban como «fuera de la UE» (caso `ámbito desconocido que cuadra con otro` en `test_monthly_closings.py`). Cuatro mutaciones de la primera pasada no se aplicaron por un fallo de la herramienta con los finales de línea y se repitieron después: detectadas. Cada archivo se restauró y la base se reinició al terminar.
+- **Verificado en local:** `supabase db reset`; `pytest backend/tests/rls -m rls` 1800; `pytest backend/tests/jobs -k cierre_mensual` 173; `pytest backend/tests/api -k monthly` 28; `pytest backend/tests -m "not rls"` 4457; `ruff` limpio; `export_openapi.py --check` y `gen:api -- --check` al día; `test:unit` 333, `lint`, `typecheck`, `build` y `check:bundle` en verde; E2E `mensual`, `roles` y `responsive` 351 pasan sin fallos (1 worker, `E2E_WEB_PORT=3100`).
+- **Barrido de datos:** sin claves, IBAN ni NIF reales en lo nuevo; el E2E y el frontend no mencionan credenciales de servicio; los registros del job solo llevan ids, periodos y contadores; `.env.example` sin cambios.
+- **Pendiente para el piloto (no es de esta spec):** `vercel.json` con los crons de `reminders` y de `monthly_closing` (`0 3 * * *` en UTC el segundo), `CRON_SECRET` en el entorno y DEP-05 (proveedor de correo real).
+- **Estado:** `en-revision` hasta que la persona confirme el CI de GitHub sobre el head empujado; entonces `hecha`.
+

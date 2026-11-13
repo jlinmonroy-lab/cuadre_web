@@ -2,11 +2,17 @@
 
 from cuadre.notifications.selection import get_email_sender
 from cuadre.notifications.senders import ConsoleEmailSender, MemoryEmailSender, UnavailableEmailSender, mask_address
-from cuadre.notifications.templates import GESTOR_INVITATION_SUBJECT, gestor_invitation
+from cuadre.notifications.templates import (
+    GESTOR_INVITATION_SUBJECT,
+    QUARTER_REMINDER_KIND,
+    gestor_invitation,
+    quarter_reminder,
+)
 from cuadre.notifications.types import EmailConfigurationError, EmailDeliveryError, EmailMessage, EmailSender
 
 __all__ = [
     "GESTOR_INVITATION_SUBJECT",
+    "QUARTER_REMINDER_KIND",
     "ConsoleEmailSender",
     "EmailConfigurationError",
     "EmailDeliveryError",
@@ -17,4 +23,5 @@ __all__ = [
     "get_email_sender",
     "gestor_invitation",
     "mask_address",
+    "quarter_reminder",
 ]

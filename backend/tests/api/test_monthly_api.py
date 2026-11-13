@@ -22,6 +22,7 @@ from cuadre.main import create_app
 from tests.agents.support import make_settings
 from tests.api.conftest import FakeJwksClient, Signer, jwks_client, signer  # noqa: F401 - fixtures de otro conftest
 from tests.clocks import FixedClock
+from tests.jobs.closing_support import SHIFTS, apply_shift
 from tests.jobs.test_cierre_mensual_job import bill, spend
 from tests.rls.invoices_support import Ready, ready, series
 from tests.support import Cast, Person, Pool
@@ -153,10 +154,18 @@ def test_the_live_figures_equal_what_the_job_will_close(
     assert api.month(cast.alicia, 2026, 11).json()["status"] == "in_progress"  # el mes en curso nunca se cierra
 
 
-def test_a_new_account_sees_its_first_month_in_progress(api: Api, cast: Cast) -> None:
+@pytest.mark.parametrize("shift", SHIFTS)
+def test_a_new_account_sees_its_first_month_in_progress(
+    api: Api, admin: Connection[DictRow], cast: Cast, shift: datetime | None
+) -> None:
+    signup = apply_shift(admin, cast.alicia, shift)
+    api.app.state.clock = FixedClock(
+        datetime(signup.year, signup.month, 15, 8, 0, tzinfo=UTC)
+    )  # el mes de alta es el mes en curso
     body = api.year(cast.alicia).json()
+    assert body["year"] == signup.year
     assert [(m["month"], m["status"], m["total_cents"], m["ytd_cents"]) for m in body["months"]] == [
-        (11, "in_progress", 0, 0)
+        (signup.month, "in_progress", 0, 0)
     ]
     assert body["totals"]["total_cents"] == 0
 
@@ -197,12 +206,32 @@ def test_a_late_document_shows_up_only_after_the_next_run_of_the_job(
     assert ytd == [205_000, 225_000, 232_000]  # el acumulado de los meses siguientes recoge el cambio
 
 
-def test_one_person_never_sees_the_figures_of_another(
+def test_a_closing_that_exists_is_listed_even_if_its_month_is_no_longer_the_first_with_activity(
     api: Api, app_pool: Pool, service_pool: Pool, admin: Connection[DictRow], cast: Cast
 ) -> None:
+    """Si el único documento que fijaba el primer mes se anula después, el cierre que ya se guardó sigue saliendo en la lista."""
+    expense = spend(admin, app_pool, cast.alicia, date(2026, 8, 12))
+    run_monthly_closing(
+        service_pool=service_pool,
+        app_pool=app_pool,
+        now=datetime(2026, 9, 1, 8, 0, tzinfo=UTC),
+        only_owners=[cast.alicia.id],
+    )
+    admin.execute("update public.expenses set voided_at = now() where id = %s", (expense,))
+    body = api.year(cast.alicia).json()
+    assert [(m["month"], m["status"]) for m in body["months"]][0] == (8, "closed")  # agosto sigue ahí, con su foto
+    assert api.month(cast.alicia, 2026, 8).json()["expenses_cents"] == 10_000
+
+
+@pytest.mark.parametrize("shift", SHIFTS)
+def test_one_person_never_sees_the_figures_of_another(
+    api: Api, app_pool: Pool, service_pool: Pool, admin: Connection[DictRow], cast: Cast, shift: datetime | None
+) -> None:
     story(admin, app_pool, service_pool, cast.alicia)
+    signup = apply_shift(admin, cast.beto, shift)
+    api.app.state.clock = FixedClock(datetime(signup.year, signup.month, 15, 8, 0, tzinfo=UTC))
     body = api.year(cast.beto).json()
-    assert [(m["month"], m["total_cents"]) for m in body["months"]] == [(11, 0)]
+    assert [(m["month"], m["total_cents"]) for m in body["months"]] == [(signup.month, 0)]  # nada de lo de Alicia
     assert api.month(cast.beto, 2026, 9).status_code == 404
 
 

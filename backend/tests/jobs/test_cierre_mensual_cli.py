@@ -1,6 +1,7 @@
 """`python -m cuadre.cli run-job monthly_closing` y `close-month` (SPEC-W-012 §5.4, D-07, AC-15)."""
 
 import os
+from datetime import datetime
 
 import pytest
 from psycopg import Connection
@@ -9,8 +10,10 @@ from psycopg.rows import DictRow
 from cuadre import cli
 from cuadre.config import Settings
 from tests.agents.support import make_settings
+from tests.jobs.closing_support import SHIFTS, apply_shift, iso_to_close
 from tests.support import Cast
 
+# Para los argumentos que fallan antes de mirar ninguna cuenta: una fecha fija vale.
 NOW = "2026-12-05T08:00:00+00:00"
 
 
@@ -33,15 +36,21 @@ def count(admin: Connection[DictRow], cast: Cast) -> int:
     return found["n"]
 
 
+@pytest.mark.parametrize("shift", SHIFTS)
 def test_it_closes_and_prints_only_counters(
-    settings: Settings, admin: Connection[DictRow], cast: Cast, capsys: pytest.CaptureFixture[str]
+    settings: Settings,
+    admin: Connection[DictRow],
+    cast: Cast,
+    capsys: pytest.CaptureFixture[str],
+    shift: datetime | None,
 ) -> None:
-    assert cli.main(["run-job", "monthly_closing", "--now", NOW, "--user", str(cast.alicia.id)]) == 0
+    now = iso_to_close(apply_shift(admin, cast.alicia, shift))
+    assert cli.main(["run-job", "monthly_closing", "--now", now, "--user", str(cast.alicia.id)]) == 0
     out = capsys.readouterr().out
     assert out.strip() == "Listo: 1 cerrados, 0 reabiertos, 0 sin cambios, 0 fallidos."
     assert cast.alicia.email not in out and count(admin, cast) == 1
 
-    assert cli.main(["run-job", "monthly_closing", "--now", NOW, "--user", str(cast.alicia.id)]) == 0
+    assert cli.main(["run-job", "monthly_closing", "--now", now, "--user", str(cast.alicia.id)]) == 0
     assert capsys.readouterr().out.strip() == "Listo: 0 cerrados, 0 reabiertos, 1 sin cambios, 0 fallidos."
     assert count(admin, cast) == 1
 
@@ -49,21 +58,35 @@ def test_it_closes_and_prints_only_counters(
 def test_a_single_month_can_be_asked_for(
     settings: Settings, admin: Connection[DictRow], cast: Cast, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    code = cli.main(["run-job", "monthly_closing", "--now", NOW, "--user", str(cast.alicia.id), "--month", "2026-11"])
+    signup = apply_shift(admin, cast.alicia, None)
+    code = cli.main(
+        [
+            "run-job",
+            "monthly_closing",
+            "--now",
+            iso_to_close(signup),
+            "--user",
+            str(cast.alicia.id),
+            "--month",
+            signup.label,
+        ]
+    )
     assert (
         code == 0 and capsys.readouterr().out.strip() == "Listo: 1 cerrados, 0 reabiertos, 0 sin cambios, 0 fallidos."
     )
     assert admin.execute(
         "select month from public.monthly_closings where owner_id = %s", (cast.alicia.id,)
-    ).fetchall() == [{"month": 11}]
+    ).fetchall() == [{"month": signup.month}]
 
 
 def test_close_month_is_a_shortcut_for_the_same_thing(
-    settings: Settings, cast: Cast, capsys: pytest.CaptureFixture[str]
+    settings: Settings, admin: Connection[DictRow], cast: Cast, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    assert cli.main(["close-month", "--month", "2026-11", "--now", NOW, "--user", str(cast.alicia.id)]) == 0
+    signup = apply_shift(admin, cast.alicia, None)
+    args = ["close-month", "--month", signup.label, "--now", iso_to_close(signup), "--user", str(cast.alicia.id)]
+    assert cli.main(args) == 0
     assert capsys.readouterr().out.strip() == "Listo: 1 cerrados, 0 reabiertos, 0 sin cambios, 0 fallidos."
-    assert cli.main(["close-month", "--month", "2026-11", "--now", NOW, "--user", str(cast.alicia.id)]) == 0
+    assert cli.main(args) == 0
     assert capsys.readouterr().out.strip() == "Listo: 0 cerrados, 0 reabiertos, 1 sin cambios, 0 fallidos."
 
 

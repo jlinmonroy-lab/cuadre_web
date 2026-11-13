@@ -232,6 +232,10 @@ BAD_PAYLOADS: dict[str, Any] = {
     ),
     "desglose que no suma las facturas": payload(invoice_count=3),
     "ámbito desconocido": payload(by_client=[entry(scope="mars"), payload()["by_client"][1]]),
+    # Con las sumas ajustadas para que un ámbito inventado cuadre como si fuera «fuera de la UE»: solo la comprobación del ámbito lo rechaza.
+    "ámbito desconocido que cuadra con otro": payload(
+        national_cents=0, non_eu_cents=150_000, by_client=[entry(scope="mars"), payload()["by_client"][1]]
+    ),
     "client_id que no es uuid": payload(by_client=[entry(client_id="no-es-uuid"), payload()["by_client"][1]]),
     "nombre que no es texto": payload(by_client=[entry(name=5), payload()["by_client"][1]]),
     "base del cliente como texto": payload(by_client=[entry(base_cents="150000"), payload()["by_client"][1]]),

@@ -20,6 +20,7 @@ from cuadre.quarters.service import QuarterService
 from cuadre.tax.periods import PeriodInFuture
 from tests.agents.support import captured_logs
 from tests.clocks import FixedClock
+from tests.jobs.closing_support import SHIFTS, apply_shift, day_of, now_to_close, signup_month
 from tests.quarters.conftest import standing_of
 from tests.rls.expenses_support import insert, params
 from tests.rls.invoices_support import Ready, issue, made, ready, rectify, series
@@ -258,12 +259,14 @@ def test_a_rectification_counts_in_its_own_month_and_leaves_the_original_month_a
 # --- AC-08 y AC-09 · Primer mes y ventana -------------------------------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("shift", SHIFTS)
 def test_a_new_account_without_documents_only_closes_from_its_sign_up_month(
-    service_pool: Pool, app_pool: Pool, admin: Connection[DictRow], cast: Cast
+    service_pool: Pool, app_pool: Pool, admin: Connection[DictRow], cast: Cast, shift: datetime | None
 ) -> None:
-    run(service_pool, app_pool, at(2026, 12, 1), [cast.alicia])
-    assert [m for _, m in rows_of(admin, cast.alicia)] == [11]  # la cuenta nació en noviembre de 2026
-    assert row(admin, cast.alicia, 2026, 11)["total_cents"] == 0
+    signup = apply_shift(admin, cast.alicia, shift)  # el mes de alta es el que sea: la prueba no depende del reloj real
+    run(service_pool, app_pool, now_to_close(signup), [cast.alicia])
+    assert list(rows_of(admin, cast.alicia)) == [(signup.year, signup.month)]
+    assert row(admin, cast.alicia, signup.year, signup.month)["total_cents"] == 0
 
 
 def test_an_account_with_an_old_invoice_closes_from_that_month(
@@ -373,12 +376,14 @@ def test_the_closed_months_add_up_to_the_modelo_130(
 # --- AC-12 a AC-14 · Quién, los fallos y el aislamiento -----------------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("shift", SHIFTS)
 def test_only_active_users_are_closed(
-    app_pool: Pool, service_pool: Pool, admin: Connection[DictRow], cast: Cast
+    app_pool: Pool, service_pool: Pool, admin: Connection[DictRow], cast: Cast, shift: datetime | None
 ) -> None:
     admin.execute("update public.profiles set status = 'suspended' where id = %s", (cast.beto.id,))
+    signup = apply_shift(admin, cast.alicia, shift)
     everyone = [cast.alicia, cast.beto, cast.gina, cast.gus, cast.adan]
-    run(service_pool, app_pool, at(2026, 12, 1), everyone)
+    run(service_pool, app_pool, now_to_close(max(signup, signup_month(admin, cast.beto))), everyone)
     assert rows_of(admin, cast.alicia)
     for person in (cast.beto, cast.gina, cast.gus, cast.adan):
         assert rows_of(admin, person) == {}
@@ -388,11 +393,14 @@ def test_a_failure_with_one_person_does_not_stop_the_others_and_the_logs_carry_n
     app_pool: Pool, service_pool: Pool, admin: Connection[DictRow], cast: Cast, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     r = ready(admin, cast.alicia)
-    bill(app_pool, admin, cast.alicia, r, "national", date(2026, 9, 3), 150_000)
-    bill(app_pool, admin, cast.alicia, r, "national", date(2026, 9, 4), 99_999)
+    # Las facturas llevan el día 1 del mes de alta (la fecha no puede ser futura) y el reloj es el día 1 del mes siguiente: dentro de la ventana de cualquier fecha real.
+    last = max(signup_month(admin, cast.alicia), signup_month(admin, cast.beto))
+    first_day = day_of(signup_month(admin, cast.alicia), 1)
+    bill(app_pool, admin, cast.alicia, r, "national", first_day, 150_000)
+    bill(app_pool, admin, cast.alicia, r, "national", first_day, 99_999)
     monkeypatch.setattr("cuadre.closing.rules.CLOSING_MAX_DOCUMENTS", 1)  # Alicia tiene 2 documentos; Beto, ninguno
     with captured_logs("cuadre.jobs.closing") as logs:
-        result = run(service_pool, app_pool, at(2026, 12, 1), [cast.alicia, cast.beto])
+        result = run(service_pool, app_pool, now_to_close(last), [cast.alicia, cast.beto])
     assert result.failed == 1 and result.closed == 1
     assert rows_of(admin, cast.alicia) == {} and rows_of(admin, cast.beto)
     text = " ".join(str(r.__dict__) + r.getMessage() for r in logs)

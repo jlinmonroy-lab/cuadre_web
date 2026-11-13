@@ -6,20 +6,22 @@ de la prueba. Las reglas de acceso (401, secreto ausente, 404, 503) son las mism
 
 import dataclasses
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
+from psycopg import Connection
+from psycopg.rows import DictRow
 
 from cuadre.jobs import runner
 from cuadre.jobs.closing_job import run_monthly_closing
 from tests.clocks import FixedClock
+from tests.jobs.closing_support import SHIFTS, apply_shift, now_to_close
 from tests.jobs.test_recordatorios_internal_route import SECRET, bearer, build
 from tests.support import Cast
 
 URL = "/internal/jobs/monthly_closing"
-NOW = datetime(2026, 12, 1, 8, 0, tzinfo=UTC)
 
 
 @pytest.fixture
@@ -40,10 +42,12 @@ def only(monkeypatch: pytest.MonkeyPatch) -> list[UUID]:
     return owners
 
 
-@pytest.fixture
-def client() -> Iterator[TestClient]:
+@pytest.fixture(params=SHIFTS)
+def client(request: pytest.FixtureRequest, admin: Connection[DictRow], cast: Cast) -> Iterator[TestClient]:
+    shift: datetime | None = request.param
+    # El reloj de la API es el día 1 del mes siguiente al alta de la cuenta de la prueba: no depende del mes real.
     application = build(cron_secret=SECRET)
-    application.state.clock = FixedClock(NOW)
+    application.state.clock = FixedClock(now_to_close(apply_shift(admin, cast.alicia, shift)))
     with TestClient(application, raise_server_exceptions=False) as c:
         yield c
 

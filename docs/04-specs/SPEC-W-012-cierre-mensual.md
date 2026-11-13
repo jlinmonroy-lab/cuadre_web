@@ -215,7 +215,7 @@ La secuencia termina con código 0 en local y en CI; `tasks.json` actualizado; A
 
 1. Spec y `tasks.json`. **Hecho** (2026-11-13).
 2. Migración, RLS y matriz. **Hecho** (B.1).
-3. Reglas puras: `build_month` y `closing_window`.
+3. Reglas puras: `build_month` y `closing_window`. **Hecho** (B.2).
 4. Job, ruta interna y CLI.
 5. API, cliente generado y pantalla `/mensual`.
 6. Pruebas restantes, mutaciones y cierre (`hecha` solo con el CI de GitHub confirmado por la persona).
@@ -233,3 +233,12 @@ La secuencia termina con código 0 en local y en CI; `tasks.json` actualizado; A
 - `close_month` valida todo antes de escribir (`invalid_closing`, sin repetir datos): año y mes, seis importes enteros, `total = nacional + UE + fuera de la UE` y el desglose por cliente, que tiene que sumar **cada ámbito** y **el número de facturas** (más estricto que el §5.1: así una foto incoherente no llega a la base). Por eso, en `by_client`, `invoice_count` es el número de facturas **ordinarias** del cliente, igual que el del mes (D-02), y puede ser 0 si el cliente solo tiene rectificativas en el mes.
 - Una sola sentencia `INSERT … ON CONFLICT … DO UPDATE … WHERE` la foto difiere, con `RETURNING (xmax = 0)`: devuelve `closed`, `reopened` o `unchanged`. El orden de `by_client` forma parte de la foto: cambiarlo reabre el mes, así que el job tiene que ordenar siempre igual. El mes **no** se compara con el reloj de la base de datos (lo decide el job).
 - Verificado: `supabase db reset` limpio; `pytest backend/tests/rls/test_monthly_closings.py` 63 pasan (cierre, idempotencia, reapertura, dos ejecuciones a la vez con el mismo y con distinto contenido, 22 payloads incoherentes, escritura directa denegada a cinco personas y a `service_role`, privilegios, políticas, candidatos y CHECK por nombre); `pytest backend/tests/rls -m rls` 1799 pasan (con la tabla en la matriz).
+
+### B.2 Hito 3 · Reglas puras · 2026-11-13
+
+- Paquete `cuadre.closing` (puro: sin base de datos, red ni reloj): `limits.py` (`WINDOW_MONTHS = 12`, `CLOSING_MAX_DOCUMENTS = 20 000`), `types.py` (`YearMonth` con calendario, `MonthInvoice`, `MonthExpense`, `ClientTotals`, `MonthTotals`) y `rules.py` (`closing_window`, `explicit_window`, `first_active_month`, `month_bounds`, `window_bounds`, `build_month`, `build_months`, `payload_of`). El ámbito se redefine en `types.py` para no importar el paquete de clientes.
+- **Precisión sobre §5.1:** el desglose lleva una entrada por **cliente y ámbito**, no solo por cliente. Si las facturas de un cliente cambian de ámbito dentro del mes (el ámbito es el guardado en cada factura), aparece una entrada por ámbito; así el desglose sigue sumando cada ámbito, que es lo que exige `private.close_month` (B.1). Lo normal sigue siendo una entrada por cliente.
+- **Orden del desglose** (forma parte de la foto): `base_cents` descendente, después `name` (orden por código de carácter) y `client_id`. El nombre es el de la última factura del cliente en el mes (por fecha y, a igualdad, por id).
+- `build_months` agrupa los documentos una sola vez para toda la ventana (dos consultas por persona) y rechaza con `TypeError` cualquier importe que no sea un entero (ni `bool`) y con `ClosingTooLarge` (`closing_too_large`) más de 20 000 documentos; `InvalidMonth` usa el código `invalid_period` y `PeriodInFuture` el de siempre.
+- **Coherencia con el 130 comprobada:** para cualquier conjunto de documentos aleatorios, la suma de los meses de enero al fin de cada trimestre es la casilla 01 del 130 y su casilla 02 coincide con los gastos del cierre.
+- Verificado: `pytest backend/tests/jobs -k cierre_mensual` 119 pasan (70 de reglas y ventana, 6 propiedades de 300 ejecuciones con semilla fija y 43 de deriva contra `private.close_month`, incluida la reapertura de punta a punta); `pytest backend/tests/jobs` 210; `ruff` limpio; el módulo no contiene `float`, `Decimal`, `locale` ni `round(`. Dos cambios deliberados (ignorar el `voided` de los gastos y sumar todo al ámbito nacional) los detectan las pruebas.

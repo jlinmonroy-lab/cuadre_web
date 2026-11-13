@@ -161,6 +161,33 @@ tables:
       default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
       active: { gina: [alicia] }
 
+  reminder_settings:
+    kind: financial
+    owner_column: owner_id
+    grants:
+      table: [SELECT]       # toda escritura pasa por app.set_reminder_settings (SPEC-W-014 §5.2)
+    # Los ajustes de cada usuario del reparto antes de comparar: con la tabla vacía la prueba no demostraría nada.
+    seed: >-
+      insert into public.reminder_settings (owner_id, enabled, lead_days) values (%(owner)s, true, 7)
+    probe_insert: "insert into public.reminder_settings (owner_id, lead_days) values (%(owner)s, 5)"
+    probe_update: { column: lead_days, value: "5" }
+    select:
+      # Solo el dueño ve los suyos; el gestor, nunca (ni con vínculo activo), y el administrador, ninguno (D3).
+      default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
+
+  reminder_log:
+    kind: financial
+    owner_column: owner_id
+    grants:
+      table: [SELECT]       # toda escritura pasa por private.reminder_claim / reminder_mark, solo para service_role (SPEC-W-014 §5.2)
+    seed: >-
+      insert into public.reminder_log (owner_id, period, kind, status, sent_at)
+      values (%(owner)s, '2026-Q4', 'quarter_deadline', 'sent', now())
+    probe_insert: "insert into public.reminder_log (owner_id, period, kind) values (%(owner)s, '2027-Q1', 'quarter_deadline')"
+    probe_update: { column: kind, value: hacked }
+    select:
+      default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
+
   invoices:
     kind: financial
     owner_column: owner_id

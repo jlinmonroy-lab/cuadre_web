@@ -580,7 +580,7 @@
       "id": "SPEC-W-014",
       "title": "Recordatorios por correo antes de cada plazo trimestral",
       "file": "SPEC-W-014-recordatorios.md",
-      "status": "en-revision",
+      "status": "hecha",
       "priority": "must",
       "risk": "bajo",
       "stories": [
@@ -612,7 +612,7 @@
         "pytest backend/tests/jobs -k recordatorios",
         "npm --prefix frontend exec -- playwright test e2e/recordatorios.spec.ts"
       ],
-      "notes": "El resumen de cartera del gestor es la pantalla /cartera de SPEC-W-010 (decision de la persona el 2026-11-13): no hay correo al gestor. Idempotencia con reminder_log unico por (owner, periodo, tipo), reservado antes de enviar; service_role no borra, asi que un envio fallido queda en failed y se reclama. Se completa con EmailSender simulado (DEP-05 pendiente, ADR-0008 sigue propuesto). Crea la infraestructura minima de jobs que reutilizara SPEC-W-012 (cuadre.jobs.runner, GET /internal/jobs/{name} con CRON_SECRET, cli run-job). Hito 1 hecho (spec con 16 criterios). Hito 2 hecho (reminder_settings y reminder_log con RLS forzada, app.set_reminder_settings y private.reminder_claim y reminder_mark; 39 pruebas de RLS; Anexo B.1). Hito 3 hecho (ventana due_quarter, is_recipient y plantilla quarter_reminder; 55 pruebas puras; Anexo B.2). Hito 4 hecho (reminder_candidates, job con cifras por user_transaction, runner, ruta interna y CLI; Anexo B.3). Hito 5 hecho (GET/PUT /api/me/reminders y tarjeta Recordatorios en /perfil; 29 pruebas de API y 72 E2E; Anexo B.4). Hito 6 hecho en local (matriz criterio-prueba corregida; 21 mutaciones, 19 detectadas y 2 equivalentes; prueba intermitente de roles.spec corregida; backend sin RLS 4252 y RLS 1722; Anexo B.5). Cron propuesto para el despliegue: 0 8 * * * UTC. En revision hasta que la persona confirme el CI de GitHub sobre el head empujado."
+      "notes": "El resumen de cartera del gestor es la pantalla /cartera de SPEC-W-010 (decision de la persona el 2026-11-13): no hay correo al gestor. Idempotencia con reminder_log unico por (owner, periodo, tipo), reservado antes de enviar; service_role no borra, asi que un envio fallido queda en failed y se reclama. Se completa con EmailSender simulado (DEP-05 pendiente, ADR-0008 sigue propuesto). Crea la infraestructura minima de jobs que reutilizara SPEC-W-012 (cuadre.jobs.runner, GET /internal/jobs/{name} con CRON_SECRET, cli run-job). Hito 1 hecho (spec con 16 criterios). Hito 2 hecho (reminder_settings y reminder_log con RLS forzada, app.set_reminder_settings y private.reminder_claim y reminder_mark; 39 pruebas de RLS; Anexo B.1). Hito 3 hecho (ventana due_quarter, is_recipient y plantilla quarter_reminder; 55 pruebas puras; Anexo B.2). Hito 4 hecho (reminder_candidates, job con cifras por user_transaction, runner, ruta interna y CLI; Anexo B.3). Hito 5 hecho (GET/PUT /api/me/reminders y tarjeta Recordatorios en /perfil; 29 pruebas de API y 72 E2E; Anexo B.4). Hito 6 hecho en local (matriz criterio-prueba corregida; 21 mutaciones, 19 detectadas y 2 equivalentes; prueba intermitente de roles.spec corregida; backend sin RLS 4252 y RLS 1722; Anexo B.5). Cron propuesto para el despliegue: 0 8 * * * UTC. CI de GitHub en verde sobre 1071180, confirmado por la persona el 2026-11-13: hecha."
     },
     {
       "id": "SPEC-W-015",

@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-014
 titulo: Recordatorios por correo antes de cada plazo trimestral
-estado: en-revision
+estado: hecha
 prioridad: must
 riesgo: bajo
 historias: [US-009]
@@ -206,7 +206,7 @@ La secuencia termina con código 0 en local y en CI; `tasks.json` actualizado; A
 3. Dominio puro: ventana, plantilla y selección. **Hecho** (B.2).
 4. Job, ruta interna y CLI. **Hecho** (B.3).
 5. API de ajustes, cliente generado y sección de `/perfil`. **Hecho** (B.4).
-6. Pruebas restantes, E2E y cierre. **Hecho en local** (B.5); `hecha` cuando la persona confirme el CI de GitHub sobre el head empujado.
+6. Pruebas restantes, E2E y cierre. **Hecho** (B.5); CI de GitHub en verde sobre `1071180`, confirmado por la persona el 2026-11-13.
 
 ## Anexo B · Decisiones que esta spec deja a la implementación
 
@@ -250,4 +250,4 @@ La secuencia termina con código 0 en local y en CI; `tasks.json` actualizado; A
 - **Verificado en local:** `supabase db reset` con las tres migraciones; `pytest backend/tests/rls -m rls` 1722; `pytest backend/tests/jobs -k recordatorios` 91; `pytest backend/tests/api -k reminder` 29; `pytest backend/tests -m "not rls"` 4252 (antes de añadir el test del runner); `ruff` limpio; `export_openapi.py --check` y `gen:api -- --check` al día; `test:unit` 326, `lint`, `typecheck`, `build` y `check:bundle` en verde; E2E `recordatorios` 72 (3 navegadores x 2 anchos); `perfil`, `roles` y `responsive` sin fallos salvo la intermitente ya corregida.
 - **Barrido de datos:** sin claves ni IBAN en lo nuevo; `CRON_SECRET` solo como nombre en `.env.example` y en el código; los registros del job no llevan correo, asunto, cuerpo ni importes (probado).
 - **Pendiente para el piloto (no de esta spec):** DEP-05 (proveedor de correo real; ADR-0008 sigue «Propuesto»), `vercel.json` con el cron `0 8 * * *` (UTC) cuando exista el despliegue (ADR-0016) y fijar `CRON_SECRET` en el entorno.
-- **Estado:** `en-revision` hasta que la persona confirme el CI de GitHub sobre el head empujado; entonces `hecha`.
+- **Estado:** `hecha`. CI de GitHub en verde sobre `1071180` (el head empujado con los cinco commits de la spec), confirmado por la persona el 2026-11-13.

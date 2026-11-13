@@ -92,6 +92,11 @@ export class InvoicesApi {
     });
   }
 
+  /** Crea una serie de facturación (no predeterminada): una serie nueva no tiene facturas, así que admite una factura con fecha de un mes pasado. */
+  async createSeries(code: string): Promise<{ id: string }> {
+    return this.call<{ id: string }>("POST", "/api/invoice-series", { code, make_default: false });
+  }
+
   /** Las facturas del año actual de la cuenta (la más reciente primero). */
   async list(): Promise<IssuedInvoice[]> {
     return this.call<IssuedInvoice[]>("GET", "/api/invoices");

@@ -21,7 +21,7 @@ export default async function InicioPage() {
         me={me}
         intro="Esta es tu portada de autónomo. Aquí irá el resumen de tu actividad."
         upcoming={[
-          { label: "Contabilidad mensual", description: "cierre de cada mes y libros de registro." },
+          { label: "Reporte mensual", description: "gráficos de ingresos por cliente, gastos por categoría y lo que conviene apartar." },
         ]}
       />
     </>

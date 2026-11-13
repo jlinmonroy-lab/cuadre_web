@@ -75,4 +75,6 @@ def test_without_the_right_secret_nothing_runs(
 def test_the_route_is_not_in_the_public_contract(client: TestClient) -> None:
     schema = client.app.openapi()  # type: ignore[attr-defined]
     assert not any(path.startswith("/internal") for path in schema["paths"])
-    assert "monthly_closing" not in str(schema)
+    assert "/internal/jobs" not in str(schema) and "run_job" not in str(
+        schema
+    )  # las rutas públicas de la contabilidad mensual sí salen, la del planificador no

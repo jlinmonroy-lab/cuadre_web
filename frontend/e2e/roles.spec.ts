@@ -152,6 +152,36 @@ for (const role of ["gina", "adan"] as const) {
   });
 }
 
+// SPEC-W-012 AC-18 · «Contabilidad mensual» es solo del autónomo: activa en el menú, entre Gastos y Trimestres; el gestor y el administrador no la ven y /mensual
+// los lleva a /403.
+test("Contabilidad mensual · el autónomo la ve activa en el menú, entre Gastos y Trimestres, y llega a su pantalla", async ({ pageAs }) => {
+  const page = await pageAs("alicia");
+  await page.goto(PEOPLE.alicia.home);
+  const nav = page.getByRole("navigation", { name: "Apartados" });
+  await expect(nav.getByRole("link", { name: "Perfil" })).toBeAttached(); // `allInnerTexts()` no espera
+  const labels = await nav.getByRole("listitem").allInnerTexts();
+  const gastos = labels.findIndex((label) => label.startsWith("Gastos"));
+  expect(labels[gastos + 1]).toContain("Contabilidad mensual");
+  expect(labels[gastos + 2]).toBe("Trimestres");
+  await expect(nav.getByText("Próximamente")).toHaveCount(0); // ya no queda ningún apartado desactivado
+  await nav.getByRole("link", { name: "Contabilidad mensual" }).click();
+  await expect(page).toHaveURL("/mensual");
+  await expect(page.getByRole("heading", { level: 1, name: "Contabilidad mensual" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Contabilidad mensual" })).toHaveAttribute("aria-current", "page");
+});
+
+for (const role of ["gina", "adan"] as const) {
+  test(`Contabilidad mensual · ${role} no la ve en el menú y /mensual lo lleva a /403`, async ({ pageAs }) => {
+    const page = await pageAs(role);
+    await page.goto(PEOPLE[role].home);
+    await expect(page.getByRole("navigation", { name: "Apartados" }).getByText("Contabilidad mensual", { exact: true })).toHaveCount(0);
+    await settle(page);
+    await page.goto("/mensual");
+    await expect(page).toHaveURL("/403");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("No tienes acceso a esta sección");
+  });
+}
+
 // SPEC-W-010 AC-21 · «Mi gestor» es solo del autónomo y «Cartera» solo del gestor: el otro rol no ve el apartado ajeno y sus rutas (también la ficha de un
 // autónomo) lo llevan a /403.
 test("Mi gestor · el autónomo lo ve activo en el menú, entre Trimestres y Perfil, y llega a su pantalla", async ({ pageAs }) => {

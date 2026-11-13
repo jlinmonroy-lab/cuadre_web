@@ -546,6 +546,48 @@
         "title": "ClientInput",
         "type": "object"
       },
+      "ClientTotalsOut": {
+        "properties": {
+          "base_cents": {
+            "description": "Base imponible facturada al cliente en ese ámbito durante el mes, con las rectificativas con su signo",
+            "title": "Base Cents",
+            "type": "integer"
+          },
+          "client_id": {
+            "title": "Client Id",
+            "type": "string"
+          },
+          "invoice_count": {
+            "description": "Facturas ordinarias (las rectificativas ajustan el importe pero no cuentan)",
+            "minimum": 0.0,
+            "title": "Invoice Count",
+            "type": "integer"
+          },
+          "name": {
+            "description": "El nombre del cliente en su última factura del mes",
+            "title": "Name",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "national",
+              "eu",
+              "non_eu"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "name",
+          "scope",
+          "base_cents",
+          "invoice_count"
+        ],
+        "title": "ClientTotalsOut",
+        "type": "object"
+      },
       "Completeness": {
         "properties": {
           "can_issue": {
@@ -2676,6 +2718,243 @@
         "title": "Modelo303",
         "type": "object"
       },
+      "MonthRow": {
+        "properties": {
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Solo en los cerrados: cuándo se guardó la última foto",
+            "title": "Closed At"
+          },
+          "eu_cents": {
+            "title": "Eu Cents",
+            "type": "integer"
+          },
+          "expenses_cents": {
+            "description": "Gastos no anulados del mes: base más IVA no deducible",
+            "title": "Expenses Cents",
+            "type": "integer"
+          },
+          "invoice_count": {
+            "minimum": 0.0,
+            "title": "Invoice Count",
+            "type": "integer"
+          },
+          "month": {
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Month",
+            "type": "integer"
+          },
+          "national_cents": {
+            "title": "National Cents",
+            "type": "integer"
+          },
+          "non_eu_cents": {
+            "title": "Non Eu Cents",
+            "type": "integer"
+          },
+          "result_cents": {
+            "description": "Rendimiento del mes: ingresos (`total_cents`) menos gastos (`expenses_cents`)",
+            "title": "Result Cents",
+            "type": "integer"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Solo en los cerrados: 1 al cerrar y +1 cada vez que un recálculo cambia algo (documento atrasado)",
+            "title": "Revision"
+          },
+          "status": {
+            "description": "`closed`: hay cierre y se devuelve su foto. `in_progress`: es el mes de hoy (cifras en vivo). `pending`: terminó y aún no hay cierre (cifras en vivo, a la espera de la siguiente ejecución del job)",
+            "enum": [
+              "closed",
+              "in_progress",
+              "pending"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "total_cents": {
+            "description": "Bases imponibles del mes, sin IVA: nacional + UE + fuera de la UE",
+            "title": "Total Cents",
+            "type": "integer"
+          },
+          "ytd_cents": {
+            "description": "Acumulado del año hasta este mes, incluido: derivado, nunca guardado",
+            "title": "Ytd Cents",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "status",
+          "invoice_count",
+          "national_cents",
+          "eu_cents",
+          "non_eu_cents",
+          "total_cents",
+          "expenses_cents",
+          "result_cents",
+          "ytd_cents",
+          "revision",
+          "closed_at"
+        ],
+        "title": "MonthRow",
+        "type": "object"
+      },
+      "MonthlyClosing": {
+        "properties": {
+          "by_client": {
+            "description": "Ingresos por cliente y ámbito, de mayor a menor base",
+            "items": {
+              "$ref": "#/components/schemas/ClientTotalsOut"
+            },
+            "title": "By Client",
+            "type": "array"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Solo en los cerrados: cuándo se guardó la última foto",
+            "title": "Closed At"
+          },
+          "eu_cents": {
+            "title": "Eu Cents",
+            "type": "integer"
+          },
+          "expenses_cents": {
+            "description": "Gastos no anulados del mes: base más IVA no deducible",
+            "title": "Expenses Cents",
+            "type": "integer"
+          },
+          "invoice_count": {
+            "minimum": 0.0,
+            "title": "Invoice Count",
+            "type": "integer"
+          },
+          "month": {
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Month",
+            "type": "integer"
+          },
+          "national_cents": {
+            "title": "National Cents",
+            "type": "integer"
+          },
+          "non_eu_cents": {
+            "title": "Non Eu Cents",
+            "type": "integer"
+          },
+          "result_cents": {
+            "description": "Rendimiento del mes: ingresos (`total_cents`) menos gastos (`expenses_cents`)",
+            "title": "Result Cents",
+            "type": "integer"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Solo en los cerrados: 1 al cerrar y +1 cada vez que un recálculo cambia algo (documento atrasado)",
+            "title": "Revision"
+          },
+          "status": {
+            "description": "`closed`: hay cierre y se devuelve su foto. `in_progress`: es el mes de hoy (cifras en vivo). `pending`: terminó y aún no hay cierre (cifras en vivo, a la espera de la siguiente ejecución del job)",
+            "enum": [
+              "closed",
+              "in_progress",
+              "pending"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "total_cents": {
+            "description": "Bases imponibles del mes, sin IVA: nacional + UE + fuera de la UE",
+            "title": "Total Cents",
+            "type": "integer"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          },
+          "ytd_cents": {
+            "description": "Acumulado del año hasta este mes, incluido: derivado, nunca guardado",
+            "title": "Ytd Cents",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "status",
+          "invoice_count",
+          "national_cents",
+          "eu_cents",
+          "non_eu_cents",
+          "total_cents",
+          "expenses_cents",
+          "result_cents",
+          "ytd_cents",
+          "revision",
+          "closed_at",
+          "year",
+          "by_client"
+        ],
+        "title": "MonthlyClosing",
+        "type": "object"
+      },
+      "MonthlyClosings": {
+        "properties": {
+          "months": {
+            "description": "Desde el primer mes con actividad hasta el mes en curso (año actual) o diciembre; vacío si el año es anterior a la actividad",
+            "items": {
+              "$ref": "#/components/schemas/MonthRow"
+            },
+            "title": "Months",
+            "type": "array"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/YearTotals",
+            "description": "Suma de los meses que salen en la lista"
+          },
+          "year": {
+            "title": "Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "year",
+          "months",
+          "totals"
+        ],
+        "title": "MonthlyClosings",
+        "type": "object"
+      },
       "NoteInput": {
         "properties": {
           "body": {
@@ -3986,6 +4265,44 @@
           "amount_cents"
         ],
         "title": "Withholding",
+        "type": "object"
+      },
+      "YearTotals": {
+        "properties": {
+          "eu_cents": {
+            "title": "Eu Cents",
+            "type": "integer"
+          },
+          "expenses_cents": {
+            "title": "Expenses Cents",
+            "type": "integer"
+          },
+          "invoice_count": {
+            "title": "Invoice Count",
+            "type": "integer"
+          },
+          "national_cents": {
+            "title": "National Cents",
+            "type": "integer"
+          },
+          "non_eu_cents": {
+            "title": "Non Eu Cents",
+            "type": "integer"
+          },
+          "total_cents": {
+            "title": "Total Cents",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "invoice_count",
+          "national_cents",
+          "eu_cents",
+          "non_eu_cents",
+          "total_cents",
+          "expenses_cents"
+        ],
+        "title": "YearTotals",
         "type": "object"
       }
     },
@@ -8959,6 +9276,168 @@
         "summary": "Guardar los ajustes de recordatorios (activar o no, y de 1 a 30 días de antelación)",
         "tags": [
           "recordatorios"
+        ]
+      }
+    },
+    "/api/monthly-closings": {
+      "get": {
+        "operationId": "get_monthly_closings",
+        "parameters": [
+          {
+            "description": "Año a consultar; por defecto, el de hoy en Europe/Madrid",
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Año a consultar; por defecto, el de hoy en Europe/Madrid",
+              "title": "Year"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthlyClosings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede ver la contabilidad mensual (solo `usuario`) o la cuenta está suspendida"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Año o mes que no existen (`invalid_period`) o que todavía no han empezado (`period_in_future`)"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Los meses del año con sus totales por ámbito, el acumulado y el estado del cierre",
+        "tags": [
+          "contabilidad mensual"
+        ]
+      }
+    },
+    "/api/monthly-closings/{year}/{month}": {
+      "get": {
+        "operationId": "get_monthly_closing",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "year",
+            "required": true,
+            "schema": {
+              "title": "Year",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "title": "Month",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthlyClosing"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede ver la contabilidad mensual (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Ese mes no se muestra: la cuenta todavía no tenía actividad (`closing_not_found`)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Año o mes que no existen (`invalid_period`) o que todavía no han empezado (`period_in_future`)"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Un mes con sus ingresos por cliente y ámbito",
+        "tags": [
+          "contabilidad mensual"
         ]
       }
     },

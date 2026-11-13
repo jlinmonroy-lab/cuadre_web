@@ -23,7 +23,7 @@ test("las etiquetas están en español", () => {
   assert.equal(roleLabel("admin"), "Administrador");
 });
 
-test("navegación del autónomo: Inicio, Clientes, Facturas, Gastos, Trimestres, Mi gestor y Perfil están activos; el resto, próximamente", () => {
+test("navegación del autónomo: todos sus apartados están activos, también Contabilidad mensual", () => {
   const nav = navFor("usuario");
   assert.deepEqual(
     nav.map((item) => item.label),
@@ -35,6 +35,7 @@ test("navegación del autónomo: Inicio, Clientes, Facturas, Gastos, Trimestres,
     { label: "Clientes", href: "/clientes" },
     { label: "Facturas", href: "/facturas" },
     { label: "Gastos", href: "/gastos" },
+    { label: "Contabilidad mensual", href: "/mensual" },
     { label: "Trimestres", href: "/trimestres" },
     { label: "Mi gestor", href: "/gestor" },
     { label: "Perfil", href: "/perfil" },

@@ -19,6 +19,7 @@ from cuadre.api import (
     routes_internal,
     routes_invoices,
     routes_me,
+    routes_monthly,
     routes_profile,
     routes_reminders,
     routes_tax,
@@ -103,6 +104,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(routes_invoices.router)
     app.include_router(routes_clients.router)
     app.include_router(routes_tax.router)
+    app.include_router(routes_monthly.router)
     app.include_router(routes_gestor.router)
     app.include_router(routes_gestor_reads.router)
     app.include_router(routes_internal.router)

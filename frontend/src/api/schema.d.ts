@@ -797,6 +797,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/monthly-closings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Los meses del año con sus totales por ámbito, el acumulado y el estado del cierre */
+        get: operations["get_monthly_closings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/monthly-closings/{year}/{month}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Un mes con sus ingresos por cliente y ámbito */
+        get: operations["get_monthly_closing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/profile": {
         parameters: {
             query?: never;
@@ -1139,6 +1173,31 @@ export interface components {
             name?: string | null;
             /** Tax Id */
             tax_id?: string | null;
+        };
+        /** ClientTotalsOut */
+        ClientTotalsOut: {
+            /**
+             * Base Cents
+             * @description Base imponible facturada al cliente en ese ámbito durante el mes, con las rectificativas con su signo
+             */
+            base_cents: number;
+            /** Client Id */
+            client_id: string;
+            /**
+             * Invoice Count
+             * @description Facturas ordinarias (las rectificativas ajustan el importe pero no cuentan)
+             */
+            invoice_count: number;
+            /**
+             * Name
+             * @description El nombre del cliente en su última factura del mes
+             */
+            name: string;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "national" | "eu" | "non_eu";
         };
         /** Completeness */
         Completeness: {
@@ -2038,6 +2097,123 @@ export interface components {
             /** Year */
             year: number;
         };
+        /** MonthlyClosing */
+        MonthlyClosing: {
+            /**
+             * By Client
+             * @description Ingresos por cliente y ámbito, de mayor a menor base
+             */
+            by_client: components["schemas"]["ClientTotalsOut"][];
+            /**
+             * Closed At
+             * @description Solo en los cerrados: cuándo se guardó la última foto
+             */
+            closed_at: string | null;
+            /** Eu Cents */
+            eu_cents: number;
+            /**
+             * Expenses Cents
+             * @description Gastos no anulados del mes: base más IVA no deducible
+             */
+            expenses_cents: number;
+            /** Invoice Count */
+            invoice_count: number;
+            /** Month */
+            month: number;
+            /** National Cents */
+            national_cents: number;
+            /** Non Eu Cents */
+            non_eu_cents: number;
+            /**
+             * Result Cents
+             * @description Rendimiento del mes: ingresos (`total_cents`) menos gastos (`expenses_cents`)
+             */
+            result_cents: number;
+            /**
+             * Revision
+             * @description Solo en los cerrados: 1 al cerrar y +1 cada vez que un recálculo cambia algo (documento atrasado)
+             */
+            revision: number | null;
+            /**
+             * Status
+             * @description `closed`: hay cierre y se devuelve su foto. `in_progress`: es el mes de hoy (cifras en vivo). `pending`: terminó y aún no hay cierre (cifras en vivo, a la espera de la siguiente ejecución del job)
+             * @enum {string}
+             */
+            status: "closed" | "in_progress" | "pending";
+            /**
+             * Total Cents
+             * @description Bases imponibles del mes, sin IVA: nacional + UE + fuera de la UE
+             */
+            total_cents: number;
+            /** Year */
+            year: number;
+            /**
+             * Ytd Cents
+             * @description Acumulado del año hasta este mes, incluido: derivado, nunca guardado
+             */
+            ytd_cents: number;
+        };
+        /** MonthlyClosings */
+        MonthlyClosings: {
+            /**
+             * Months
+             * @description Desde el primer mes con actividad hasta el mes en curso (año actual) o diciembre; vacío si el año es anterior a la actividad
+             */
+            months: components["schemas"]["MonthRow"][];
+            /** @description Suma de los meses que salen en la lista */
+            totals: components["schemas"]["YearTotals"];
+            /** Year */
+            year: number;
+        };
+        /** MonthRow */
+        MonthRow: {
+            /**
+             * Closed At
+             * @description Solo en los cerrados: cuándo se guardó la última foto
+             */
+            closed_at: string | null;
+            /** Eu Cents */
+            eu_cents: number;
+            /**
+             * Expenses Cents
+             * @description Gastos no anulados del mes: base más IVA no deducible
+             */
+            expenses_cents: number;
+            /** Invoice Count */
+            invoice_count: number;
+            /** Month */
+            month: number;
+            /** National Cents */
+            national_cents: number;
+            /** Non Eu Cents */
+            non_eu_cents: number;
+            /**
+             * Result Cents
+             * @description Rendimiento del mes: ingresos (`total_cents`) menos gastos (`expenses_cents`)
+             */
+            result_cents: number;
+            /**
+             * Revision
+             * @description Solo en los cerrados: 1 al cerrar y +1 cada vez que un recálculo cambia algo (documento atrasado)
+             */
+            revision: number | null;
+            /**
+             * Status
+             * @description `closed`: hay cierre y se devuelve su foto. `in_progress`: es el mes de hoy (cifras en vivo). `pending`: terminó y aún no hay cierre (cifras en vivo, a la espera de la siguiente ejecución del job)
+             * @enum {string}
+             */
+            status: "closed" | "in_progress" | "pending";
+            /**
+             * Total Cents
+             * @description Bases imponibles del mes, sin IVA: nacional + UE + fuera de la UE
+             */
+            total_cents: number;
+            /**
+             * Ytd Cents
+             * @description Acumulado del año hasta este mes, incluido: derivado, nunca guardado
+             */
+            ytd_cents: number;
+        };
         /** NoteInput */
         NoteInput: {
             /**
@@ -2434,6 +2610,21 @@ export interface components {
             amount_cents: number | null;
             /** Rate */
             rate: string | null;
+        };
+        /** YearTotals */
+        YearTotals: {
+            /** Eu Cents */
+            eu_cents: number;
+            /** Expenses Cents */
+            expenses_cents: number;
+            /** Invoice Count */
+            invoice_count: number;
+            /** National Cents */
+            national_cents: number;
+            /** Non Eu Cents */
+            non_eu_cents: number;
+            /** Total Cents */
+            total_cents: number;
         };
     };
     responses: never;
@@ -5911,6 +6102,115 @@ export interface operations {
                 };
             };
             /** @description Antelación fuera de 1 a 30 días (`invalid_lead_days`) o cuerpo con la forma incorrecta */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_monthly_closings: {
+        parameters: {
+            query?: {
+                /** @description Año a consultar; por defecto, el de hoy en Europe/Madrid */
+                year?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthlyClosings"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede ver la contabilidad mensual (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Año o mes que no existen (`invalid_period`) o que todavía no han empezado (`period_in_future`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_monthly_closing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                month: number;
+                year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthlyClosing"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede ver la contabilidad mensual (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Ese mes no se muestra: la cuenta todavía no tenía actividad (`closing_not_found`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Año o mes que no existen (`invalid_period`) o que todavía no han empezado (`period_in_future`) */
             422: {
                 headers: {
                     [name: string]: unknown;

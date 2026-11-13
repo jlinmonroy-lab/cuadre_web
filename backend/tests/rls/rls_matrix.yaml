@@ -188,6 +188,23 @@ tables:
     select:
       default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
 
+  monthly_closings:
+    kind: financial
+    owner_column: owner_id
+    grants:
+      table: [SELECT]       # toda escritura pasa por private.close_month, solo para service_role (SPEC-W-012 §5.2)
+    # Un cierre sintético y coherente por usuario del reparto antes de comparar: con la tabla vacía la prueba no demostraría nada.
+    seed: >-
+      insert into public.monthly_closings (owner_id, year, month, invoice_count, national_cents, eu_cents, non_eu_cents, total_cents, expenses_cents, by_client)
+      values (%(owner)s, 2026, 9, 1, 100000, 0, 0, 100000, 25000,
+              '[{"client_id": "00000000-0000-4000-8000-000000000001", "name": "Matriz S.L.", "scope": "national", "base_cents": 100000, "invoice_count": 1}]')
+    probe_insert: "insert into public.monthly_closings (owner_id, year, month, invoice_count, national_cents, eu_cents, non_eu_cents, total_cents, expenses_cents) values (%(owner)s, 2026, 10, 0, 0, 0, 0, 0, 0)"
+    probe_update: { column: expenses_cents, value: "1" }
+    select:
+      # El dueño ve los suyos; el gestor, solo los de quien le dio acceso activo (revocado, pendiente o rechazado, ninguno); el administrador, ninguno (D3).
+      default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
+      active: { gina: [alicia] }
+
   invoices:
     kind: financial
     owner_column: owner_id

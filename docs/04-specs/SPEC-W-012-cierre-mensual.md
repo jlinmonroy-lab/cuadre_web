@@ -213,8 +213,8 @@ La secuencia termina con código 0 en local y en CI; `tasks.json` actualizado; A
 
 ## Anexo A · Orden de implementación (un commit por hito, salvo que convenga agrupar)
 
-1. Spec y `tasks.json`.
-2. Migración, RLS y matriz.
+1. Spec y `tasks.json`. **Hecho** (2026-11-13).
+2. Migración, RLS y matriz. **Hecho** (B.1).
 3. Reglas puras: `build_month` y `closing_window`.
 4. Job, ruta interna y CLI.
 5. API, cliente generado y pantalla `/mensual`.
@@ -226,3 +226,10 @@ La secuencia termina con código 0 en local y en CI; `tasks.json` actualizado; A
 - Valor del límite de filas por persona y consulta.
 - Si la CLI acepta también el alias `close-month --month AAAA-MM` de ADR-0007 además de `run-job monthly_closing --month`.
 - Que el servicio de la API reutilice las reglas puras para el mes en curso y los pendientes.
+
+### B.1 Hito 2 · Base de datos · 2026-11-13
+
+- Migraciones `20261113200000_monthly_closings.sql` (tabla con RLS forzada, política de lectura del dueño y del gestor vinculado, ninguna para el administrador, CHECK con nombre) y `20261113200100_monthly_closings_functions.sql` (`private.close_month` y `private.closing_candidates`, solo `service_role`). Nadie escribe la tabla directamente.
+- `close_month` valida todo antes de escribir (`invalid_closing`, sin repetir datos): año y mes, seis importes enteros, `total = nacional + UE + fuera de la UE` y el desglose por cliente, que tiene que sumar **cada ámbito** y **el número de facturas** (más estricto que el §5.1: así una foto incoherente no llega a la base). Por eso, en `by_client`, `invoice_count` es el número de facturas **ordinarias** del cliente, igual que el del mes (D-02), y puede ser 0 si el cliente solo tiene rectificativas en el mes.
+- Una sola sentencia `INSERT … ON CONFLICT … DO UPDATE … WHERE` la foto difiere, con `RETURNING (xmax = 0)`: devuelve `closed`, `reopened` o `unchanged`. El orden de `by_client` forma parte de la foto: cambiarlo reabre el mes, así que el job tiene que ordenar siempre igual. El mes **no** se compara con el reloj de la base de datos (lo decide el job).
+- Verificado: `supabase db reset` limpio; `pytest backend/tests/rls/test_monthly_closings.py` 63 pasan (cierre, idempotencia, reapertura, dos ejecuciones a la vez con el mismo y con distinto contenido, 22 payloads incoherentes, escritura directa denegada a cinco personas y a `service_role`, privilegios, políticas, candidatos y CHECK por nombre); `pytest backend/tests/rls -m rls` 1799 pasan (con la tabla en la matriz).

@@ -7,9 +7,12 @@ Comandos:
     create-admin --email <correo> [--name <nombre>]
         Crea (o localiza) la cuenta y la promueve a administrador. La contraseña se lee de ADMIN_PASSWORD, no de un argumento,
         para que no quede en el historial de la terminal. Es idempotente: repetirlo no duplica nada ni cambia una contraseña existente.
-    run-job <nombre> [--now <fecha ISO-8601 con zona>] [--user <uuid> ...]
-        Ejecuta una tarea programada (`reminders`) a mano. `--now` simula la hora (por defecto, la actual); `--user` la limita a unas cuentas.
-        Imprime solo contadores, nunca direcciones. Es idempotente. Termina con código 1 si algún envío falló.
+    run-job <nombre> [--now <fecha ISO-8601 con zona>] [--user <uuid> ...] [--month AAAA-MM]
+        Ejecuta una tarea programada (`reminders` o `monthly_closing`) a mano. `--now` simula la hora (por defecto, la actual); `--user` la limita a
+        unas cuentas; `--month` (solo `monthly_closing`) recalcula un único mes, aunque tenga más de 12 meses.
+        Imprime solo contadores, nunca direcciones ni nombres. Es idempotente. Termina con código 1 si algo falló.
+    close-month --month AAAA-MM [--now ...] [--user ...]
+        Atajo de `run-job monthly_closing --month AAAA-MM` (ADR-0007).
 """
 
 import argparse
@@ -22,13 +25,16 @@ from uuid import UUID
 
 import httpx2 as httpx
 
+from cuadre.closing import InvalidMonth, YearMonth
 from cuadre.config import Settings
 from cuadre.db import open_pool, service_transaction
-from cuadre.jobs.runner import JOB_NAMES, JobConfigurationError, UnknownJob, run_named_job
+from cuadre.jobs.runner import JOB_NAMES, MONTHLY_JOBS, JobConfigurationError, UnknownJob, run_named_job
 from cuadre.notifications import EmailConfigurationError, get_email_sender
+from cuadre.tax.periods import PeriodInFuture
 
 MIN_PASSWORD_LENGTH = 10
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_MONTH = re.compile(r"^(\d{4})-(\d{2})$")
 
 
 class CliError(Exception):
@@ -121,9 +127,32 @@ def create_admin(settings: Settings, email: str, name: str) -> int:
     return 0
 
 
-def run_job(settings: Settings, name: str, now_text: str | None, users: Sequence[str]) -> int:
+def _parse_month(text: str | None, name: str) -> YearMonth | None:
+    if text is None:
+        return None
+    if name not in MONTHLY_JOBS:
+        raise CliError("--month solo vale para la tarea monthly_closing.")
+    match = _MONTH.match(text)
+    if match is None:
+        raise CliError("--month debe ser AAAA-MM, por ejemplo 2026-09.")
+    return YearMonth(int(match.group(1)), int(match.group(2)))
+
+
+def _summary(name: str, result: dict[str, int]) -> str:
+    if name == "monthly_closing":
+        return (
+            f"Listo: {result['closed']} cerrados, {result['reopened']} reabiertos, "
+            f"{result['unchanged']} sin cambios, {result['failed']} fallidos."
+        )
+    return f"Listo: {result['sent']} enviados, {result['skipped']} omitidos, {result['failed']} fallidos."
+
+
+def run_job(
+    settings: Settings, name: str, now_text: str | None, users: Sequence[str], month_text: str | None = None
+) -> int:
     if name not in JOB_NAMES:
         raise CliError(f"No existe esa tarea. Disponibles: {', '.join(JOB_NAMES)}.")
+    month = _parse_month(month_text, name)
     try:
         now = datetime.fromisoformat(now_text) if now_text else datetime.now(UTC)
     except ValueError:
@@ -140,12 +169,18 @@ def run_job(settings: Settings, name: str, now_text: str | None, users: Sequence
         raise CliError(str(exc)) from None
     app_pool = open_pool(settings.database_url, name="cli-app", min_size=1, max_size=2)
     try:
-        result = run_named_job(name, settings=settings, app_pool=app_pool, sender=sender, now=now, only_owners=owners)
+        result = run_named_job(
+            name, settings=settings, app_pool=app_pool, sender=sender, now=now, only_owners=owners, month=month
+        )
+    except InvalidMonth:
+        raise CliError("Ese mes no existe: el año va de 2000 a 9998 y el mes de 01 a 12.") from None
+    except PeriodInFuture:
+        raise CliError("Ese mes todavía no ha terminado.") from None
     except (UnknownJob, JobConfigurationError) as exc:
         raise CliError(f"No se puede ejecutar la tarea ({type(exc).__name__}).") from None
     finally:
         app_pool.close()
-    print(f"Listo: {result['sent']} enviados, {result['skipped']} omitidos, {result['failed']} fallidos.")
+    print(_summary(name, result))
     return 1 if result["failed"] else 0
 
 
@@ -159,11 +194,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     job.add_argument("name", help=f"Tarea: {', '.join(JOB_NAMES)}")
     job.add_argument("--now", default=None, help="Hora simulada, ISO-8601 con zona (por defecto, la actual)")
     job.add_argument("--user", action="append", default=[], help="Limitar a esta cuenta (uuid); se puede repetir")
+    job.add_argument(
+        "--month",
+        default=None,
+        help="Solo monthly_closing: recalcular este mes (AAAA-MM), aunque tenga más de 12 meses",
+    )
+    close = commands.add_parser(
+        "close-month", help="Cerrar (o recalcular) un mes concreto: atajo de run-job monthly_closing --month"
+    )
+    close.add_argument("--month", required=True, help="El mes (AAAA-MM)")
+    close.add_argument("--now", default=None, help="Hora simulada, ISO-8601 con zona (por defecto, la actual)")
+    close.add_argument("--user", action="append", default=[], help="Limitar a esta cuenta (uuid); se puede repetir")
     args = parser.parse_args(argv)
 
     try:
         if args.command == "run-job":
-            return run_job(Settings(), args.name, args.now, args.user)  # type: ignore[call-arg]
+            return run_job(Settings(), args.name, args.now, args.user, args.month)  # type: ignore[call-arg]
+        if args.command == "close-month":
+            return run_job(Settings(), "monthly_closing", args.now, args.user, args.month)  # type: ignore[call-arg]
         return create_admin(Settings(), args.email, args.name)  # type: ignore[call-arg]
     except CliError as exc:
         print(f"Error: {exc}", file=sys.stderr)

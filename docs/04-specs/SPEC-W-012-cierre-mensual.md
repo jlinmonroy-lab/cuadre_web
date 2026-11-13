@@ -216,7 +216,7 @@ La secuencia termina con código 0 en local y en CI; `tasks.json` actualizado; A
 1. Spec y `tasks.json`. **Hecho** (2026-11-13).
 2. Migración, RLS y matriz. **Hecho** (B.1).
 3. Reglas puras: `build_month` y `closing_window`. **Hecho** (B.2).
-4. Job, ruta interna y CLI.
+4. Job, ruta interna y CLI. **Hecho** (B.3).
 5. API, cliente generado y pantalla `/mensual`.
 6. Pruebas restantes, mutaciones y cierre (`hecha` solo con el CI de GitHub confirmado por la persona).
 
@@ -242,3 +242,14 @@ La secuencia termina con código 0 en local y en CI; `tasks.json` actualizado; A
 - `build_months` agrupa los documentos una sola vez para toda la ventana (dos consultas por persona) y rechaza con `TypeError` cualquier importe que no sea un entero (ni `bool`) y con `ClosingTooLarge` (`closing_too_large`) más de 20 000 documentos; `InvalidMonth` usa el código `invalid_period` y `PeriodInFuture` el de siempre.
 - **Coherencia con el 130 comprobada:** para cualquier conjunto de documentos aleatorios, la suma de los meses de enero al fin de cada trimestre es la casilla 01 del 130 y su casilla 02 coincide con los gastos del cierre.
 - Verificado: `pytest backend/tests/jobs -k cierre_mensual` 119 pasan (70 de reglas y ventana, 6 propiedades de 300 ejecuciones con semilla fija y 43 de deriva contra `private.close_month`, incluida la reapertura de punta a punta); `pytest backend/tests/jobs` 210; `ruff` limpio; el módulo no contiene `float`, `Decimal`, `locale` ni `round(`. Dos cambios deliberados (ignorar el `voided` de los gastos y sumar todo al ámbito nacional) los detectan las pruebas.
+
+### B.3 Hito 4 · Job, ruta interna y CLI · 2026-11-13
+
+- `cuadre.jobs.closing_job.run_monthly_closing` y `cuadre.closing.repository` (lecturas con la identidad de la persona: `invoices_between`, `expenses_between`, `first_dates`). Por persona, una transacción corta de lectura (primer mes, ventana y dos consultas para toda la ventana) y, después, **una transacción de servicio por mes** con `private.close_month`: un fallo a medias deja lo ya guardado y la siguiente ejecución sigue desde ahí.
+- **Contadores:** `closed`, `reopened` y `unchanged` cuentan **meses**; `failed` cuenta **personas** cuyo cierre falló (la spec solo fijaba los cuatro nombres). Un fallo (documentos de más, error de base) se registra con `user_id` y el nombre del tipo de error y no detiene a las demás. Los registros no llevan nombres de clientes, importes ni correos.
+- **`--month` / `month`:** se valida antes de tocar a nadie (`InvalidMonth` o `PeriodInFuture` suben al llamante; la CLI las traduce a un error en español). Para cada persona, un mes anterior a su primer mes con actividad **no hace nada** (coherente con «antes no hay cierres»). Los gastos anulados se excluyen en SQL y el primer gasto para el «primer mes» es el primer gasto no anulado.
+- `cuadre.jobs.runner` pasa a un registro por nombre (`JOBS`, `JOB_NAMES`, `MONTHLY_JOBS`, `JobContext`); `run_named_job` gana el parámetro opcional `month` (con un job que no trabaja por meses es un `ValueError`). El job de recordatorios no cambia y `routes_internal.py` no se tocó: `GET /internal/jobs/monthly_closing` aparece al registrar el job.
+- CLI: `run-job monthly_closing [--now] [--user] [--month AAAA-MM]` imprime `Listo: N cerrados, N reabiertos, N sin cambios, N fallidos.` (sale con 1 si algún cierre falló) y el alias de ADR-0007 `close-month --month AAAA-MM`.
+- **Prueba de la ruta:** la base de pruebas acumula miles de cuentas de otras pruebas y la ruta no admite `only_owners`, así que `test_cierre_mensual_internal_route.py` registra un envoltorio que limita el job a las cuentas de la prueba; el 401 y el resto de reglas de acceso son las de `test_recordatorios_internal_route.py`.
+- **Cron propuesto** (sin `vercel.json`, no hay despliegue): `0 3 * * *` (UTC), el mismo día de Madrid en verano e invierno. Nuevo job, misma ruta interna y mismo `CRON_SECRET`.
+- Verificado: `pytest backend/tests/jobs -k cierre_mensual` 165 pasan (22 del job con base real: cierre, a cero, repetir, dos ejecuciones a la vez, reapertura por gasto, por factura de otra serie y por anulación, rectificativa, primer mes, ventana, mes pedido, cambio de año en Madrid, coherencia con el 130 por trimestre, quién se cierra, fallo aislado, aislamiento y registros); `pytest backend/tests/jobs` 256 y `tests/rules` 119 sin regresiones; `ruff` limpio; `export_openapi.py --check` OK.

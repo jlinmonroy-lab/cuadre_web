@@ -213,7 +213,7 @@ La secuencia termina con código 0 en local y en CI sobre el head empujado que c
 ## Anexo A · Orden de implementación (un commit por hito)
 
 1. Spec y `tasks.json`. **Hecho** (2026-11-16).
-2. Reglas puras de `cuadre.reports` y sus pruebas (unitarias y de propiedades).
+2. Reglas puras de `cuadre.reports` y sus pruebas (unitarias y de propiedades). **Hecho** (B.1).
 3. Repositorio, servicio y API `get_monthly_report`; `openapi.json` y `schema.d.ts` regenerados; pruebas de API.
 4. Frontend: `lib/report.ts`, gráficos, página `/reporte`, menú, portada y enlace desde `/mensual`.
 5. E2E del reporte, roles y responsive, con localizadores exactos (sin `hasText` parcial con números).
@@ -226,3 +226,13 @@ Se rellena en cada hito (como en SPEC-W-012). Pendientes de partida:
 - Si la tendencia reutiliza una o dos llamadas a `MonthlyClosingService` (año del mes y año anterior) y cómo se evita calcular dos veces el mismo año.
 - Geometría exacta de los gráficos (alto de las columnas, ancho mínimo de las barras con importes pequeños, qué se hace con importes negativos de una rectificativa) y su texto alternativo; fija el hito 4 con pruebas unitarias.
 - Texto de la nota «sin referencia» y de `expenses_note`, que no repiten importes de la persona.
+
+### B.1 Hito 2 · Reglas puras · 2026-11-16
+
+- **Paquete `cuadre.reports`** (`types.py`, `rules.py`, `__init__.py`), Python puro y solo con enteros: ni `float` ni `Decimal` ni `round(`. El redondeo *half-up* sobre el valor absoluto es aritmética entera `(2·|n| + d) // (2·d)` con el signo del cambio, así que no hay dependencia de `ROUND_HALF_UP`. Importa solo `cuadre.closing` (`YearMonth`, `SCOPES`, límites, `InvalidMonth`) y `cuadre.validators.categories` (`ExpenseCategory`, `LABELS`).
+- **Funciones:** `expense_cost` (la regla del cierre), `variation_bp`, `share_bp`, `scope_shares`, `group_by_category`, `expenses_note`, `trend_window`, `build_comparison` y `quarter_of`. Errores con `code` estable: `ReportTooLarge` (`report_too_large`, más de `CLOSING_MAX_DOCUMENTS` gastos) y `PeriodBeforeActivity` (`closing_not_found`, el mes es anterior al primero con actividad: el servicio lo traducirá al `404` de §5.3).
+- **Decisiones de forma:** (1) `trend_window` con `first = None` devuelve solo el mes elegido (una cuenta sin actividad); con `selected < first` falla en vez de devolver una ventana vacía. (2) `group_by_category` rechaza una categoría que no existe (no la manda a «Otros») y acepta el valor en texto de la enumeración. (3) Una categoría cuyo importe neto es 0 no sale aunque tenga gastos. (4) `EXPENSES_NOTE` es un texto fijo sin importes ni nombres. (5) `variation_bp` admite una cifra actual negativa (una rectificativa grande) frente a una referencia positiva: da más de −10 000 pb.
+- **Pruebas** (`backend/tests/reports/`, sin base de datos; 75): `test_reporte_rules.py` (tabla de redondeo con 1/3, el medio exacto y negativos; sin referencia; cuotas; categorías; ventana; comparación; trimestre; el módulo sin `float`, `Decimal`, `locale` ni `round(`) y `test_reporte_properties.py` (semilla fija; las categorías suman lo mismo que `closing.build_month`; el orden de entrada no importa; un anulado no cambia nada; la variación y las cuotas coinciden con un oráculo exacto con `Fraction`).
+- **Mutaciones manuales: 11, todas detectadas** (truncar el redondeo, perder el signo, no excluir anulados, contar el IVA deducible, invertir el desempate, no recortar a `first`, no descartar categorías a 0, referencia 0, cuota con base negativa, nota siempre y trimestre mal). La pasada completa es del hito 6.
+- **Verificado en local:** `pytest backend/tests/reports` 75; `pytest backend/tests -m "not rls"` 4532; `ruff` limpio. Sin cambios en `closing/`, migraciones ni API.
+

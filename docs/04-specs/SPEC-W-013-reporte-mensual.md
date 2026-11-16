@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-013
 titulo: Reporte mensual visual
-estado: en-revision
+estado: hecha
 prioridad: must
 riesgo: bajo
 historias: [US-008]
@@ -221,7 +221,7 @@ Los nombres de prueba son los reales; las de `backend/tests/reports/test_reporte
 | AC-16 · integridad | `test_no_float.py` (todo `cuadre.reports`), `test_the_module_never_uses_decimals`, `test_the_logs_carry_no_amounts_names_or_emails`, `test_the_route_is_in_the_public_contract` y `report.test.ts` (sin `parseFloat`, `toFixed` ni `Number(`) |
 
 ### 8.4 Definición de hecho
-La secuencia termina con código 0 en local y en CI sobre el head empujado que contiene todos los hitos; `tasks.json` actualizado; ADR enlazados; sin secretos ni datos reales; el contenido del reporte queda anotado como **pendiente de validar con usuarios** (Charter §8).
+La secuencia termina con código 0 en local y en CI sobre el head empujado que contiene todos los hitos; `tasks.json` actualizado; ADR enlazados; sin secretos ni datos reales; el contenido del reporte queda anotado como **pendiente de validar con usuarios** (Charter §8). **Excepción del cierre (2026-11-16):** la persona cerró la spec como `hecha` **sin** el CI de GitHub en verde (ver Anexo A, hito 6); el criterio de CI no se verificó.
 
 ## Anexo A · Orden de implementación (un commit por hito)
 
@@ -230,7 +230,7 @@ La secuencia termina con código 0 en local y en CI sobre el head empujado que c
 3. Repositorio, servicio y API `get_monthly_report`; `openapi.json` y `schema.d.ts` regenerados; pruebas de API. **Hecho** (B.2).
 4. Frontend: `lib/report.ts`, gráficos, página `/reporte`, menú, portada y enlace desde `/mensual`. **Hecho** (B.3).
 5. E2E del reporte, roles y responsive, con localizadores exactos (sin `hasText` parcial con números). **Hecho** (B.4).
-6. Mutaciones, matriz criterio → prueba, barrido de datos y verificación completa. **Hecho en local** (B.5). La spec sigue `en-revision`: pasa a `hecha` solo con el CI de GitHub en verde sobre el head empujado que contiene todos los hitos (commit aparte).
+6. Mutaciones, matriz criterio → prueba, barrido de datos y verificación completa. **Hecho en local** (B.5). **Cerrada como `hecha`** por decisión de la persona el 2026-11-16, **sin** confirmación del CI de GitHub: no consta ningún resultado de CI sobre `6d844ee` ni sobre lo posterior, y la verificación completa es la local de B.5.
 
 ## Anexo B · Decisiones que esta spec deja a la implementación
 

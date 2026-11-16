@@ -1,0 +1,15 @@
+event: token
+data: {"delta":"No he encontrado una fuente oficial que responda a esto con seguridad, "}
+
+event: token
+data: {"delta":"así que prefiero no darte una cifra ni una regla que luego no se sostenga."}
+
+event: abstention
+data: {"reason":"no_source","referral":"asesor"}
+
+event: usage
+data: {"input_tokens":1180,"output_tokens":44,"cost_eur":"0.001800"}
+
+event: done
+data: {"finish_reason":"abstained","trace_id":"trc_synthetic_0104"}
+

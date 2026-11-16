@@ -1,0 +1,15 @@
+event: token
+data: {"delta":"La factura simplificada solo puede emitirse en los casos que fija el reglamento: "}
+
+event: token
+data: {"delta":"ventas al por menor, transporte de personas, hostelería y otros supuestos concretos, siempre que el importe no supere los límites"}
+
+event: citation
+data: {"id":"1","title":"Real Decreto 1619/2012, Reglamento por el que se regulan las obligaciones de facturación","publisher":"BOE","url":"https://www.boe.es/buscar/act.php?id=BOE-A-2012-14696","valid_as_of":"2026-09-01","quote":null}
+
+event: usage
+data: {"input_tokens":2210,"output_tokens":1024,"cost_eur":"0.012000"}
+
+event: done
+data: {"finish_reason":"length","trace_id":"trc_synthetic_0106"}
+

@@ -1,0 +1,9 @@
+event: tool_call
+data: {"name":"resumen_mes","status":"started"}
+
+event: tool_call
+data: {"name":"resumen_mes","status":"failed"}
+
+event: error
+data: {"code":"tool_error","message":"No se pudieron consultar tus datos ahora mismo."}
+

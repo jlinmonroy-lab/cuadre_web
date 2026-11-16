@@ -110,6 +110,17 @@ def check_chat() -> None:
         else:
             fail(f"{label}: extensión no reconocida")
 
+    # 1.1.0 (SPEC-W-004, P-01): sin herramientas de datos no hay `X-User-Token`. Tiene que existir una petición de ejemplo así y el OpenAPI no
+    # puede exigir la cabecera siempre.
+    requests = [load_json(p) for p in sorted((EXAMPLES / "chat").glob("*.request.json"))]
+    if not any(r.get("mcp_url") is None for r in requests):
+        fail("examples/chat: falta una petición con `mcp_url: null` (sin herramientas de datos)")
+    doc = yaml.safe_load((CONTRACTS / "agents-api" / "v1" / "openapi.yaml").read_text(encoding="utf-8"))
+    parameters = doc["paths"]["/v1/chat"]["post"]["parameters"]
+    token = [p for p in parameters if p.get("name") == "X-User-Token"]
+    if len(token) != 1 or token[0].get("required") is not False:
+        fail("openapi.yaml: `X-User-Token` debe existir y no ser obligatorio siempre (solo con `mcp_url`)")
+
 
 def sum_items(items: list[dict], key: str) -> int:
     return sum(item[key] for item in items)

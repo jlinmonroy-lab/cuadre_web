@@ -26,6 +26,11 @@ Sirven para tres cosas:
 | `chat/abstention_professional.sse` | C2 | US-002: criterio profesional → abstención y derivación al gestor |
 | `chat/answer_with_tool.sse` | C2 + C3 | Respuesta apoyada en `buscar_facturas` |
 | `chat/error_upstream.sse` | C2 | Error del servicio de lenguaje |
+| `chat/chat_no_tools.request.json` | C2 · petición | Sin herramientas de datos (`mcp_url: null`, sin `X-User-Token`) y con historial de varios turnos |
+| `chat/abstention_no_source.sse` | C2 | Sin fuente oficial: abstención y derivación a un asesor |
+| `chat/abstention_out_of_scope.sse` | C2 | Fuera de alcance: abstención sin derivación (`referral: null`) |
+| `chat/answer_length.sse` | C2 | Respuesta cortada por longitud (`finish_reason: length`) |
+| `chat/error_tool.sse` | C2 + C3 | Falla una herramienta: `tool_call` fallido y `error` con `tool_error` |
 | `mcp/*.example.json` | C3 | Una entrada y salida por herramienta (`{tool, input, output}`) |
 
 Los datos de `mcp/` son dos ejercicios sintéticos independientes: `buscar_facturas`, `resumen_mes` y

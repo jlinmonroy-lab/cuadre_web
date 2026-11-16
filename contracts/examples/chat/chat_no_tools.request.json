@@ -1,0 +1,15 @@
+{
+  "conversation_id": "c0000000-0000-4000-8000-0000000000c2",
+  "messages": [
+    { "role": "user", "content": "¿Qué es el modelo 303?" },
+    { "role": "assistant", "content": "Es la declaración trimestral del IVA. ¿Quieres que te explique qué casillas rellena Cuadre?" },
+    { "role": "user", "content": "Sí, y cuándo se presenta." }
+  ],
+  "locale": "es-ES",
+  "user_context": {
+    "role": "usuario",
+    "has_gestor": false,
+    "current_date": "2026-11-16"
+  },
+  "mcp_url": null
+}

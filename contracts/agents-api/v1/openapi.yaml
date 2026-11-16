@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cuadre · API del servicio de agentes (cuadre-agents)
-  version: 1.0.0
+  version: 1.1.0
   description: |
     Contrato que **cuadre-agents implementa** y **cuadre-web consume**. La fuente de verdad son los modelos
     Pydantic de `contracts/python/cuadre_contracts`; los esquemas de `schemas/` se generan de ellos con
@@ -45,7 +45,7 @@ paths:
                 required: [status, contract_version]
                 properties:
                   status: { type: string, const: ok }
-                  contract_version: { type: string, examples: ["1.0.0"] }
+                  contract_version: { type: string, examples: ["1.1.0"] }
   /v1/extract:
     post:
       operationId: extract_invoice
@@ -93,8 +93,10 @@ paths:
 
         Orden habitual: `tool_call`* → `token`+ → `citation`* → `abstention`? → `usage` → `done`.
 
-        * El agente reenvía `X-User-Token` tal cual al servidor MCP (`mcp_url`) como `Authorization: Bearer`.
-          Ese token dura unos 5 minutos y solo sirve para el MCP de solo lectura (D4).
+        * **Herramientas (C3).** Si `mcp_url` no es `null`, la petición lleva `X-User-Token` y el agente lo reenvía tal
+          cual al servidor MCP como `Authorization: Bearer`. Ese token dura unos 5 minutos y solo sirve para el MCP de
+          solo lectura (D4). Si `mcp_url` es `null` (sin herramientas de datos), **no se envía `X-User-Token`** y el
+          agente responde sin consultar datos de la persona (desde 1.1.0).
         * **Abstención (US-002, RF-017).** Sin fuente oficial, o ante un caso que exige criterio profesional, el
           agente no da cifras ni recomendaciones: emite `abstention` y deriva al gestor (solo si
           `user_context.has_gestor`) o a un asesor.
@@ -106,8 +108,10 @@ paths:
         - $ref: "#/components/parameters/RequestId"
         - name: X-User-Token
           in: header
-          required: true
-          description: Token MCP derivado y acotado (aud=cuadre-mcp, scope=mcp:read, exp ≤ 5 min). No se registra en logs.
+          required: false
+          description: |
+            Token MCP derivado y acotado (aud=cuadre-mcp, scope=mcp:read, exp ≤ 5 min). **Obligatorio si `mcp_url` no
+            es `null`; no se envía si lo es** (OpenAPI no puede expresar la condición). No se registra en logs.
           schema: { type: string }
       requestBody:
         required: true

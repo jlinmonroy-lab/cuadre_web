@@ -1,0 +1,12 @@
+event: token
+data: {"delta":"Eso queda fuera de lo que puedo ayudarte a resolver en Cuadre."}
+
+event: abstention
+data: {"reason":"out_of_scope","referral":null}
+
+event: usage
+data: {"input_tokens":640,"output_tokens":17,"cost_eur":"0.000900"}
+
+event: done
+data: {"finish_reason":"abstained","trace_id":"trc_synthetic_0105"}
+

@@ -1,20 +1,23 @@
 """Ayudas comunes de las pruebas del cliente de agentes: ejemplos del contrato y registros capturados."""
 
+import asyncio
 import json
 import logging
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 from cuadre.config import Settings
-from cuadre_contracts import ExtractRequest, ExtractResponse
+from cuadre_contracts import ChatRequest, ChatStreamFrame, ExtractRequest, ExtractResponse
 from tests.rules.paths import REPO
 
 EXAMPLES = REPO / "contracts" / "examples" / "extract"
 SCHEMAS = REPO / "contracts" / "agents-api" / "v1" / "schemas"
 
 RESPONSE_NAMES = sorted(p.name.removesuffix(".response.json") for p in EXAMPLES.glob("*.response.json"))
+CHAT_EXAMPLES = REPO / "contracts" / "examples" / "chat"
+CHAT_NAMES = sorted(p.stem for p in CHAT_EXAMPLES.glob("*.sse"))
 API_KEY = "test-agents-key-0123456789"
 
 
@@ -37,6 +40,16 @@ def example_request() -> ExtractRequest:
 
 def example_response(name: str) -> ExtractResponse:
     return ExtractResponse.model_validate_json(example_path(f"{name}.response.json").read_bytes())
+
+
+def chat_bytes(name: str) -> bytes:
+    """El flujo SSE de un ejemplo de `contracts/examples/chat/`, tal cual está en disco."""
+    return (CHAT_EXAMPLES / f"{name}.sse").read_bytes()
+
+
+def chat_request(name: str = "chat_no_tools") -> ChatRequest:
+    """Una petición de ejemplo de C2: `chat_no_tools` (sin herramientas, `mcp_url: null`) o `chat` (con herramientas)."""
+    return ChatRequest.model_validate_json((CHAT_EXAMPLES / f"{name}.request.json").read_bytes())
 
 
 def with_extraction(name: str, **changes: Any) -> dict[str, Any]:
@@ -86,3 +99,31 @@ def make_settings(**overrides: Any) -> Settings:
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)  # type: ignore[call-arg]
+
+
+def collect_frames(frames: AsyncIterator[ChatStreamFrame]) -> list[ChatStreamFrame]:
+    """Todos los frames de un generador asíncrono (no hay `pytest-asyncio`: ADR-0015, las pruebas son síncronas)."""
+
+    async def run() -> list[ChatStreamFrame]:
+        return [frame async for frame in frames]
+
+    return asyncio.run(run())
+
+
+def event_names(frames: Iterable[ChatStreamFrame]) -> list[str]:
+    return [frame.root.event for frame in frames]
+
+
+def drain_frames(frames: AsyncIterator[ChatStreamFrame]) -> tuple[list[ChatStreamFrame], BaseException | None]:
+    """Los frames que llegan antes de un fallo y el fallo (o `None`): un flujo puede entregar frames y luego romperse."""
+
+    async def run() -> tuple[list[ChatStreamFrame], BaseException | None]:
+        got: list[ChatStreamFrame] = []
+        try:
+            async for frame in frames:
+                got.append(frame)
+        except Exception as error:
+            return got, error
+        return got, None
+
+    return asyncio.run(run())

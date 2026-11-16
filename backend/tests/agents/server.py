@@ -2,6 +2,10 @@
 
 Es un servidor de verdad en `127.0.0.1` (puerto efímero), no un transporte simulado: así se prueban de verdad los tiempos agotados,
 las conexiones rechazadas y las cabeceras que salen por el cable. Registra todo lo que recibe.
+
+Para SSE (SPEC-W-004): `content_type`, `chunked` (como un servidor de verdad, sin `Content-Length`), `pieces` (cada trozo se escribe por separado y
+`before_chunk(i)` corre ANTES de escribir el trozo `i`: bloquear ahí permite comprobar que el cliente ya entregó lo anterior), `abort` (se corta la
+conexión sin terminar el cuerpo) y `client_gone` (cuántas veces el cliente se fue a mitad de la respuesta).
 """
 
 import json
@@ -24,6 +28,13 @@ class Reply:
     delay_ms: int = 0  # espera antes de contestar (para provocar tiempos agotados)
     chunk_size: int = 0  # si > 0, el cuerpo se envía en trozos de este tamaño con `chunk_delay_ms` entre ellos
     chunk_delay_ms: int = 0
+    content_type: str = "application/json"
+    chunked: bool = False  # `Transfer-Encoding: chunked`, sin `Content-Length`
+    pieces: list[bytes] | None = None  # cada elemento es un trozo del cuerpo (sustituye a `body` y a `chunk_size`)
+    before_chunk: Callable[[int], None] | None = None  # se llama con el índice del trozo, antes de escribirlo
+    abort: bool = (
+        False  # cuerpo incompleto: sin la marca final (chunked) o con un `Content-Length` mayor que lo que se escribe
+    )
 
 
 @dataclass
@@ -43,12 +54,15 @@ class ScriptedServer:
             0  # bytes de cuerpo que se llegaron a escribir en el socket (cuenta lo que el cliente dejó de leer)
         )
         self.on_request: Callable[[], None] | None = None
+        self.client_gone = 0  # veces que el cliente cerró la conexión con la respuesta a medias
         self._httpd: ThreadingHTTPServer | None = None
 
     def serve(self, *replies: Reply) -> None:
         self.script = list(replies)
         self.seen.clear()
         self.exhausted = 0
+        self.written = 0
+        self.client_gone = 0
 
     @property
     def url(self) -> str:
@@ -79,25 +93,38 @@ class ScriptedServer:
                     payload = json.dumps(payload).encode()
                 elif isinstance(payload, str):
                     payload = payload.encode()
+                pieces = reply.pieces
+                if pieces is None:
+                    size = reply.chunk_size
+                    pieces = [payload[i : i + size] for i in range(0, len(payload), size)] if size else [payload]
+                else:
+                    payload = b"".join(pieces)
                 try:
                     self.send_response(reply.status)
-                    self.send_header("Content-Type", "application/json")
-                    self.send_header("Content-Length", str(len(payload)))
+                    self.send_header("Content-Type", reply.content_type)
+                    if reply.chunked:
+                        self.send_header("Transfer-Encoding", "chunked")
+                    else:
+                        self.send_header("Content-Length", str(len(payload) + (1000 if reply.abort else 0)))
                     self.send_header("Connection", "close")
                     for name, value in reply.headers.items():
                         self.send_header(name, value)
                     self.end_headers()
-                    if reply.chunk_size:
-                        for start in range(0, len(payload), reply.chunk_size):
-                            piece = payload[start : start + reply.chunk_size]
-                            self.wfile.write(piece)
-                            self.wfile.flush()
-                            owner.written += len(piece)
+                    for index, piece in enumerate(pieces):
+                        if reply.before_chunk is not None:
+                            reply.before_chunk(index)
+                        self.wfile.write(f"{len(piece):x}\r\n".encode() + piece + b"\r\n" if reply.chunked else piece)
+                        self.wfile.flush()
+                        owner.written += len(piece)
+                        if reply.chunk_delay_ms:
                             time.sleep(reply.chunk_delay_ms / 1000)
-                    else:
-                        self.wfile.write(payload)
+                    if reply.chunked and not reply.abort:
+                        self.wfile.write(b"0\r\n\r\n")
+                        self.wfile.flush()
                 except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
-                    pass  # el cliente ya se fue (p. ej. cortó por tiempo): es lo que se estaba probando
+                    owner.client_gone += (
+                        1  # el cliente ya se fue (p. ej. cortó por tiempo): es lo que se estaba probando
+                    )
 
             do_POST = do_GET = do_PUT = do_DELETE = handle_any
 

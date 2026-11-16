@@ -17,7 +17,7 @@ dependencies = [
   "PyJWT[crypto]==2.15.1",
   "httpx2==2.16.0",
   # Contratos con cuadre-agents (contracts/python). No está en PyPI: se instala antes, `pip install -e contracts/python`.
-  "cuadre-contracts==1.0.0",
+  "cuadre-contracts==1.1.0",
   # NIF y NIF-IVA de la UE (SPEC-W-003). Sin extras: `zeep`, que usa la consulta a VIES, no entra (nada sale a la red, Anexo B.1).
   "python-stdnum==2.2",
   # `zoneinfo` necesita la base de zonas horarias en Windows (Europe/Madrid); hoy solo la trae psycopg.

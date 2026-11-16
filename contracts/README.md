@@ -1,6 +1,6 @@
 # contracts/ · contratos entre cuadre-web y cuadre-agents
 
-**Versión vigente: 1.0.0** (`VERSION`, `CHANGELOG.md`). Esta carpeta es la fuente de verdad: cuadre-agents la copia
+**Versión vigente: 1.1.0** (`VERSION`, `CHANGELOG.md`). Esta carpeta es la fuente de verdad: cuadre-agents la copia
 tal cual (o la consume como paquete) y cuadre-web la cumple. Si hay que cambiar algo, se cambia aquí primero.
 
 ## Qué hay

@@ -10,8 +10,8 @@ export function isRole(value: unknown): value is Role {
 
 const HOME: Record<Role, string> = { usuario: "/inicio", gestor: "/cartera", admin: "/admin" };
 // Apartados con pantalla propia, además de la portada: pertenecen a un solo rol y exigen sesión (SPEC-W-002: Gastos; SPEC-W-005: Perfil;
-// SPEC-W-006: Clientes; SPEC-W-007: Facturas; SPEC-W-008: Trimestres; SPEC-W-010: Mi gestor; SPEC-W-012: Contabilidad mensual; SPEC-W-013: Reporte mensual).
-const SECTIONS: Record<Role, readonly string[]> = { usuario: ["/gastos", "/perfil", "/clientes", "/facturas", "/mensual", "/reporte", "/trimestres", "/gestor"], gestor: [], admin: [] };
+// SPEC-W-006: Clientes; SPEC-W-007: Facturas; SPEC-W-008: Trimestres; SPEC-W-010: Mi gestor; SPEC-W-012: Contabilidad mensual; SPEC-W-013: Reporte mensual; SPEC-W-004: Asistente).
+const SECTIONS: Record<Role, readonly string[]> = { usuario: ["/gastos", "/perfil", "/clientes", "/facturas", "/mensual", "/reporte", "/trimestres", "/gestor", "/asistente"], gestor: [], admin: [] };
 const LABEL: Record<Role, string> = { usuario: "Autónomo", gestor: "Gestor", admin: "Administrador" };
 
 export function homeFor(role: Role): string {
@@ -39,6 +39,7 @@ export function navFor(role: Role): NavItem[] {
         { label: "Reporte mensual", href: "/reporte" },
         { label: "Trimestres", href: "/trimestres" },
         { label: "Mi gestor", href: "/gestor" },
+        { label: "Asistente", href: "/asistente" },
         { label: "Perfil", href: "/perfil" },
       ];
     case "gestor":

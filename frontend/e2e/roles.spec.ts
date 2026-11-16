@@ -215,7 +215,7 @@ for (const role of ["gina", "adan"] as const) {
 
 // SPEC-W-010 AC-21 · «Mi gestor» es solo del autónomo y «Cartera» solo del gestor: el otro rol no ve el apartado ajeno y sus rutas (también la ficha de un
 // autónomo) lo llevan a /403.
-test("Mi gestor · el autónomo lo ve activo en el menú, entre Trimestres y Perfil, y llega a su pantalla", async ({ pageAs }) => {
+test("Mi gestor · el autónomo lo ve activo en el menú, tras Trimestres y antes de Asistente y Perfil, y llega a su pantalla", async ({ pageAs }) => {
   const page = await pageAs("alicia");
   await page.goto(PEOPLE.alicia.home);
   const nav = page.getByRole("navigation", { name: "Apartados" });
@@ -224,13 +224,43 @@ test("Mi gestor · el autónomo lo ve activo en el menú, entre Trimestres y Per
   const labels = await nav.getByRole("listitem").allInnerTexts();
   const trimestres = labels.findIndex((label) => label.startsWith("Trimestres"));
   expect(labels[trimestres + 1]).toBe("Mi gestor");
-  expect(labels[trimestres + 2]).toBe("Perfil");
+  expect(labels[trimestres + 2]).toBe("Asistente");
+  expect(labels[trimestres + 3]).toBe("Perfil");
   await expect(nav.getByText("Cartera", { exact: true })).toHaveCount(0);
   await nav.getByRole("link", { name: "Mi gestor" }).click();
   await expect(page).toHaveURL("/gestor");
   await expect(page.getByRole("heading", { level: 1, name: "Mi gestor" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Mi gestor" })).toHaveAttribute("aria-current", "page");
 });
+
+// SPEC-W-004 AC-12 · «Asistente» es solo del autónomo: activo en el menú, entre «Mi gestor» y «Perfil»; el gestor y el administrador no lo ven y /asistente los lleva
+// a /403.
+test("Asistente · el autónomo lo ve activo en el menú, entre Mi gestor y Perfil, y llega a su pantalla", async ({ pageAs }) => {
+  const page = await pageAs("alicia");
+  await page.goto(PEOPLE.alicia.home);
+  const nav = page.getByRole("navigation", { name: "Apartados" });
+  await expect(nav.getByRole("link", { name: "Perfil" })).toBeAttached(); // `allInnerTexts()` no espera
+  const labels = await nav.getByRole("listitem").allInnerTexts();
+  const gestor = labels.findIndex((label) => label.startsWith("Mi gestor"));
+  expect(labels[gestor + 1]).toBe("Asistente");
+  expect(labels[gestor + 2]).toBe("Perfil");
+  await nav.getByRole("link", { name: "Asistente" }).click();
+  await expect(page).toHaveURL("/asistente");
+  await expect(page.getByRole("heading", { level: 1, name: "Asistente" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Asistente" })).toHaveAttribute("aria-current", "page");
+});
+
+for (const role of ["gina", "adan"] as const) {
+  test(`Asistente · ${role} no lo ve en el menú y /asistente lo lleva a /403`, async ({ pageAs }) => {
+    const page = await pageAs(role);
+    await page.goto(PEOPLE[role].home);
+    await expect(page.getByRole("navigation", { name: "Apartados" }).getByText("Asistente", { exact: true })).toHaveCount(0);
+    await settle(page);
+    await page.goto("/asistente");
+    await expect(page).toHaveURL("/403");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("No tienes acceso a esta sección");
+  });
+}
 
 for (const role of ["gina", "adan"] as const) {
   test(`Mi gestor · ${role} no lo ve en el menú y /gestor lo lleva a /403`, async ({ pageAs }) => {

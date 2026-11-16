@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { Portada } from "@/components/portada";
 import { CompleteProfileNotice } from "@/components/profile/complete-profile-notice";
@@ -22,6 +23,13 @@ export default async function InicioPage() {
         intro="Esta es tu portada de autónomo. Aquí irá el resumen de tu actividad."
         upcoming={[]}
       />
+      <p className="mt-6 text-ink-soft">
+        ¿Dudas sobre Cuadre o sobre tus impuestos?{" "}
+        <Link href="/asistente" className="font-semibold text-action underline underline-offset-2 hover:text-action-hover">
+          Pregunta al asistente
+        </Link>
+        .
+      </p>
     </>
   );
 }

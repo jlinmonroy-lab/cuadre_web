@@ -183,9 +183,21 @@ class MonthlyClosingService:
             raise errors.invalid_period()
         if YearMonth(year, month) > current:
             raise errors.period_in_future()
+        for item in self._detailed(user, year, current):
+            if item.month == month:
+                return item
+        raise errors.closing_not_found()
+
+    def _detailed(self, user: CurrentUser, year: int, current: YearMonth) -> list[MonthlyClosing]:
         months = self._year(user, year, current)
         rows = self._rows(months)
-        for source, row in zip(months, rows, strict=True):
-            if source.month == month:
-                return MonthlyClosing(**row.model_dump(), year=year, by_client=source.by_client)
-        raise errors.closing_not_found()
+        return [
+            MonthlyClosing(**row.model_dump(), year=year, by_client=source.by_client)
+            for source, row in zip(months, rows, strict=True)
+        ]
+
+    def months_of(self, user: CurrentUser, year: int) -> list[MonthlyClosing]:
+        """Los meses que se enseñan de un año, cada uno con su desglose por cliente: lo mismo que `month()` para todos a la vez, con un solo cálculo del año (SPEC-W-013 D-02)."""
+        current = self._current()
+        self._check_year(year, current)
+        return self._detailed(user, year, current)

@@ -22,6 +22,7 @@ from cuadre.api import (
     routes_monthly,
     routes_profile,
     routes_reminders,
+    routes_report,
     routes_tax,
 )
 from cuadre.clients import FakeViesChecker
@@ -105,6 +106,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(routes_clients.router)
     app.include_router(routes_tax.router)
     app.include_router(routes_monthly.router)
+    app.include_router(routes_report.router)
     app.include_router(routes_gestor.router)
     app.include_router(routes_gestor_reads.router)
     app.include_router(routes_internal.router)

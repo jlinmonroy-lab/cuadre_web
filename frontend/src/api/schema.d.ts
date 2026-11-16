@@ -831,6 +831,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/monthly-report/{year}/{month}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** El reporte de un mes: ingresos por ámbito y cliente, gastos por categoría, comparación con el mes anterior y tendencia */
+        get: operations["get_monthly_report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/profile": {
         parameters: {
             query?: never;
@@ -1083,6 +1100,22 @@ export interface components {
              */
             measure: ("base" | "vat") | null;
         };
+        /** CategoryTotalOut */
+        CategoryTotalOut: {
+            category: components["schemas"]["ExpenseCategory"];
+            /** Expense Count */
+            expense_count: number;
+            /**
+             * Expenses Cents
+             * @description Base más IVA no deducible de los gastos no anulados de la categoría en el mes
+             */
+            expenses_cents: number;
+            /**
+             * Label
+             * @description El nombre de la categoría en español, único origen: `validators.categories`
+             */
+            label: string;
+        };
         /**
          * CheckCode
          * @description Las comprobaciones, en el orden en que se muestran. Son una lista cerrada (§5.1).
@@ -1198,6 +1231,52 @@ export interface components {
              * @enum {string}
              */
             scope: "national" | "eu" | "non_eu";
+        };
+        /** ComparisonOut */
+        ComparisonOut: {
+            /**
+             * Expenses Cents
+             * @description Los gastos del mes anterior
+             */
+            expenses_cents: number;
+            /** Expenses Delta Cents */
+            expenses_delta_cents: number;
+            /**
+             * Expenses Variation Bp
+             * @description Variación de los gastos en puntos básicos; `null` si los del mes anterior no son mayores que 0
+             */
+            expenses_variation_bp: number | null;
+            /** Previous Month */
+            previous_month: number;
+            /**
+             * Previous Status
+             * @enum {string}
+             */
+            previous_status: "closed" | "in_progress" | "pending";
+            /** Previous Year */
+            previous_year: number;
+            /**
+             * Result Cents
+             * @description El resultado del mes anterior: ingresos menos gastos
+             */
+            result_cents: number;
+            /** Result Delta Cents */
+            result_delta_cents: number;
+            /**
+             * Total Cents
+             * @description Los ingresos del mes anterior
+             */
+            total_cents: number;
+            /**
+             * Total Delta Cents
+             * @description Ingresos de este mes menos los del anterior
+             */
+            total_delta_cents: number;
+            /**
+             * Total Variation Bp
+             * @description Variación de los ingresos en puntos básicos; `null` si los del mes anterior no son mayores que 0
+             */
+            total_variation_bp: number | null;
         };
         /** Completeness */
         Completeness: {
@@ -2165,6 +2244,99 @@ export interface components {
             /** Year */
             year: number;
         };
+        /**
+         * MonthlyReport
+         * @description El mes (como en `/api/monthly-closings/{year}/{month}`) más todo lo que dibuja el reporte.
+         */
+        MonthlyReport: {
+            /**
+             * By Client
+             * @description Ingresos por cliente y ámbito, de mayor a menor base
+             */
+            by_client: components["schemas"]["ClientTotalsOut"][];
+            /**
+             * Closed At
+             * @description Solo en los cerrados: cuándo se guardó la última foto
+             */
+            closed_at: string | null;
+            /** @description Frente al mes anterior; `null` si no hay mes anterior con actividad */
+            comparison: components["schemas"]["ComparisonOut"] | null;
+            /** Eu Cents */
+            eu_cents: number;
+            /**
+             * Expenses By Category
+             * @description Gastos por categoría calculados al leer (no son parte del cierre), de mayor a menor; solo las de importe distinto de 0
+             */
+            expenses_by_category: components["schemas"]["CategoryTotalOut"][];
+            /**
+             * Expenses By Category Total Cents
+             * @description Suma de `expenses_by_category`
+             */
+            expenses_by_category_total_cents: number;
+            /**
+             * Expenses Cents
+             * @description Gastos no anulados del mes: base más IVA no deducible
+             */
+            expenses_cents: number;
+            /**
+             * Expenses Note
+             * @description `null` si el desglose suma lo mismo que `expenses_cents`; si no, un aviso fijo (típicamente, un gasto registrado o anulado tras el cierre)
+             */
+            expenses_note: string | null;
+            /** Invoice Count */
+            invoice_count: number;
+            /** Month */
+            month: number;
+            /** National Cents */
+            national_cents: number;
+            /** Non Eu Cents */
+            non_eu_cents: number;
+            /**
+             * Quarter
+             * @description El trimestre natural del mes, para enlazar a los borradores del 303 y del 130
+             */
+            quarter: number;
+            /** Quarter Year */
+            quarter_year: number;
+            /**
+             * Result Cents
+             * @description Rendimiento del mes: ingresos (`total_cents`) menos gastos (`expenses_cents`)
+             */
+            result_cents: number;
+            /**
+             * Revision
+             * @description Solo en los cerrados: 1 al cerrar y +1 cada vez que un recálculo cambia algo (documento atrasado)
+             */
+            revision: number | null;
+            /**
+             * Scopes
+             * @description Los tres ámbitos, siempre en el orden nacional, UE y fuera de la UE
+             */
+            scopes: components["schemas"]["ScopeShareOut"][];
+            /**
+             * Status
+             * @description `closed`: hay cierre y se devuelve su foto. `in_progress`: es el mes de hoy (cifras en vivo). `pending`: terminó y aún no hay cierre (cifras en vivo, a la espera de la siguiente ejecución del job)
+             * @enum {string}
+             */
+            status: "closed" | "in_progress" | "pending";
+            /**
+             * Total Cents
+             * @description Bases imponibles del mes, sin IVA: nacional + UE + fuera de la UE
+             */
+            total_cents: number;
+            /**
+             * Trend
+             * @description Hasta 12 meses que terminan en el pedido, del más antiguo al más reciente, sin pasar de la primera actividad
+             */
+            trend: components["schemas"]["TrendPoint"][];
+            /** Year */
+            year: number;
+            /**
+             * Ytd Cents
+             * @description Acumulado del año hasta este mes, incluido: derivado, nunca guardado
+             */
+            ytd_cents: number;
+        };
         /** MonthRow */
         MonthRow: {
             /**
@@ -2445,6 +2617,24 @@ export interface components {
             /** Rate */
             rate?: string | null;
         };
+        /** ScopeShareOut */
+        ScopeShareOut: {
+            /**
+             * Base Cents
+             * @description Base imponible facturada en ese ámbito durante el mes, con las rectificativas con su signo
+             */
+            base_cents: number;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "national" | "eu" | "non_eu";
+            /**
+             * Share Bp
+             * @description Cuota sobre el total del mes en puntos básicos (1 pb = 0,01 %), con redondeo half-up; `null` si el total no es mayor que 0 o la base es negativa. Las tres cuotas pueden no sumar exactamente 10 000
+             */
+            share_bp: number | null;
+        };
         /** SeriesCreate */
         SeriesCreate: {
             /** Code */
@@ -2507,6 +2697,24 @@ export interface components {
             vat_cents: number | null;
             /** Vat Rate */
             vat_rate: string | null;
+        };
+        /** TrendPoint */
+        TrendPoint: {
+            /** Expenses Cents */
+            expenses_cents: number;
+            /** Month */
+            month: number;
+            /** Result Cents */
+            result_cents: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "closed" | "in_progress" | "pending";
+            /** Total Cents */
+            total_cents: number;
+            /** Year */
+            year: number;
         };
         /** UploadInstructions */
         UploadInstructions: {
@@ -6211,6 +6419,65 @@ export interface operations {
                 };
             };
             /** @description Año o mes que no existen (`invalid_period`) o que todavía no han empezado (`period_in_future`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_monthly_report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                month: number;
+                year: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthlyReport"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede ver el reporte mensual (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Ese mes no se muestra: la cuenta todavía no tenía actividad (`closing_not_found`) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Año o mes que no existen (`invalid_period`), que todavía no han empezado (`period_in_future`) o con demasiados gastos (`report_too_large`) */
             422: {
                 headers: {
                     [name: string]: unknown;

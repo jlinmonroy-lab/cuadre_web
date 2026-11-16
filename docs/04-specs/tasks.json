@@ -592,7 +592,7 @@
         "pytest backend/tests/rls -m rls",
         "npm --prefix frontend exec -- playwright test e2e/reporte.spec.ts"
       ],
-      "notes": "Spec escrita (hito 1, 2026-11-16); sin migraciones. Decisiones de la persona: apartar sin importe (solo enlaces al 303 y al 130), gastos por categoria calculados al leer, graficos SVG/CSS de servidor y apartado propio /reporte. Contenido del reporte pendiente de validar con usuarios (Charter 8). Hito 2 hecho en local (cuadre.reports: reglas puras con enteros, 75 pruebas y 11 mutaciones detectadas; Anexo B.1). Faltan API, frontend, E2E y cierre."
+      "notes": "Spec escrita (hito 1, 2026-11-16); sin migraciones. Decisiones de la persona: apartar sin importe (solo enlaces al 303 y al 130), gastos por categoria calculados al leer, graficos SVG/CSS de servidor y apartado propio /reporte. Contenido del reporte pendiente de validar con usuarios (Charter 8). Hito 2 hecho en local (cuadre.reports: reglas puras con enteros, 75 pruebas y 11 mutaciones detectadas; Anexo B.1). Hito 3 hecho en local (GET /api/monthly-report/{year}/{month}, MonthlyClosingService.months_of, 101 pruebas del paquete y 15 mutaciones detectadas; Anexo B.2). Faltan frontend, E2E y cierre."
     },
     {
       "id": "SPEC-W-014",

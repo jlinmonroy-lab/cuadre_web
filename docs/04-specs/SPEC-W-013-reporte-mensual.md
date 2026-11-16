@@ -214,7 +214,7 @@ La secuencia termina con código 0 en local y en CI sobre el head empujado que c
 
 1. Spec y `tasks.json`. **Hecho** (2026-11-16).
 2. Reglas puras de `cuadre.reports` y sus pruebas (unitarias y de propiedades). **Hecho** (B.1).
-3. Repositorio, servicio y API `get_monthly_report`; `openapi.json` y `schema.d.ts` regenerados; pruebas de API.
+3. Repositorio, servicio y API `get_monthly_report`; `openapi.json` y `schema.d.ts` regenerados; pruebas de API. **Hecho** (B.2).
 4. Frontend: `lib/report.ts`, gráficos, página `/reporte`, menú, portada y enlace desde `/mensual`.
 5. E2E del reporte, roles y responsive, con localizadores exactos (sin `hasText` parcial con números).
 6. Mutaciones, matriz criterio → prueba, barrido de datos y cierre; `hecha` solo con el CI verde del head empujado con todos los hitos.
@@ -236,3 +236,14 @@ Se rellena en cada hito (como en SPEC-W-012). Pendientes de partida:
 - **Mutaciones manuales: 11, todas detectadas** (truncar el redondeo, perder el signo, no excluir anulados, contar el IVA deducible, invertir el desempate, no recortar a `first`, no descartar categorías a 0, referencia 0, cuota con base negativa, nota siempre y trimestre mal). La pasada completa es del hito 6.
 - **Verificado en local:** `pytest backend/tests/reports` 75; `pytest backend/tests -m "not rls"` 4532; `ruff` limpio. Sin cambios en `closing/`, migraciones ni API.
 
+### B.2 Hito 3 · Servicio y API · 2026-11-16
+
+- **`GET /api/monthly-report/{year}/{month}`** (`get_monthly_report`, rol `usuario`, `Cache-Control: private, no-store`): `MonthlyReport` extiende `MonthlyClosing` (el mes, con su `by_client`) y añade `comparison`, `scopes`, `expenses_by_category`, `expenses_by_category_total_cents`, `expenses_note`, `trend`, `quarter` y `quarter_year`, como en §5.3. Nombres y tipos en `cuadre.reports.models`; `backend/openapi.json` y `frontend/src/api/schema.d.ts` se regeneraron con sus scripts.
+- **Único cambio en `closing/`, aditivo:** `MonthlyClosingService.months_of(user, year)` devuelve los meses de un año con su desglose por cliente, y `month()` pasa a leer de la misma función interna. Mismo resultado y mismos errores (las 28 pruebas de API de W-012 y las del job siguen en verde). Permite que el reporte haga **como mucho dos cálculos de año** y que sus cifras sean las de `/mensual`.
+- **Año anterior:** se pide solo si `month ≤ 11` (la tendencia o la comparación pueden llegar a él) y `year − 1 ≥ 2000`. El primer mes con actividad es el más antiguo de los meses listados; un mes pedido que no aparece en la lista da `404 closing_not_found`, igual que `/mensual`.
+- **`422 report_too_large`:** más gastos de los que caben (`CLOSING_MAX_DOCUMENTS`) se traduce a un error controlado y sin datos (en W-012 el exceso del cierre no tiene traducción; aquí sí, por §6). La consulta pide una fila más del tope, y una prueba fija esa relación.
+- **Gastos por categoría:** consulta propia en `cuadre.reports.repository` (`expense_date` en `[primer día, primer día del mes siguiente)`, `voided_at IS NULL`, `category::text`) con la identidad de la persona y su RLS; sin migraciones ni cambios en la matriz de RLS.
+- **Límite conocido:** los dos cálculos de año y la lectura de categorías son transacciones distintas (es una lectura); un documento que llegue entre medias se ve en `expenses_note`.
+- **Pruebas** (`backend/tests/reports/`, 26 nuevas de API con la aplicación y la base reales): historia de agosto a noviembre con dos meses cerrados por el job; cifras idénticas a `/api/monthly-closings`; categorías (anulado fuera, IVA no deducible dentro, primer y último día del mes); comparación y primer mes; mes pendiente y en curso; rectificativa con su signo y sin cuotas; tendencia de 12 meses a través del cambio de año; descuadre y su desaparición tras el job; errores y roles; aislamiento entre dos personas; registros sin importes ni nombres; contrato público. Las fechas de la tendencia son pasadas porque la base rechaza facturas con fecha futura.
+- **Mutaciones manuales: 15 sobre el servicio, el repositorio y `months_of`; 2 sobrevivieron** (el límite superior del mes y el tope de filas) y se cubrieron con dos pruebas nuevas; ahora todas se detectan.
+- **Verificado en local:** `pytest backend/tests/reports` 101; `pytest backend/tests -m "not rls"` 4558; `pytest backend/tests/rls -m rls` 1800; `ruff` limpio; `export_openapi.py --check` y `gen:api -- --check` al día; `typecheck`, `lint` y `test:unit` (333) en verde.

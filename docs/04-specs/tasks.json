@@ -554,8 +554,8 @@
     {
       "id": "SPEC-W-013",
       "title": "Reporte mensual visual",
-      "file": null,
-      "status": "propuesta",
+      "file": "SPEC-W-013-reporte-mensual.md",
+      "status": "en-revision",
       "priority": "must",
       "risk": "bajo",
       "stories": [
@@ -564,9 +564,19 @@
       "requirements": [
         "RF-014"
       ],
-      "nfr": [],
-      "constraints": [],
-      "adr": [],
+      "nfr": [
+        "NFR-06"
+      ],
+      "constraints": [
+        "RES-02",
+        "RES-07"
+      ],
+      "adr": [
+        "0003",
+        "0006",
+        "0011",
+        "0015"
+      ],
       "depends_on": [
         "SPEC-W-012"
       ],
@@ -579,9 +589,10 @@
       ],
       "verification": [
         "pytest backend/tests/reports",
+        "pytest backend/tests/rls -m rls",
         "npm --prefix frontend exec -- playwright test e2e/reporte.spec.ts"
       ],
-      "notes": "Ingresos por cliente y ámbito, gastos por categoría, comparación con el mes anterior y lo que conviene apartar."
+      "notes": "Spec escrita (hito 1, 2026-11-16); sin migraciones. Decisiones de la persona: apartar sin importe (solo enlaces al 303 y al 130), gastos por categoria calculados al leer, graficos SVG/CSS de servidor y apartado propio /reporte. Contenido del reporte pendiente de validar con usuarios (Charter 8). Hitos: reglas puras, API, frontend, E2E, cierre."
     },
     {
       "id": "SPEC-W-014",

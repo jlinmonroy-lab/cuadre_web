@@ -29,7 +29,8 @@ mensaje del usuario**, los mismos que el simulado (`cuadre.agents.fake.CHAT_MARK
                               final y tiempo para pulsar «Detener»
 
 Fixtures solo de E2E (no son del contrato; sus frames sí lo cumplen): `hostile` (HTML, Markdown y una palabra de 300 caracteres en el texto, y una
-cita con `http:` en vez de `https:`) y `http_unavailable` (503 ANTES del primer frame; el cliente solo reintenta 429 y 502). Sin marcador o con un
+cita con `http:` en vez de `https:`), `plain` (una respuesta que termina en `stop` sin ninguna cita ni herramienta: la nota de «sin fuente», NFR-08;
+ningún ejemplo del contrato es así) y `http_unavailable` (503 ANTES del primer frame; el cliente solo reintenta 429 y 502). Sin marcador o con un
 nombre desconocido, 400 `invalid_request`. Exige `mcp_url` nulo y ningún `X-User-Token` hasta que SPEC-W-011 dé herramientas al chat. No escribe
 nada del mensaje.
 """
@@ -164,9 +165,19 @@ def _hostile_events() -> list[bytes]:
     return [encode_frame(ChatStreamFrame.model_validate(frame)) for frame in frames]
 
 
+def _plain_events() -> list[bytes]:
+    frames = [
+        {"event": "token", "data": {"delta": "Te lo cuento sin citar ninguna "}},
+        {"event": "token", "data": {"delta": "fuente oficial."}},
+        {"event": "done", "data": {"finish_reason": "stop", "trace_id": "trc_e2e_plain"}},
+    ]
+    return [encode_frame(ChatStreamFrame.model_validate(frame)) for frame in frames]
+
+
 # Respuestas de E2E: nombre → eventos SSE ya codificados, o `(estado, cuerpo)` si el agente falla antes del primer frame.
 E2E_CHAT_FIXTURES: dict[str, list[bytes] | tuple[int, bytes]] = {
     "hostile": _hostile_events(),
+    "plain": _plain_events(),
     "http_unavailable": (503, error_body("upstream_error", "El servicio de agentes no está disponible.")),
 }
 

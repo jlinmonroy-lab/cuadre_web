@@ -360,6 +360,15 @@ def test_the_hostile_fixture_is_a_valid_stream_with_the_content_the_screen_must_
     assert str(citation.url).startswith("http://")  # `http:`: no se convierte en enlace
 
 
+def test_the_plain_fixture_is_a_valid_stream_that_ends_in_stop_without_source() -> None:
+    events = chat_reply("plain")
+    assert isinstance(events, list)
+    frames = frames_of(b"".join(events))
+    assert event_names(frames) == ["token", "token", "done"]  # ni citas ni herramientas ni abstención
+    assert frames[-1].root.data.finish_reason == "stop"
+    assert [encode_frame(frame) for frame in frames] == events
+
+
 def test_the_unavailable_fixture_fails_before_the_first_frame() -> None:
     status, body = chat_reply("http_unavailable") or (0, b"")
     assert status == 503 and json.loads(body)["code"] == "upstream_error"
@@ -418,7 +427,9 @@ def test_the_pace_waits_before_every_frame_including_the_first(double: AgentsSer
             if line.startswith("event:"):
                 arrivals.append(time.monotonic() - started)
     assert len(arrivals) == 5
-    assert arrivals[0] >= 0.15  # también antes del primero: así se ve «Preparando…»
+    assert (
+        arrivals[0] >= 0.1
+    )  # también antes del primero (pausa de 150 ms; el reloj de Windows se adelanta unos ms): así se ve «Preparando…»
     assert arrivals[-1] - arrivals[0] >= 0.5  # y entre unos y otros: el primero llega mucho antes que el último
     assert all(later - earlier >= 0.1 for earlier, later in zip(arrivals, arrivals[1:], strict=False))
 

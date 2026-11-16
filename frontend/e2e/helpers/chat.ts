@@ -12,6 +12,7 @@ import { shown } from "./gastos";
 
 export const NOTICE = "Cuadre orienta, no asesora. Para decidir sobre tu caso, consulta a tu gestor o a un asesor.";
 export const EMPTY_THREAD = "Aún no has preguntado nada. Escribe tu duda abajo y te respondo con fuentes oficiales.";
+export const NO_SOURCE_NOTE = "Esta respuesta no cita ninguna fuente oficial: tómala solo como orientación.";
 export const INTERRUPTED_NOTE = "Respuesta interrumpida: esto es lo que llegó antes de cortarse.";
 export const UNAVAILABLE = "El servicio no está disponible ahora mismo. Inténtalo de nuevo en unos segundos.";
 export const GENERIC_ERROR = "El asistente no ha podido terminar la respuesta.";

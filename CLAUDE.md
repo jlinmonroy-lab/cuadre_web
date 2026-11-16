@@ -55,7 +55,7 @@ mensual, reporte, recordatorios e interfaz del chatbot. Todo lo que usa modelos 
 ## Estructura
 
 ```
-backend/src/cuadre/   api/ core/ db/ tax/ invoicing/ expenses/ agents/ documents/ validators/ mcp/ jobs/ notifications/ cli.py
+backend/src/cuadre/   api/ core/ db/ tax/ invoicing/ expenses/ agents/ chat/ documents/ validators/ mcp/ jobs/ notifications/ cli.py
 backend/tests/        rls/ api/ rules/ tax/ validators/ agents/ mcp/ jobs/
 frontend/             src/app, src/components/ui, src/lib/supabase, src/api (cliente generado), e2e/
 supabase/             config.toml, migrations/, seed.sql (solo datos sintéticos)

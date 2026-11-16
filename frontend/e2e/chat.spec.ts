@@ -4,9 +4,9 @@
 //
 // AC-01 a AC-07, AC-14, AC-20 y AC-22. AC-12 (roles) está en `roles.spec.ts` y el aspecto a 390 y 1.440 px en `responsive.spec.ts`.
 //
-// Presupuesto de envíos: la cuenta es la del worker y el tope es de 20 por hora y persona. Esta suite gasta 15 por cuenta en el peor caso
+// Presupuesto de envíos: la cuenta es la del worker y el tope es de 20 por hora y persona. Esta suite gasta 17 por cuenta en el peor caso
 // (si un solo worker las corre todas); no añadas pruebas que envíen sin sumar aquí. `T1` 2, `T2` 1, `T3` 2, `T4` 1, `T5` 2, `T6` 2, `T7` 1,
-// `T9` 1, `T10` 1, `T11a` 2.
+// `T9` 1, `T10` 1, `T11a` 2, «sin fuente» 1 y «Consultando» 1.
 import type { Page } from "@playwright/test";
 
 import {
@@ -19,6 +19,7 @@ import {
   INTERRUPTED_NOTE,
   LENGTH_FIRST,
   MISSING,
+  NO_SOURCE_NOTE,
   NOTICE,
   UNAVAILABLE,
   alerts,
@@ -138,6 +139,38 @@ test("asistente · una abstención deriva a un asesor y repite el aviso dentro d
   await expect(reply.getByRole("heading", { name: "Fuentes", exact: true })).toHaveCount(0);
   await expect(reply.getByRole("alert")).toHaveCount(0);
   await expect(useful(reply)).toBeVisible();
+});
+
+test("asistente · una respuesta que no cita ninguna fuente lleva la nota de «sin fuente oficial» (NFR-08)", async ({ gastosPage: page }) => {
+  const tag = newTag();
+  await openAssistant(page);
+  await send(page, question(tag, { fixture: "plain" }));
+  await finished(page);
+  await conversationId(page);
+
+  const reply = replies(page).last();
+  await expect(reply).toContainText("Te lo cuento sin citar ninguna fuente oficial.");
+  await expect(reply.getByText(NO_SOURCE_NOTE, { exact: true })).toBeVisible();
+  await expect(reply.getByRole("heading", { name: "Fuentes", exact: true })).toHaveCount(0);
+  await expect(useful(reply)).toBeVisible();
+
+  await reload(page); // `has_source = false` se guardó: la nota sigue al reabrir
+  await expect(replies(page).last().getByText(NO_SOURCE_NOTE, { exact: true })).toBeVisible();
+});
+
+test("asistente · mientras se consulta una herramienta se dice «Consultando tus datos…» y se apaga al terminar", async ({ gastosPage: page }) => {
+  const tag = newTag();
+  await openAssistant(page);
+  await send(page, question(tag, { fixture: "answer_with_tool", pace: 1200 }));
+
+  const consulting = page.getByText("Consultando tus datos…", { exact: true });
+  await expect(consulting).toBeVisible(); // `tool_call` empezada
+  await expect(consulting).toBeHidden(); // y terminada: se apaga antes del texto
+  await finished(page);
+  const reply = replies(page).last();
+  await expect(reply).toContainText("Este año has facturado");
+  await expect(consulting).toHaveCount(0);
+  await expect(reply.getByText(NO_SOURCE_NOTE, { exact: true })).toHaveCount(0); // una herramienta terminada cuenta como fuente
 });
 
 test("asistente · «Detener» corta la respuesta: queda lo recibido como interrumpido y no se valora hasta recargar", async ({ gastosPage: page }) => {

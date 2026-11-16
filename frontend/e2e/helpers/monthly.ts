@@ -41,6 +41,29 @@ export type MonthlyClosings = {
   totals: { invoice_count: number; national_cents: number; eu_cents: number; non_eu_cents: number; total_cents: number; expenses_cents: number };
 };
 export type MonthlyClosing = MonthRow & { year: number; by_client: ClientTotals[] };
+export type Scope = "national" | "eu" | "non_eu";
+export type MonthlyReport = MonthlyClosing & {
+  comparison: {
+    previous_year: number;
+    previous_month: number;
+    previous_status: MonthRow["status"];
+    total_cents: number;
+    expenses_cents: number;
+    result_cents: number;
+    total_delta_cents: number;
+    expenses_delta_cents: number;
+    result_delta_cents: number;
+    total_variation_bp: number | null;
+    expenses_variation_bp: number | null;
+  } | null;
+  scopes: { scope: Scope; base_cents: number; share_bp: number | null }[];
+  expenses_by_category: { category: string; label: string; expenses_cents: number; expense_count: number }[];
+  expenses_by_category_total_cents: number;
+  expenses_note: string | null;
+  trend: { year: number; month: number; status: MonthRow["status"]; total_cents: number; expenses_cents: number; result_cents: number }[];
+  quarter: number;
+  quarter_year: number;
+};
 
 /** El intérprete de Python que usa el servidor de E2E: `E2E_PYTHON`, si no el del `.venv` del repositorio y, si no, el `python` del PATH. */
 function python(): string {
@@ -101,6 +124,11 @@ export class MonthlyApi {
 
   async month(year: number, month: number): Promise<MonthlyClosing> {
     return this.get<MonthlyClosing>(`/api/monthly-closings/${year}/${month}`);
+  }
+
+  /** El reporte de un mes (SPEC-W-013): el oráculo de `reporte.spec.ts`. */
+  async report(year: number, month: number): Promise<MonthlyReport> {
+    return this.get<MonthlyReport>(`/api/monthly-report/${year}/${month}`);
   }
 
   /** Cierra (o recalcula) un mes de esta cuenta con la CLI del job. Imprime solo contadores. */

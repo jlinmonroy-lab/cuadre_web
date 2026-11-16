@@ -1,7 +1,10 @@
+import Link from "next/link";
+
 import { MonthStatusBadge } from "@/components/monthly/month-status";
 import { ScopeBadge } from "@/components/scope-badge";
 import { formatCents } from "@/lib/money";
 import { closingNote, monthTitle, type MonthlyClosing } from "@/lib/monthly";
+import { reportHref } from "@/lib/report";
 
 const NUM = "tabular-nums text-right whitespace-nowrap";
 
@@ -18,6 +21,9 @@ export function MonthDetail({ detail }: { detail: MonthlyClosing }) {
           {title}
         </h2>
         <MonthStatusBadge status={detail.status} />
+        <Link href={reportHref(detail.year, detail.month)} className="text-[15px] font-semibold text-action underline underline-offset-2 hover:text-action-hover">
+          Ver el reporte de {monthTitle(detail.month).toLowerCase()}
+        </Link>
       </div>
       <div className="grid gap-4 min-[900px]:grid-cols-2">
         <section aria-labelledby="mes-clientes" className="grid content-start gap-3 rounded-panel border border-rule bg-sheet p-4 sm:p-5">

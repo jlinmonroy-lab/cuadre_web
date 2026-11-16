@@ -20,9 +20,7 @@ export default async function InicioPage() {
       <Portada
         me={me}
         intro="Esta es tu portada de autónomo. Aquí irá el resumen de tu actividad."
-        upcoming={[
-          { label: "Reporte mensual", description: "gráficos de ingresos por cliente, gastos por categoría y lo que conviene apartar." },
-        ]}
+        upcoming={[]}
       />
     </>
   );

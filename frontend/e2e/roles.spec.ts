@@ -13,8 +13,9 @@ for (const role of ROLE_KEYS) {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Hola, ${person.name}`);
     await expect(page.getByRole("main").getByText(person.roleLabel, { exact: true })).toBeVisible();
     await expectNavigation(page, person);
-    // Cada portada enseña lo suyo: el gestor ya tiene su cartera (SPEC-W-010); las otras siguen con «Próximamente».
-    await expect(page.getByRole("heading", { level: 2, name: role === "gina" ? "Tu cartera" : "Próximamente" })).toBeVisible();
+    // Cada portada enseña lo suyo: el gestor ya tiene su cartera (SPEC-W-010); el autónomo ya no tiene nada «Próximamente» (SPEC-W-013) y el administrador sí.
+    if (role === "alicia") await expect(page.getByRole("heading", { level: 2, name: "Próximamente" })).toHaveCount(0);
+    else await expect(page.getByRole("heading", { level: 2, name: role === "gina" ? "Tu cartera" : "Próximamente" })).toBeVisible();
   });
 
   test(`portada por rol · «/» lleva a la portada de ${role}`, async ({ pageAs }) => {
@@ -162,7 +163,8 @@ test("Contabilidad mensual · el autónomo la ve activa en el menú, entre Gasto
   const labels = await nav.getByRole("listitem").allInnerTexts();
   const gastos = labels.findIndex((label) => label.startsWith("Gastos"));
   expect(labels[gastos + 1]).toContain("Contabilidad mensual");
-  expect(labels[gastos + 2]).toBe("Trimestres");
+  expect(labels[gastos + 2]).toContain("Reporte mensual");
+  expect(labels[gastos + 3]).toBe("Trimestres");
   await expect(nav.getByText("Próximamente")).toHaveCount(0); // ya no queda ningún apartado desactivado
   await nav.getByRole("link", { name: "Contabilidad mensual" }).click();
   await expect(page).toHaveURL("/mensual");

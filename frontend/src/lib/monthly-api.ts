@@ -11,7 +11,7 @@ export type MonthlyReading<M> = { status: "ok"; data: M } | { status: "problem";
 
 type Outcome<M> = { data?: M; error?: unknown; response: Response };
 
-function reading<M>(result: Outcome<M>): MonthlyReading<M> {
+export function reading<M>(result: Outcome<M>): MonthlyReading<M> {
   if (result.data) return { status: "ok", data: result.data };
   if (result.response.status === 404 || result.response.status === 422) {
     const problem = problemOf(result.response, result.error);

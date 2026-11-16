@@ -3,7 +3,7 @@ import type { Me } from "@/lib/session";
 
 export type Upcoming = { label: string; description: string };
 
-/** Portada mínima de un rol (SPEC-W-001 §3.4): nombre, rol y las secciones que llegarán, desactivadas. */
+/** Portada mínima de un rol (SPEC-W-001 §3.4): nombre, rol y las secciones que llegarán, desactivadas (sin ninguna, no hay sección). */
 export function Portada({ me, intro, upcoming }: { me: Me; intro: string; upcoming: Upcoming[] }) {
   const firstName = me.display_name.trim().split(/\s+/)[0] ?? "";
   return (
@@ -17,19 +17,21 @@ export function Portada({ me, intro, upcoming }: { me: Me; intro: string; upcomi
           {roleLabel(me.role)}
         </span>
       </header>
-      <section aria-labelledby="proximamente" className="rounded-panel border border-rule bg-sheet p-6">
-        <h2 id="proximamente" className="mb-3">
-          Próximamente
-        </h2>
-        <ul className="grid gap-3">
-          {upcoming.map((item) => (
-            <li key={item.label}>
-              <strong className="font-semibold">{item.label}</strong>
-              <span className="text-ink-soft"> · {item.description}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {upcoming.length === 0 ? null : (
+        <section aria-labelledby="proximamente" className="rounded-panel border border-rule bg-sheet p-6">
+          <h2 id="proximamente" className="mb-3">
+            Próximamente
+          </h2>
+          <ul className="grid gap-3">
+            {upcoming.map((item) => (
+              <li key={item.label}>
+                <strong className="font-semibold">{item.label}</strong>
+                <span className="text-ink-soft"> · {item.description}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </>
   );
 }

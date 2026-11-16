@@ -209,12 +209,12 @@ test("una rectificativa resta en su casilla (AC-04): −200,00 € de base y −
 
   await openTrimestres(page);
   const base = await openBox(page, "07");
-  await expect(base.getByRole("listitem").filter({ hasText: original.display_number })).toContainText(money(120_000));
-  await expect(base.getByRole("listitem").filter({ hasText: rectification.display_number })).toContainText(money(-20_000));
-  await expect(base.getByRole("listitem").filter({ hasText: rectification.display_number })).toContainText(TODAY.split("-").reverse().join("/")); // su fecha
+  await expect(base.getByRole("listitem").filter({ has: page.getByRole("link", { name: original.display_number, exact: true }) })).toContainText(money(120_000));
+  await expect(base.getByRole("listitem").filter({ has: page.getByRole("link", { name: rectification.display_number, exact: true }) })).toContainText(money(-20_000));
+  await expect(base.getByRole("listitem").filter({ has: page.getByRole("link", { name: rectification.display_number, exact: true }) })).toContainText(TODAY.split("-").reverse().join("/")); // su fecha
   const vat = await openBox(page, "09");
-  await expect(vat.getByRole("listitem").filter({ hasText: original.display_number })).toContainText(money(25_200));
-  await expect(vat.getByRole("listitem").filter({ hasText: rectification.display_number })).toContainText(money(-4_200));
+  await expect(vat.getByRole("listitem").filter({ has: page.getByRole("link", { name: original.display_number, exact: true }) })).toContainText(money(25_200));
+  await expect(vat.getByRole("listitem").filter({ has: page.getByRole("link", { name: rectification.display_number, exact: true }) })).toContainText(money(-4_200));
   await expect(amountOf(page, "07")).toHaveText(money(amountsOf(after)["07"] ?? 0));
 });
 

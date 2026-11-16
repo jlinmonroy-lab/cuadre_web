@@ -21,6 +21,15 @@ import { signUpAndConfirm, uniqueEmail } from "./session";
  */
 const CANCELLED_PREFETCH = /^pageerror: .*[?&]_rsc=[\w-]+ due to access control checks\.$/;
 
+/** ` (en /ruta)` de la URL de un mensaje de consola, sin query ni dominio; vacío si no hay URL. */
+function locationOf(url: string): string {
+  try {
+    return url ? ` (en ${new URL(url).pathname})` : "";
+  } catch {
+    return "";
+  }
+}
+
 /**
  * Vigila al navegador: devuelve una función que da los errores vistos hasta ahora, un `console.error` o una excepción de página (p. ej. un
  * error de hidratación) salvo la precarga RSC cancelada de arriba. Las pruebas fallan si no está vacía.
@@ -28,7 +37,8 @@ const CANCELLED_PREFETCH = /^pageerror: .*[?&]_rsc=[\w-]+ due to access control 
 export function watchBrowserErrors(page: Page): () => string[] {
   const problems: string[] = [];
   page.on("console", (message) => {
-    if (message.type() === "error") problems.push(`console.error: ${message.text()}`);
+    // Un «Failed to load resource» no dice qué recurso era: se añade la ruta (sin query ni dominio) para poder diagnosticarlo en el CI.
+    if (message.type() === "error") problems.push(`console.error: ${message.text()}${locationOf(message.location().url)}`);
   });
   page.on("pageerror", (error) => problems.push(`pageerror: ${error.message}`));
   const webkit = page.context().browser()?.browserType().name() === "webkit";

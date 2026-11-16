@@ -176,7 +176,9 @@ test("facturas y una rectificativa (AC-01, AC-02, AC-09): suben la 01 y la 06 en
   for (const invoice of [national, euBusiness, mxBusiness, original, rectification]) {
     await expect(income.getByRole("link", { name: invoice.display_number, exact: true }), `${invoice.display_number} en la 01`).toHaveCount(1);
   }
-  const row = (details: Locator, invoice: { display_number: string }) => details.getByRole("listitem").filter({ hasText: invoice.display_number });
+  // La fila se identifica por su enlace exacto: «2026-001» es subcadena de «R-2026-001» y, en una cuenta nueva, las dos series coinciden.
+  const row = (details: Locator, invoice: { display_number: string }) =>
+    details.getByRole("listitem").filter({ has: details.page().getByRole("link", { name: invoice.display_number, exact: true }) });
   await expect(row(income, original)).toContainText(money(120_000));
   await expect(row(income, rectification)).toContainText(money(-20_000));
   await expect(row(income, rectification)).toContainText(TODAY.split("-").reverse().join("/")); // su fecha

@@ -262,3 +262,49 @@ tables:
     select:
       default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
       active: { gina: [alicia] }
+
+  chat_conversations:
+    kind: financial
+    owner_column: owner_id
+    grants:
+      table: [SELECT]       # toda escritura pasa por app.append_chat_user_message / delete_chat_conversation (SPEC-W-004 §5.2)
+    seed: >-
+      insert into public.chat_conversations (owner_id, title) values (%(owner)s, 'Dudas sobre la factura')
+    probe_insert: "insert into public.chat_conversations (owner_id, title) values (%(owner)s, 'probe')"
+    probe_update: { column: title, value: hacked }
+    select:
+      # Solo el dueño ve las suyas; el gestor, nunca (ni con vínculo activo), y el administrador, ninguna (D-15).
+      default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
+
+  chat_messages:
+    kind: financial
+    owner_column: owner_id
+    grants:
+      table: [SELECT]       # inmutable: solo las funciones la escriben, una vez por mensaje (SPEC-W-004 §5.2, D-07)
+    seed: >-
+      with c as (insert into public.chat_conversations (owner_id, title) values (%(owner)s, 'Dudas sobre la factura') returning id)
+      insert into public.chat_messages (conversation_id, owner_id, role, content)
+      select c.id, %(owner)s, 'user', 'Hola, tengo una duda' from c
+    probe_insert: >-
+      insert into public.chat_messages (conversation_id, owner_id, role, content)
+      select id, owner_id, 'user', 'probe' from public.chat_conversations where owner_id = %(owner)s
+    probe_update: { column: content, value: hacked }
+    select:
+      default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }
+
+  chat_feedback:
+    kind: financial
+    owner_column: owner_id
+    grants:
+      table: [SELECT]       # solo app.rate_chat_message la escribe (SPEC-W-004 §5.2, D-04)
+    seed: >-
+      with c as (insert into public.chat_conversations (owner_id, title) values (%(owner)s, 'Dudas sobre la factura') returning id),
+           m as (insert into public.chat_messages (conversation_id, owner_id, role, content, status, finish_reason)
+                 select c.id, %(owner)s, 'assistant', 'Respuesta de prueba', 'complete', 'stop' from c returning id)
+      insert into public.chat_feedback (message_id, owner_id, rating) select m.id, %(owner)s, 'up' from m
+    probe_insert: >-
+      insert into public.chat_feedback (message_id, owner_id, rating)
+      select id, owner_id, 'up' from public.chat_messages where owner_id = %(owner)s
+    probe_update: { column: rating, value: down }
+    select:
+      default: { alicia: [alicia], beto: [beto], gina: [], gus: [], adan: [] }

@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-012
 titulo: Cierre mensual automático e idempotente y pantalla «Contabilidad mensual»
-estado: en-revision
+estado: hecha
 prioridad: must
 riesgo: bajo
 historias: [US-008]
@@ -229,7 +229,7 @@ La secuencia termina con código 0 en local y en CI; `tasks.json` actualizado; A
 3. Reglas puras: `build_month` y `closing_window`. **Hecho** (B.2).
 4. Job, ruta interna y CLI. **Hecho** (B.3).
 5. API, cliente generado y pantalla `/mensual`. **Hecho** (B.4).
-6. Pruebas restantes, mutaciones y cierre. **Hecho en local** (B.5); `hecha` cuando la persona confirme el CI de GitHub sobre el head empujado.
+6. Pruebas restantes, mutaciones y cierre. **Hecho** (B.5). CI de GitHub en verde sobre `2a1e7e6`, confirmado por la persona el 2026-11-16 (el de `593522a` estuvo rojo por un localizador del E2E y se corrigió en `d9f46ff`).
 
 ## Anexo B · Decisiones que esta spec deja a la implementación
 
@@ -283,5 +283,5 @@ La secuencia termina con código 0 en local y en CI; `tasks.json` actualizado; A
 - **Barrido de datos:** sin claves, IBAN ni NIF reales en lo nuevo; el E2E y el frontend no mencionan credenciales de servicio; los registros del job solo llevan ids, periodos y contadores; `.env.example` sin cambios.
 - **Pendiente para el piloto (no es de esta spec):** `vercel.json` con los crons de `reminders` y de `monthly_closing` (`0 3 * * *` en UTC el segundo), `CRON_SECRET` en el entorno y DEP-05 (proveedor de correo real).
 - **CI de `593522a` en rojo (2026-11-16).** Un fallo duro en el E2E de `chromium-390`: `modelo-130.spec.ts` buscaba la fila de una factura por texto parcial y `2026-001` casa con `R-2026-001`; en una cuenta nueva las series de facturas y de rectificativas coinciden. No era un fallo de la aplicación. Reproducido en local tras `supabase db reset`, corregido con un localizador por enlace exacto (también en `trimestres.spec.ts`) en `d9f46ff`, y pasa con cuenta nueva y con historial. Tres pruebas flaky pasaron al reintento: `factura.spec.ts` (rectificar, carrera del envío; anterior a esta spec) y dos de `auth.spec.ts` con `console.error: Failed to load resource: 404` sin ruta, **no reproducido en local** en 32 repeticiones; `watchBrowserErrors` ahora añade la ruta del recurso para identificarlo si vuelve a salir. No se ha demostrado que sea de W-012 ni que no lo sea.
-- **Estado:** `en-revision` hasta que la persona confirme el CI de GitHub sobre el head empujado tras `d9f46ff`; entonces `hecha`.
+- **Estado:** `hecha`. CI de GitHub en verde sobre `2a1e7e6` (confirmado por la persona el 2026-11-16). Quedan por vigilar en próximos CI los dos flaky sin explicar de arriba (`Failed to load resource: 404` en `auth.spec.ts` y la carrera de `factura.spec.ts` al rectificar).
 

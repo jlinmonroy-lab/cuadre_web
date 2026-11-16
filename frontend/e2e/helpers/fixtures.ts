@@ -36,9 +36,25 @@ function locationOf(url: string): string {
  */
 export function watchBrowserErrors(page: Page): () => string[] {
   const problems: string[] = [];
-  page.on("console", (message) => {
+  page.on("console", async (message) => {
+    if (message.type() !== "error") return;
+    // Firefox y WebKit escriben «JSHandle@object» cuando se registra un objeto (p. ej. un `Error`): se lee su texto para poder diagnosticarlo en el CI.
+    let text = message.text();
+    if (text.includes("JSHandle@")) {
+      const described = await Promise.all(
+        message.args().map((handle) =>
+          handle
+            .evaluate((value: unknown) => {
+              const error = value as { name?: unknown; message?: unknown; stack?: unknown } | null;
+              return error && typeof error === "object" && "message" in error ? `${String(error.name)}: ${String(error.message)}` : String(value);
+            })
+            .catch(() => "?"),
+        ),
+      );
+      text = described.join(" ");
+    }
     // Un «Failed to load resource» no dice qué recurso era: se añade la ruta (sin query ni dominio) para poder diagnosticarlo en el CI.
-    if (message.type() === "error") problems.push(`console.error: ${message.text()}${locationOf(message.location().url)}`);
+    problems.push(`console.error: ${text}${locationOf(message.location().url)}`);
   });
   page.on("pageerror", (error) => problems.push(`pageerror: ${error.message}`));
   const webkit = page.context().browser()?.browserType().name() === "webkit";
@@ -84,6 +100,12 @@ export type Biller = { clients: BillerClients; invoices: InvoicesApi; profile: P
 type Fixtures = {
   /** Página ya autenticada como `role` con la sesión que guardó `auth.setup.ts` (mismo viewport y motor que el proyecto). */
   pageAs: (role: RoleKey) => Promise<Page>;
+  /**
+   * Errores de navegador que ESTA prueba provoca a propósito (p. ej. un 503 que el agente de E2E devuelve para probar «Reintentar»: Chromium lo
+   * apunta como `console.error`). `gastosPage` los descarta al final; cualquier otro sigue haciendo fallar la prueba. Cada patrón se compara con
+   * el texto completo que registra `watchBrowserErrors` y debe ser lo bastante concreto para no esconder otra cosa.
+   */
+  expectedBrowserErrors: RegExp[];
   /** Página con la sesión de `gastosUser` (misma cuenta durante todo el worker; mismo viewport y motor que el proyecto). */
   gastosPage: Page;
   /**
@@ -141,14 +163,18 @@ export const test = base.extend<Fixtures, WorkerFixtures>({
     { scope: "worker", timeout: 90_000 },
   ],
 
-  gastosPage: async ({ browser, gastosUser }, use, testInfo) => {
+  expectedBrowserErrors: async ({}, use) => {
+    await use([]);
+  },
+
+  gastosPage: async ({ browser, gastosUser, expectedBrowserErrors }, use, testInfo) => {
     const { baseURL, viewport, locale, timezoneId } = testInfo.project.use;
     const context = await browser.newContext({ baseURL, viewport, locale, timezoneId, storageState: gastosUser.storageState });
     const page = await context.newPage();
     const errors = watchBrowserErrors(page);
     await use(page);
     await settle(page);
-    const found = errors(); // lo que provoque el cierre no cuenta
+    const found = errors().filter((problem) => !expectedBrowserErrors.some((expected) => expected.test(problem))); // lo que provoque el cierre no cuenta
     await closeQuietly(context);
     expect(found, "el navegador registró errores").toEqual([]);
   },

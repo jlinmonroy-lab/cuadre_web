@@ -26,6 +26,13 @@ import {
 
 type Failure = { code: string; message: string };
 
+/**
+ * Tras la primera respuesta de una conversación nueva la dirección pasa a `?c=<id>` y la pantalla se vuelve a montar (cambia la `key` de la página): el
+ * foco que se le dio al campo se pierde con la instancia vieja. Esta marca se lo pasa a la nueva. Es de módulo a propósito: no sobrevive a una carga
+ * completa de la página, que es lo que se quiere.
+ */
+let focusFieldOnMount = false;
+
 /** Lo que devuelve el Route Handler cuando falla ANTES del primer frame (`{code, message, conversation_id?}`); cualquier otra cosa es «no es de fiar». */
 async function problemOf(response: Response): Promise<{ failure: Failure; conversationId: string | null }> {
   try {
@@ -62,6 +69,22 @@ export function Assistant({ conversationId, initialMessages }: { conversationId:
   const mounted = useRef(true);
   const field = useRef<HTMLTextAreaElement>(null);
   const end = useRef<HTMLDivElement>(null);
+  const refocus = useRef(false);
+
+  // El campo está desactivado mientras llega la respuesta, y un elemento desactivado no admite el foco: se le da cuando ya vuelve a estar activo.
+  useEffect(() => {
+    if (!busy && refocus.current) {
+      refocus.current = false;
+      field.current?.focus();
+    }
+  }, [busy]);
+
+  useEffect(() => {
+    if (focusFieldOnMount) {
+      focusFieldOnMount = false;
+      field.current?.focus();
+    }
+  }, []);
 
   useEffect(() => {
     mounted.current = true;
@@ -157,10 +180,12 @@ export function Assistant({ conversationId, initialMessages }: { conversationId:
         }
         setLive(null);
         setBusy(false);
-        field.current?.focus();
+        refocus.current = true;
         if (streamed) {
-          if (conversationId === null && target !== null) router.replace(`/asistente?c=${target}`);
-          else router.refresh();
+          if (conversationId === null && target !== null) {
+            focusFieldOnMount = true;
+            router.replace(`/asistente?c=${target}`);
+          } else router.refresh();
         }
       }
     }

@@ -11,6 +11,8 @@ export const WEB_PORT = port("E2E_WEB_PORT", 3000);
 /** Puerto del servidor de agentes de E2E: 8765, o `E2E_AGENTS_PORT` si otro proceso lo ocupa. */
 export const AGENTS_PORT = port("E2E_AGENTS_PORT", 8765);
 export const WEB_URL = `http://localhost:${WEB_PORT}`; // siempre localhost: las cookies de sesión van por host
+/** Clave inventada que comparten la API y el servidor de agentes de E2E: no protege nada, es un dato de prueba (`chat.spec.ts` comprueba que no llega al navegador). */
+export const AGENTS_KEY = "e2e-agents-key-solo-para-pruebas";
 export const API_URL = process.env.E2E_API_URL ?? "http://127.0.0.1:8000";
 export const MAILPIT_URL = process.env.E2E_MAILPIT_URL ?? "http://127.0.0.1:54324";
 

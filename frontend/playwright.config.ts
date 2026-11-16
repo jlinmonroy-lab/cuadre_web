@@ -12,12 +12,10 @@ import path from "node:path";
 
 import { defineConfig, devices } from "@playwright/test";
 
-import { AGENTS_PORT, API_URL as API, WEB_PORT, WEB_URL as WEB } from "./e2e/helpers/env";
+import { AGENTS_KEY, AGENTS_PORT, API_URL as API, WEB_PORT, WEB_URL as WEB } from "./e2e/helpers/env";
 
 const repoRoot = path.resolve(__dirname, "..");
 const AGENTS_URL = `http://127.0.0.1:${AGENTS_PORT}`;
-/** Clave inventada que comparten la API y el servidor de agentes de E2E: no protege nada, es un dato de prueba. */
-const AGENTS_KEY = "e2e-agents-key-solo-para-pruebas";
 
 /** Intérprete de Python: `E2E_PYTHON`, si no el del `.venv` del repositorio y, si no, el `python` del PATH (CI con el entorno activado). */
 function pythonCommand(): string {

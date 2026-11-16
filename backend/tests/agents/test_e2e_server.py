@@ -4,6 +4,7 @@ Servidor de verdad en un puerto efímero, un `ScriptedServer` haciendo de Storag
 como cliente: lo mismo que recorrerá la API en el E2E.
 """
 
+import json
 import time
 from collections.abc import Iterator
 from threading import Thread
@@ -15,11 +16,33 @@ import pytest
 from cuadre.agents.errors import AgentsError, FailureCode
 from cuadre.agents.fake import FakeAgentsClient
 from cuadre.agents.http import HttpAgentsClient
-from cuadre_contracts import ExtractRequest
+from cuadre.agents.sse import frames_of
+from cuadre_contracts import ChatRequest, ExtractRequest
 from cuadre_contracts.extract import MimeType
-from tests.agents.e2e_server import MAX_DELAY_MS, AgentsServer, Marker, fixture_reply, parse_marker
+from tests.agents.e2e_server import (
+    E2E_CHAT_FIXTURES,
+    HOSTILE_WORD,
+    MAX_DELAY_MS,
+    MAX_PACE_MS,
+    AgentsServer,
+    ChatMarker,
+    Marker,
+    chat_reply,
+    encode_frame,
+    fixture_reply,
+    parse_chat_marker,
+    parse_marker,
+)
 from tests.agents.server import Reply, ScriptedServer, closed_port_url
-from tests.agents.support import API_KEY, RESPONSE_NAMES, example_path
+from tests.agents.support import (
+    API_KEY,
+    CHAT_NAMES,
+    RESPONSE_NAMES,
+    chat_request,
+    drain_frames,
+    event_names,
+    example_path,
+)
 
 
 @pytest.fixture
@@ -259,3 +282,204 @@ def test_it_writes_nothing_about_the_document_or_its_url(
     read(double, request_for(server, path="/object/sign/documents/u/d.pdf?token=SECRETO-DE-PRUEBA"))
     out, err = capfd.readouterr()
     assert "SECRETO-DE-PRUEBA" not in out + err and "fixture:" not in out + err and "Nubesoft" not in out + err
+
+
+# --- Chat (SPEC-W-004 hito 6) ---------------------------------------------------------------------------------------------
+
+CHAT_HEADERS = {
+    "Authorization": f"Bearer {API_KEY}",
+    "X-Cuadre-Contract-Version": "1",
+    "X-Request-Id": "req-e2e",
+    "Content-Type": "application/json",
+}
+
+
+def say(text: str, *, conversation: str | None = None, tools: bool = False) -> ChatRequest:
+    base = chat_request("chat" if tools else "chat_no_tools").model_dump(mode="json")
+    base["messages"] = [{"role": "user", "content": text}]
+    if conversation is not None:
+        base["conversation_id"] = conversation
+    return ChatRequest.model_validate(base)
+
+
+def ask(double: AgentsServer, text: str, *, conversation: str | None = None):
+    return drain_frames(
+        HttpAgentsClient(double.url, API_KEY).stream_chat(say(text, conversation=conversation), request_id="req-e2e")
+    )
+
+
+def post_chat(double: AgentsServer, body: bytes | None = None, **headers: str) -> httpx.Response:
+    payload = say("[fixture:answer_with_citation]").model_dump_json().encode() if body is None else body
+    return httpx.post(f"{double.url}/v1/chat", content=payload, headers={**CHAT_HEADERS, **headers}, timeout=10)
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("hola [fixture:answer_with_citation]", ChatMarker("answer_with_citation", None, 0)),
+        ("[fixture:a][then:b]", ChatMarker("a", "b", 0)),
+        ("[fixture:a][then:b][pace=300]", ChatMarker("a", "b", 300)),
+        ("[pace=250][fixture:a]", ChatMarker("a", None, 250)),  # el orden da igual
+        ("[fixture:a][pace=99999]", ChatMarker("a", None, MAX_PACE_MS)),  # tope: 5 s por frame
+        ("[fixture:a][fixture:b]", ChatMarker("a", None, 0)),  # manda el primero
+        ("[fixture:a][pace=1][pace=2]", ChatMarker("a", None, 1)),
+    ],
+)
+def test_the_chat_marker_is_read_from_the_message(text: str, expected: ChatMarker) -> None:
+    assert parse_chat_marker(text) == expected
+
+
+@pytest.mark.parametrize(
+    "text", ["sin marcador", "[pace=300]", "[then:b]", "[fixture:A]", "[fixture:]", "[fixture:a;pace=1"]
+)
+def test_a_message_without_a_valid_fixture_marker_has_none(text: str) -> None:
+    assert parse_chat_marker(text) is None
+
+
+def test_the_e2e_fixtures_do_not_hide_a_contract_example_and_unknown_names_do_not_exist() -> None:
+    assert not set(E2E_CHAT_FIXTURES) & set(CHAT_NAMES)
+    assert chat_reply("no_existe") is None
+    assert chat_reply("../chat.request") is None and chat_reply("chat.request") is None
+
+
+def test_the_hostile_fixture_is_a_valid_stream_with_the_content_the_screen_must_not_trust() -> None:
+    events = chat_reply("hostile")
+    assert isinstance(events, list)
+    frames = frames_of(b"".join(events))  # el mismo lector que la API: solo pasa si cumple el contrato
+    assert event_names(frames) == ["token", "token", "citation", "done"]
+    assert [encode_frame(frame) for frame in frames] == events  # lo que se escribe es lo que se leería
+    text = "".join(f.root.data.delta for f in frames if f.root.event == "token")
+    assert (
+        "<img" in text
+        and "<script>" in text
+        and "**negrita**" in text
+        and "javascript:" in text
+        and HOSTILE_WORD in text
+    )
+    citation = next(f.root.data for f in frames if f.root.event == "citation")
+    assert str(citation.url).startswith("http://")  # `http:`: no se convierte en enlace
+
+
+def test_the_unavailable_fixture_fails_before_the_first_frame() -> None:
+    status, body = chat_reply("http_unavailable") or (0, b"")
+    assert status == 503 and json.loads(body)["code"] == "upstream_error"
+    assert status not in (429, 502)  # el cliente solo reintenta esos: el contador de turnos no se descuadra
+
+
+@pytest.mark.parametrize("name", CHAT_NAMES)
+def test_http_client_gets_what_the_fake_client_would_for_every_chat_example(name: str, double: AgentsServer) -> None:
+    got, error = ask(double, f"hola [fixture:{name}]")
+    expected, _ = drain_frames(FakeAgentsClient().stream_chat(say(f"hola [fixture:{name}]"), request_id="req-e2e"))
+    assert error is None
+    assert [f.model_dump_json() for f in got] == [f.model_dump_json() for f in expected]
+
+
+def test_the_hostile_fixture_reaches_the_client_as_the_frames_it_was_built_from(double: AgentsServer) -> None:
+    got, error = ask(double, "[fixture:hostile]")
+    assert error is None
+    assert [encode_frame(f) for f in got] == chat_reply("hostile")
+
+
+def test_a_failure_before_the_first_frame_is_one_unretried_agent_error(double: AgentsServer) -> None:
+    conversation = str(uuid4())
+    got, error = ask(double, "[fixture:http_unavailable]", conversation=conversation)
+    assert got == [] and isinstance(error, AgentsError)
+    assert error.code is FailureCode.upstream_error and error.http_status == 503
+    assert double.next_chat_turn(conversation) == 1  # una sola petición: sin reintento
+
+
+def test_then_changes_the_answer_from_the_second_request_of_that_conversation_only(double: AgentsServer) -> None:
+    text = "[fixture:http_unavailable][then:answer_with_citation]"
+    conversation = str(uuid4())
+    got, error = ask(double, text, conversation=conversation)
+    assert got == [] and isinstance(error, AgentsError)  # 1.ª: falla
+    for _ in range(2):  # 2.ª y siguientes: responde
+        got, error = ask(double, text, conversation=conversation)
+        assert error is None and event_names(got)[-1] == "done"
+    got, error = ask(double, text)  # otra conversación empieza de cero
+    assert got == [] and isinstance(error, AgentsError)
+
+
+def test_without_then_every_request_gets_the_same_answer(double: AgentsServer) -> None:
+    conversation = str(uuid4())
+    for _ in range(3):
+        got, error = ask(double, "[fixture:abstention_professional]", conversation=conversation)
+        assert error is None and "abstention" in event_names(got)
+
+
+def test_the_pace_waits_before_every_frame_including_the_first(double: AgentsServer) -> None:
+    started = time.monotonic()
+    arrivals: list[float] = []
+    body = say("[fixture:answer_with_citation][pace=150]").model_dump_json()
+    with httpx.stream("POST", f"{double.url}/v1/chat", content=body, headers=CHAT_HEADERS, timeout=10) as response:
+        assert response.status_code == 200 and response.headers["content-type"] == "text/event-stream"
+        assert response.headers["cache-control"] == "no-store"
+        for line in response.iter_lines():
+            if line.startswith("event:"):
+                arrivals.append(time.monotonic() - started)
+    assert len(arrivals) == 5
+    assert arrivals[0] >= 0.15  # también antes del primero: así se ve «Preparando…»
+    assert arrivals[-1] - arrivals[0] >= 0.5  # y entre unos y otros: el primero llega mucho antes que el último
+    assert all(later - earlier >= 0.1 for earlier, later in zip(arrivals, arrivals[1:], strict=False))
+
+
+def test_a_client_that_leaves_stops_the_answer(double: AgentsServer) -> None:
+    total = len(chat_reply("answer_length") or [])
+    body = say("[fixture:answer_length][pace=200]").model_dump_json()
+    with httpx.stream("POST", f"{double.url}/v1/chat", content=body, headers=CHAT_HEADERS, timeout=10) as response:
+        next(response.iter_lines())  # el primer evento y se va
+    time.sleep(total * 0.2 + 0.6)  # lo que habría tardado en terminar
+    assert 1 <= double.chat_events_sent < total
+
+
+def test_no_marker_or_an_unknown_example_is_a_client_error(double: AgentsServer) -> None:
+    assert post_chat(double, say("sin marcador").model_dump_json().encode()).status_code == 400
+    assert post_chat(double, say("[fixture:no_existe]").model_dump_json().encode()).status_code == 400
+    assert post_chat(double, say("[fixture:answer_with_citation]").model_dump_json().encode()).status_code == 200
+
+
+def test_the_chat_needs_the_key_the_contract_version_and_the_request_id(double: AgentsServer) -> None:
+    assert post_chat(double).status_code == 200
+    assert post_chat(double, Authorization="Bearer otra-clave").status_code == 401
+    assert post_chat(double, Authorization="").status_code == 401
+    assert post_chat(double, **{"X-Cuadre-Contract-Version": "2"}).status_code == 400
+    assert post_chat(double, **{"X-Request-Id": ""}).status_code == 400
+    _, error = drain_frames(HttpAgentsClient(double.url, "otra-clave").stream_chat(say("x"), request_id="r"))
+    assert isinstance(error, AgentsError) and error.http_status == 401
+
+
+def test_a_chat_body_that_breaks_the_contract_is_rejected(double: AgentsServer) -> None:
+    valid = json.loads(say("[fixture:answer_with_citation]").model_dump_json())
+    bodies = [
+        b"",
+        b"no es json",
+        b'{"conversation_id": "no-uuid"}',
+        json.dumps({**valid, "messages": []}).encode(),
+        json.dumps(
+            {**valid, "messages": [{"role": "assistant", "content": "[fixture:answer_with_citation]"}]}
+        ).encode(),
+    ]
+    for body in bodies:
+        assert post_chat(double, body).status_code == 400
+
+
+def test_the_chat_agent_takes_no_tools_yet(double: AgentsServer) -> None:
+    with_tools = say("[fixture:answer_with_citation]", tools=True).model_dump_json().encode()
+    assert post_chat(double, with_tools, **{"X-User-Token": "token-mcp-sintetico"}).status_code == 400
+    assert post_chat(double, with_tools).status_code == 400  # `mcp_url` sin herramientas que lo atiendan
+    assert post_chat(double, **{"X-User-Token": "token-mcp-sintetico"}).status_code == 400  # token sin `mcp_url`
+
+
+def test_the_chat_writes_nothing_about_the_message(double: AgentsServer, capfd: pytest.CaptureFixture[str]) -> None:
+    ask(double, "MENSAJE-SECRETO-DE-PRUEBA [fixture:answer_with_citation]")
+    out, err = capfd.readouterr()
+    assert "MENSAJE-SECRETO-DE-PRUEBA" not in out + err and "fixture:" not in out + err
+
+
+def test_a_history_bigger_than_an_extract_request_is_accepted(double: AgentsServer) -> None:
+    data = json.loads(say("x").model_dump_json())
+    data["messages"] = [{"role": "user" if i % 2 == 0 else "assistant", "content": "a" * 8000} for i in range(9)]
+    data["messages"].append({"role": "user", "content": "[fixture:answer_with_citation]"})
+    body = json.dumps(data).encode()
+    assert 65_536 < len(body) < 262_144  # más que el tope de una lectura de factura, menos que el de un chat
+    assert post_chat(double, body).status_code == 200

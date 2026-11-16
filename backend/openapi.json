@@ -1,6 +1,41 @@
 {
   "components": {
     "schemas": {
+      "AbstentionOut": {
+        "properties": {
+          "reason": {
+            "enum": [
+              "no_source",
+              "professional_judgment",
+              "out_of_scope"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "referral": {
+            "anyOf": [
+              {
+                "enum": [
+                  "gestor",
+                  "asesor"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A quién se deriva, ya corregido según tenga la persona gestor o no",
+            "title": "Referral"
+          }
+        },
+        "required": [
+          "reason",
+          "referral"
+        ],
+        "title": "AbstentionOut",
+        "type": "object"
+      },
       "ActivityEntry": {
         "description": "Una entrada del registro de actividad de acceso de un autónomo. Sin datos financieros: solo qué, quién y cuándo.",
         "properties": {
@@ -338,6 +373,34 @@
         "title": "CategoryTotalOut",
         "type": "object"
       },
+      "ChatBody": {
+        "properties": {
+          "content": {
+            "description": "El mensaje de la persona: de 1 a 2.000 caracteres (`message_empty` y `message_too_long` si no)",
+            "maxLength": 8000,
+            "title": "Content",
+            "type": "string"
+          },
+          "conversation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "La conversación a la que se añade el mensaje; `null` crea una nueva con este mensaje",
+            "title": "Conversation Id"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "title": "ChatBody",
+        "type": "object"
+      },
       "CheckCode": {
         "description": "Las comprobaciones, en el orden en que se muestran. Son una lista cerrada (§5.1).",
         "enum": [
@@ -392,6 +455,59 @@
           "detail"
         ],
         "title": "CheckItem",
+        "type": "object"
+      },
+      "CitationOut": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "publisher": {
+            "title": "Publisher",
+            "type": "string"
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "description": "Solo se enlaza si empieza por `https://` (D-10)",
+            "title": "Url",
+            "type": "string"
+          },
+          "valid_as_of": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid As Of"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "publisher",
+          "url",
+          "valid_as_of"
+        ],
+        "title": "CitationOut",
         "type": "object"
       },
       "Client": {
@@ -746,6 +862,94 @@
           "category"
         ],
         "title": "ConfirmRequest",
+        "type": "object"
+      },
+      "ConversationDetail": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_message_at": {
+            "format": "date-time",
+            "title": "Last Message At",
+            "type": "string"
+          },
+          "messages": {
+            "description": "En orden cronológico; si son demasiados, los más recientes",
+            "items": {
+              "$ref": "#/components/schemas/MessageOut"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created_at",
+          "last_message_at",
+          "messages"
+        ],
+        "title": "ConversationDetail",
+        "type": "object"
+      },
+      "ConversationList": {
+        "properties": {
+          "items": {
+            "description": "Por última actividad, la más reciente primero",
+            "items": {
+              "$ref": "#/components/schemas/ConversationSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ConversationList",
+        "type": "object"
+      },
+      "ConversationSummary": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_message_at": {
+            "format": "date-time",
+            "title": "Last Message At",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created_at",
+          "last_message_at"
+        ],
+        "title": "ConversationSummary",
         "type": "object"
       },
       "CreateExpense": {
@@ -1637,6 +1841,82 @@
           "warnings"
         ],
         "title": "Extraction",
+        "type": "object"
+      },
+      "FeedbackBody": {
+        "properties": {
+          "rating": {
+            "enum": [
+              "up",
+              "down"
+            ],
+            "title": "Rating",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "incorrect",
+                  "no_source",
+                  "not_helpful",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Obligatorio con `down` y nulo con `up` (lista cerrada, sin texto libre)",
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "rating"
+        ],
+        "title": "FeedbackBody",
+        "type": "object"
+      },
+      "FeedbackOut": {
+        "properties": {
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          },
+          "rating": {
+            "enum": [
+              "up",
+              "down"
+            ],
+            "title": "Rating",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "incorrect",
+                  "no_source",
+                  "not_helpful",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "message_id",
+          "rating",
+          "reason"
+        ],
+        "title": "FeedbackOut",
         "type": "object"
       },
       "GestorAccess": {
@@ -2627,6 +2907,149 @@
           "status"
         ],
         "title": "MeResponse",
+        "type": "object"
+      },
+      "MessageOut": {
+        "properties": {
+          "abstention": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AbstentionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/CitationOut"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "content": {
+            "description": "Texto plano: no es HTML ni Markdown (D-10)",
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "finish_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "stop",
+                  "abstained",
+                  "length",
+                  "error"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finish Reason"
+          },
+          "has_source": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "NFR-08: `false` si una respuesta terminó sin ninguna cita ni herramienta; `null` si no se evalúa",
+            "title": "Has Source"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "enum": [
+                  "up",
+                  "down"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "La valoración de la persona, si la hay",
+            "title": "Rating"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "incorrect",
+                  "no_source",
+                  "not_helpful",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "complete",
+              "abstained",
+              "error",
+              "interrupted"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Id"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "content",
+          "status",
+          "finish_reason",
+          "trace_id",
+          "has_source",
+          "citations",
+          "abstention",
+          "created_at",
+          "rating",
+          "reason"
+        ],
+        "title": "MessageOut",
         "type": "object"
       },
       "MissingField": {
@@ -4707,6 +5130,376 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/chat": {
+      "post": {
+        "operationId": "stream_chat",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "`text/event-stream`: `start`, `token`*, `citation`*, `tool_call`*, `abstention`?, `usage`? y `done` o `error`. Los eventos están descritos en la spec y en `frontend/src/lib/chat.ts`."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar el asistente (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "La conversación o el mensaje no existen (también si son de otra persona)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Mensaje vacío (`message_empty`), de más de 2.000 caracteres (`message_too_long`) o datos no válidos"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Demasiados mensajes en la última hora (`chat_rate_limited`, con `Retry-After`)"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El asistente no responde (`agent_unavailable`, con `Retry-After`); el mensaje queda guardado y la respuesta lleva `conversation_id`"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Enviar un mensaje al asistente y recibir su respuesta como flujo",
+        "tags": [
+          "asistente"
+        ]
+      }
+    },
+    "/api/chat/conversations": {
+      "get": {
+        "operationId": "list_chat_conversations",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar el asistente (solo `usuario`) o la cuenta está suspendida"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Las conversaciones de la persona, por última actividad",
+        "tags": [
+          "asistente"
+        ]
+      }
+    },
+    "/api/chat/conversations/{conversation_id}": {
+      "delete": {
+        "operationId": "delete_chat_conversation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar el asistente (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "La conversación o el mensaje no existen (también si son de otra persona)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Borra la conversación con sus mensajes y valoraciones",
+        "tags": [
+          "asistente"
+        ]
+      },
+      "get": {
+        "operationId": "get_chat_conversation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar el asistente (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "La conversación o el mensaje no existen (también si son de otra persona)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Una conversación con sus mensajes, citas y valoraciones",
+        "tags": [
+          "asistente"
+        ]
+      }
+    },
+    "/api/chat/messages/{message_id}/feedback": {
+      "put": {
+        "operationId": "rate_chat_message",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Sin sesión, o sesión inválida o caducada"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "El rol de la cuenta no puede usar el asistente (solo `usuario`) o la cuenta está suspendida"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "La conversación o el mensaje no existen (también si son de otra persona)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Mensaje vacío (`message_empty`), de más de 2.000 caracteres (`message_too_long`) o datos no válidos"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Valora (o cambia la valoración de) una respuesta del asistente",
+        "tags": [
+          "asistente"
+        ]
+      }
+    },
     "/api/clients": {
       "get": {
         "operationId": "list_clients",

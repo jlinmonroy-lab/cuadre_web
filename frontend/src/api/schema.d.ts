@@ -4,6 +4,75 @@
  */
 
 export interface paths {
+    "/api/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enviar un mensaje al asistente y recibir su respuesta como flujo */
+        post: operations["stream_chat"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chat/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Las conversaciones de la persona, por última actividad */
+        get: operations["list_chat_conversations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chat/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Una conversación con sus mensajes, citas y valoraciones */
+        get: operations["get_chat_conversation"];
+        put?: never;
+        post?: never;
+        /** Borra la conversación con sus mensajes y valoraciones */
+        delete: operations["delete_chat_conversation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chat/messages/{message_id}/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Valora (o cambia la valoración de) una respuesta del asistente */
+        put: operations["rate_chat_message"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/clients": {
         parameters: {
             query?: never;
@@ -957,6 +1026,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AbstentionOut */
+        AbstentionOut: {
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "no_source" | "professional_judgment" | "out_of_scope";
+            /**
+             * Referral
+             * @description A quién se deriva, ya corregido según tenga la persona gestor o no
+             */
+            referral: ("gestor" | "asesor") | null;
+        };
         /**
          * ActivityEntry
          * @description Una entrada del registro de actividad de acceso de un autónomo. Sin datos financieros: solo qué, quién y cuándo.
@@ -1116,6 +1198,19 @@ export interface components {
              */
             label: string;
         };
+        /** ChatBody */
+        ChatBody: {
+            /**
+             * Content
+             * @description El mensaje de la persona: de 1 a 2.000 caracteres (`message_empty` y `message_too_long` si no)
+             */
+            content: string;
+            /**
+             * Conversation Id
+             * @description La conversación a la que se añade el mensaje; `null` crea una nueva con este mensaje
+             */
+            conversation_id?: string | null;
+        };
         /**
          * CheckCode
          * @description Las comprobaciones, en el orden en que se muestran. Son una lista cerrada (§5.1).
@@ -1134,6 +1229,24 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "failed";
+        };
+        /** CitationOut */
+        CitationOut: {
+            /** Id */
+            id: string;
+            /** Publisher */
+            publisher: string;
+            /** Quote */
+            quote?: string | null;
+            /** Title */
+            title: string;
+            /**
+             * Url
+             * @description Solo se enlaza si empieza por `https://` (D-10)
+             */
+            url: string;
+            /** Valid As Of */
+            valid_as_of: string | null;
         };
         /** Client */
         Client: {
@@ -1296,6 +1409,59 @@ export interface components {
              */
             acknowledge_suspicion: boolean;
             category: components["schemas"]["ExpenseCategory"];
+        };
+        /** ConversationDetail */
+        ConversationDetail: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Last Message At
+             * Format: date-time
+             */
+            last_message_at: string;
+            /**
+             * Messages
+             * @description En orden cronológico; si son demasiados, los más recientes
+             */
+            messages: components["schemas"]["MessageOut"][];
+            /** Title */
+            title: string;
+        };
+        /** ConversationList */
+        ConversationList: {
+            /**
+             * Items
+             * @description Por última actividad, la más reciente primero
+             */
+            items: components["schemas"]["ConversationSummary"][];
+        };
+        /** ConversationSummary */
+        ConversationSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Last Message At
+             * Format: date-time
+             */
+            last_message_at: string;
+            /** Title */
+            title: string;
         };
         /** CreateExpense */
         CreateExpense: {
@@ -1580,6 +1746,34 @@ export interface components {
             /** Warnings */
             warnings: string[];
             withholding: components["schemas"]["Withholding"] | null;
+        };
+        /** FeedbackBody */
+        FeedbackBody: {
+            /**
+             * Rating
+             * @enum {string}
+             */
+            rating: "up" | "down";
+            /**
+             * Reason
+             * @description Obligatorio con `down` y nulo con `up` (lista cerrada, sin texto libre)
+             */
+            reason?: ("incorrect" | "no_source" | "not_helpful" | "other") | null;
+        };
+        /** FeedbackOut */
+        FeedbackOut: {
+            /**
+             * Message Id
+             * Format: uuid
+             */
+            message_id: string;
+            /**
+             * Rating
+             * @enum {string}
+             */
+            rating: "up" | "down";
+            /** Reason */
+            reason: ("incorrect" | "no_source" | "not_helpful" | "other") | null;
         };
         /**
          * GestorAccess
@@ -2046,6 +2240,53 @@ export interface components {
              * @constant
              */
             status: "active";
+        };
+        /** MessageOut */
+        MessageOut: {
+            abstention: components["schemas"]["AbstentionOut"] | null;
+            /** Citations */
+            citations: components["schemas"]["CitationOut"][];
+            /**
+             * Content
+             * @description Texto plano: no es HTML ni Markdown (D-10)
+             */
+            content: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Finish Reason */
+            finish_reason: ("stop" | "abstained" | "length" | "error") | null;
+            /**
+             * Has Source
+             * @description NFR-08: `false` si una respuesta terminó sin ninguna cita ni herramienta; `null` si no se evalúa
+             */
+            has_source: boolean | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Rating
+             * @description La valoración de la persona, si la hay
+             */
+            rating: ("up" | "down") | null;
+            /** Reason */
+            reason: ("incorrect" | "no_source" | "not_helpful" | "other") | null;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "assistant";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "complete" | "abstained" | "error" | "interrupted";
+            /** Trace Id */
+            trace_id: string | null;
         };
         /** MissingField */
         MissingField: {
@@ -2843,6 +3084,296 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    stream_chat: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatBody"];
+            };
+        };
+        responses: {
+            /** @description `text/event-stream`: `start`, `token`*, `citation`*, `tool_call`*, `abstention`?, `usage`? y `done` o `error`. Los eventos están descritos en la spec y en `frontend/src/lib/chat.ts`. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar el asistente (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description La conversación o el mensaje no existen (también si son de otra persona) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Mensaje vacío (`message_empty`), de más de 2.000 caracteres (`message_too_long`) o datos no válidos */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Demasiados mensajes en la última hora (`chat_rate_limited`, con `Retry-After`) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El asistente no responde (`agent_unavailable`, con `Retry-After`); el mensaje queda guardado y la respuesta lleva `conversation_id` */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    list_chat_conversations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationList"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar el asistente (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_chat_conversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationDetail"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar el asistente (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description La conversación o el mensaje no existen (también si son de otra persona) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_chat_conversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar el asistente (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description La conversación o el mensaje no existen (también si son de otra persona) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rate_chat_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeedbackBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackOut"];
+                };
+            };
+            /** @description Sin sesión, o sesión inválida o caducada */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description El rol de la cuenta no puede usar el asistente (solo `usuario`) o la cuenta está suspendida */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description La conversación o el mensaje no existen (también si son de otra persona) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Mensaje vacío (`message_empty`), de más de 2.000 caracteres (`message_too_long`) o datos no válidos */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     list_clients: {
         parameters: {
             query?: {

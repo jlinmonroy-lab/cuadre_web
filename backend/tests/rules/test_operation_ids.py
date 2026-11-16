@@ -15,6 +15,8 @@ from tests.rules.paths import SRC, python_files, rel
 
 PATTERN = re.compile(r"^[a-z]+(_[a-z0-9]+)+$")
 VERBS = {
+    "stream",
+    "rate",
     "get",
     "list",
     "create",

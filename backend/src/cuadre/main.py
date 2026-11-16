@@ -10,6 +10,7 @@ from starlette.middleware.cors import CORSMiddleware
 from cuadre import __version__
 from cuadre.agents import get_agents_client
 from cuadre.api import (
+    routes_chat,
     routes_clients,
     routes_documents,
     routes_expenses,
@@ -98,6 +99,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(routes_health.router)
     app.include_router(routes_me.router)
     app.include_router(routes_documents.router)
+    app.include_router(routes_chat.router)
     app.include_router(routes_expenses.router)
     app.include_router(routes_profile.router)
     app.include_router(routes_reminders.router)

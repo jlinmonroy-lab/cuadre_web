@@ -6,7 +6,7 @@
     "name": "cuadre-agents",
     "spec_prefix": "SPEC-A"
   },
-  "updated": "2026-11-12",
+  "updated": "2026-11-16",
   "status_values": [
     "propuesta",
     "especificada",
@@ -172,8 +172,8 @@
     {
       "id": "SPEC-W-004",
       "title": "Chatbot en la web: proxy SSE, historial, valoración y aviso de no asesoramiento",
-      "file": null,
-      "status": "propuesta",
+      "file": "SPEC-W-004-chatbot.md",
+      "status": "en-progreso",
       "priority": "must",
       "risk": "alto",
       "stories": [
@@ -187,15 +187,24 @@
       "nfr": [
         "NFR-01",
         "NFR-05",
-        "NFR-08"
+        "NFR-06",
+        "NFR-08",
+        "NFR-11"
       ],
       "constraints": [
         "RES-05",
-        "RES-06"
+        "RES-06",
+        "RES-07"
       ],
       "adr": [
+        "0002",
+        "0003",
+        "0005",
+        "0011",
         "0012",
-        "0013"
+        "0013",
+        "0015",
+        "0016"
       ],
       "depends_on": [
         "SPEC-W-001"
@@ -211,7 +220,7 @@
         "pytest backend/tests/chat",
         "npm --prefix frontend exec -- playwright test e2e/chat.spec.ts"
       ],
-      "notes": "POST /api/chat (SSE) → cliente de agentes. La web asigna message_id y guarda historial. chat_* sin acceso para gestor ni admin. Las herramientas de datos llegan con W-011."
+      "notes": "POST /api/chat (SSE) → cliente de agentes. La web asigna message_id y guarda historial. chat_* sin acceso para gestor ni admin. Las herramientas de datos llegan con W-011. Decidido por la persona el 2026-11-16: solo el rol usuario, Route Handler de Next hacia FastAPI (el navegador no ve el JWT), varias conversaciones con borrado y valoración local con lista cerrada de motivos. Hito 1 hecho (spec con 23 criterios, decisiones D-05 a D-15 propuestas; P-01 a P-03 resueltas el 2026-11-16: contrato C2 a 1.1.0, texto del aviso provisional por CONF-003 y límites tal cual; D-06 a D-08, D-10, D-11 y D-13 a D-15 pendientes de visto bueno). Siete hitos previstos (Anexo A). Falta el hito 2 (migraciones chat_*)."
     },
     {
       "id": "SPEC-W-005",

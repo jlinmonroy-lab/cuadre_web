@@ -39,6 +39,8 @@ const variation = (bp: number | null, previousMonth: number): string => {
   if (bp === 0) return `sin cambios frente a ${monthName(previousMonth)}`;
   return `${bp > 0 ? "+" : "−"}${pct(bp)} frente a ${monthName(previousMonth)}`;
 };
+/** El ancho o la alto de una barra, de 0 a 100: escrito aquí aparte de la aplicación (mínimo 1 si hay algo, 0 si no hay nada que dibujar). */
+const barPct = (value: number, max: number): number => (value <= 0 || max <= 0 ? 0 : Math.max(1, Math.min(100, Math.round((value * 100) / max))));
 const delta = (cents: number, previousMonth: number): string => (cents === 0 ? `sin cambios frente a ${monthName(previousMonth)}` : `${cents > 0 ? "+" : ""}${money(cents)} frente a ${monthName(previousMonth)}`);
 
 // --- Localizadores ---------------------------------------------------------------------------------------------------------------
@@ -104,6 +106,12 @@ test("un mes cerrado enseña lo que dice el servidor: cifras, comparación, ámb
     await expect(cells.nth(1), `cuota ${scope.scope}`).toHaveText(scope.share_bp === null ? "—" : pct(scope.share_bp));
   }
 
+  // La barra segmentada: un tramo por ámbito con base positiva y su `flex-grow` es esa base en céntimos (la proporción la dibuja el navegador).
+  const segments = figure(page, "grafico-ambitos").locator("[role='img'] [aria-hidden='true'] > div");
+  const positives = report.scopes.filter((scope) => scope.base_cents > 0);
+  await expect(segments).toHaveCount(positives.length);
+  for (const [index, scope] of positives.entries()) await expect(segments.nth(index), `tramo ${scope.scope}`).toHaveCSS("flex-grow", String(scope.base_cents));
+
   // Por cliente: una fila por cliente y ámbito, en el orden del servidor.
   const clients = await tableOf(page, "grafico-clientes");
   await expect(clients.getByRole("row")).toHaveCount(report.by_client.length + 1);
@@ -137,6 +145,12 @@ test("un mes cerrado enseña lo que dice el servidor: cifras, comparación, ámb
     await expect(page.getByRole("status")).toHaveCount(0);
   }
   await expect(figure(page, "grafico-categorias").locator("[role='img']")).toContainText(money(report.expenses_by_category[0]!.expenses_cents)); // la barra lleva su importe escrito
+  const categoryBars = figure(page, "grafico-categorias").locator("[role='img'] li");
+  await expect(categoryBars).toHaveCount(report.expenses_by_category.length);
+  const biggest = Math.max(...report.expenses_by_category.map((category) => category.expenses_cents));
+  for (const [index, category] of report.expenses_by_category.entries()) {
+    await expect(categoryBars.nth(index).locator("[aria-hidden='true'] > div"), `barra de ${category.label}`).toHaveAttribute("style", new RegExp(`^width:\\s*${barPct(category.expenses_cents, biggest)}%;?$`));
+  }
 
   // La evolución: una fila por mes de la tendencia, la del mes elegido marcada.
   const trend = await tableOf(page, "grafico-evolucion");
@@ -147,6 +161,15 @@ test("un mes cerrado enseña lo que dice el servidor: cifras, comparación, ámb
     await expect(row.getByRole("cell").nth(1), `gastos de ${point.month}/${point.year}`).toHaveText(money(point.expenses_cents));
   }
   await expect(rowOf(trend, new RegExp(`^${title(month)} de ${year}`))).toHaveAttribute("aria-current", "true");
+  // Las columnas: dos por mes (ingresos y gastos) con una escala común, en el orden de la tendencia.
+  const columns = figure(page, "grafico-evolucion").locator("[role='img'] ol > li");
+  await expect(columns).toHaveCount(report.trend.length);
+  const tallest = Math.max(...report.trend.flatMap((point) => [point.total_cents, point.expenses_cents]));
+  for (const [index, point] of report.trend.entries()) {
+    const bars = columns.nth(index).locator("[aria-hidden='true'] > div");
+    await expect(bars.nth(0), `columna de ingresos ${point.month}/${point.year}`).toHaveAttribute("style", new RegExp(`^height:\\s*${barPct(point.total_cents, tallest)}%;?$`));
+    await expect(bars.nth(1), `columna de gastos ${point.month}/${point.year}`).toHaveAttribute("style", new RegExp(`^height:\\s*${barPct(point.expenses_cents, tallest)}%;?$`));
+  }
 });
 
 // --- AC-13 · lo que conviene apartar, sin importe -----------------------------------------------------------------------------------------

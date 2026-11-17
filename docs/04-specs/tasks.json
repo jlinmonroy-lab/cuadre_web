@@ -63,7 +63,7 @@
         "npm --prefix frontend run test:e2e",
         "secuencia completa: SPEC-W-001 §8.2"
       ],
-      "notes": "Tabla canario de NFR-06: business_profiles. Las funciones SQL de invitación/revocación se prueban a nivel de base de datos; las rutas y pantallas son de W-010. Hitos 0 a 5 hechos; verificación en local y en un clon limpio. El CI está escrito y validado, pero sin ejecutar en un runner de GitHub (no hay remoto): pasa a hecha tras la primera ejecución y al marcar «RLS (NFR-06)» como requisito obligatorio de fusión. Hecha el 2026-11-17 con CI de GitHub en verde (runs 44032402643 sobre 9d44b88 y 44043279742 sobre c36e5b6, cinco trabajos). Excepción: main sin protección en GitHub; marcar «RLS (NFR-06)» como requisito obligatorio de fusión queda pendiente de la persona."
+      "notes": "Tabla canario de NFR-06: business_profiles. Las funciones SQL de invitación/revocación se prueban a nivel de base de datos; las rutas y pantallas son de W-010. Hitos 0 a 5 hechos; verificación en local y en un clon limpio. El CI está escrito y validado, pero sin ejecutar en un runner de GitHub (no hay remoto): pasa a hecha tras la primera ejecución y al marcar «RLS (NFR-06)» como requisito obligatorio de fusión. Hecha el 2026-11-17 con CI de GitHub en verde (runs 44032402643 sobre 9d44b88 y 44043279742 sobre c36e5b6, cinco trabajos). main protegida el mismo día (ruleset con PR obligatorio y cinco comprobaciones obligatorias, entre ellas «RLS (NFR-06)»), comprobado en la API pública."
     },
     {
       "id": "SPEC-W-002",

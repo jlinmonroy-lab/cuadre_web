@@ -704,10 +704,10 @@ posterior que añada una tabla la añade aquí; sin eso, `test_rls_guard` falla.
 ### 8.4 Definición de hecho
 
 - [x] La secuencia de §8.2 termina con código 0 en local **y** en el CI. *En local, hecho (clon limpio, hito 5). En el CI, hecho el 2026-11-17: **CI de GitHub en verde** (cinco trabajos, a la primera: runs `44032402643` (manual, `9d44b88`) y `44043279742` (`push`, `c36e5b6`), 2026-11-17).*
-- [ ] `pytest backend/tests/rls -m rls` marcado como requisito obligatorio de fusión. *Sigue sin hacerse, por la persona, en GitHub: el repositorio ya existe, pero `main` no tiene protección (la API pública lo da como no protegida el 2026-11-17). El trabajo es «RLS (NFR-06)», `test_ci_workflow` impide que se pueda saltar en el workflow y el README explica cómo marcarlo (Settings → Rules → Rulesets: pull request obligatorio y esa comprobación obligatoria). **Esta casilla es la excepción con la que se cierra la spec.***
+- [x] `pytest backend/tests/rls -m rls` marcado como requisito obligatorio de fusión. *Hecho el 2026-11-17 por la persona en GitHub y comprobado en la API pública (`/rules/branches/main`): ruleset sobre la rama por defecto con borrado y force push bloqueados, pull request obligatorio (0 aprobaciones: el repositorio tiene una sola persona) y cinco comprobaciones obligatorias de GitHub Actions: «RLS (NFR-06)», «Python: estilo y deriva», «Backend: API y reglas», «Frontend: calidad y build» y «E2E: Playwright». El trabajo es «RLS (NFR-06)» y `test_ci_workflow` impide que se pueda saltar en el workflow. Al cerrar la spec esta casilla estuvo un rato abierta (`main` sin protección); ya no es una excepción.*
 - [x] §5.1 actualizado con el resultado de la comprobación JWKS (ES256, sin HS256) y T-01 con el veredicto sobre TypeScript (hito 0).
 - [x] T-01 con las versiones definitivas de todo lo instalado.
-- [x] `docs/04-specs/tasks.json`: SPEC-W-001 en `hecha`. *Cerrada el 2026-11-17 con el CI en verde y la excepción de la protección de `main` de arriba.*
+- [x] `docs/04-specs/tasks.json`: SPEC-W-001 en `hecha`. *Cerrada el 2026-11-17 con el CI en verde y, el mismo día, la protección de `main` con «RLS (NFR-06)» obligatorio.*
 - [x] `README.md` con los comandos de §5.5 comprobados en un clon limpio.
 - [x] `docs/00-charter.md` y `docs/03-prd.md` sin cambios.
 
@@ -812,5 +812,5 @@ Resueltas en el hito 5 (CI y cierre, 2026-11-04):
 - **Ejecución en un runner de GitHub: hecha el 2026-11-17, en verde (runs `44032402643` (manual, `9d44b88`) y `44043279742` (`push`, `c36e5b6`), 2026-11-17).** El primer CI (2026-11-07) dejó en rojo solo el E2E de WebKit por una precarga RSC cancelada (SPEC-W-003, B.7); ya no se repite. Lo que sigue es el texto escrito antes de esa ejecución, como historia. Riesgos conocidos entonces: rutas sensibles a mayúsculas, `localhost` por IPv6, el WebKit de Linux (el salto con Tab ya se comprueba solo en Chromium y
   Firefox), `playwright install --with-deps`, el tiempo (tres trabajos arrancan Supabase: se esperan 10-15 minutos) y los límites de Docker Hub o de la red al bajar las imágenes. Lo normal es que la
   primera ejecución pida algún ajuste.
-- **Pendiente, de la persona en GitHub:** marcar «RLS (NFR-06)» como obligatorio en la protección de `main` (la primera ejecución del CI ya se hizo). Fuera de esta spec: Lighthouse CI (ADR-0010, propuesto), Dependabot para las
+- **Hecho el 2026-11-17:** primera ejecución del CI y «RLS (NFR-06)» obligatorio en la protección de `main`. Fuera de esta spec: Lighthouse CI (ADR-0010, propuesto), Dependabot para las
   actions, cachés de imágenes y navegadores, y `npm audit` en el CI.

@@ -5,10 +5,9 @@ Este repositorio contiene la web (interfaz, API, base de datos, roles, lógica f
 interfaz del chatbot). El agente de lectura de facturas y el del chatbot viven en **cuadre-agents** y se consumen a través
 de los contratos de [`contracts/`](contracts/README.md).
 
-> Desarrollo guiado por specs (spec-anchored). [`SPEC-W-001`](docs/04-specs/SPEC-W-001-base-auth-roles-rls.md) se ha implementado por
-> hitos (cimientos, base de datos con RLS, API, frontend, pruebas de extremo a extremo y CI) y está en revisión: el CI está escrito
-> y comprobado en un clon limpio, pero aún no se ha ejecutado en GitHub porque no hay repositorio remoto (ver «Integración continua»).
-> El estado de cada spec está en `docs/04-specs/tasks.json`.
+> Desarrollo guiado por specs (spec-anchored): cada cambio parte de una spec en `docs/04-specs/` y se verifica con el comando que la spec
+> declara. El estado de cada una está en `docs/04-specs/tasks.json`. Proyecto en desarrollo: el contenido y las pantallas siguen pendientes de
+> validar con usuarios (Charter §8) y los borradores fiscales son orientativos. Ver «Licencia y uso» al final.
 
 ## Dónde mirar
 
@@ -108,15 +107,21 @@ trabajos independientes y en paralelo:
   y que el workflow ejecute cada comando de la secuencia de la spec.
 - Sin filtros de ruta a propósito: un check obligatorio que no se dispara deja el PR bloqueado.
 
-**Estado:** el workflow está validado con `actionlint` y sus pasos se repitieron, uno a uno, en un clon limpio con `CI=true`, pero **no se ha ejecutado en un runner de
-GitHub** porque aún no hay repositorio remoto. Cuando exista:
+El workflow se ejecuta en cada `push` a `main`, en cada pull request y a mano (pestaña *Actions* → *CI* → *Run workflow*). Una ejecución completa gasta del orden de una hora
+de runner, sobre todo por el E2E de tres motores: en un repositorio privado de cuenta gratuita eso agota la cuota mensual de minutos. Si la cuota se agota, la
+secuencia completa de la spec se puede repetir en local (apartado «Comprobaciones»), que es lo que cada spec anota como verificación.
 
-1. Sube `main` y lanza el workflow a mano (pestaña *Actions* → *CI* → *Run workflow*). Es previsible que la primera ejecución en Linux pida algún ajuste.
-2. Protege `main` (*Settings* → *Rules* → *Rulesets*): exige pull request y marca como comprobación obligatoria **`RLS (NFR-06)`** (NFR-06 como puerta de
-   despliegue, ADR-0010). Recomendadas: los otros cuatro trabajos.
+Protege `main` (*Settings* → *Rules* → *Rulesets*): exige pull request y marca como comprobación obligatoria **`RLS (NFR-06)`** (NFR-06 como puerta de
+despliegue, ADR-0010). Recomendadas: los otros cuatro trabajos.
 
 ## Reglas que no se negocian
 
 Importes sin `float` · una factura emitida no se edita ni se borra · nada se envía a la AEAT · solo datos sintéticos · este
 repositorio no llama a APIs de modelos · la service key de Supabase no sale de los jobs y la CLI. La lista completa y su
 justificación están en [`CLAUDE.md`](CLAUDE.md).
+
+## Licencia y uso
+
+Este repositorio **no tiene licencia**: todos los derechos están reservados. Se publica para consulta y revisión; no se concede permiso para reutilizar, copiar
+ni redistribuir el código ni los documentos. Contiene solo datos sintéticos (RES-07). Los agentes (lectura de facturas y chatbot) viven en el repositorio
+hermano **cuadre-agents**; aquí solo está su contrato.

@@ -1,0 +1,15 @@
+# Entorno de Python de cuadre-web en un solo comando (herramientas de contratos + cuadre-contracts + backend con sus extras de desarrollo).
+#
+#     python -m venv .venv
+#     .\.venv\Scripts\Activate.ps1          # Git Bash: source .venv/Scripts/activate · Linux/macOS: source .venv/bin/activate
+#     python -m pip install --upgrade pip
+#     pip install -r requirements.txt
+#
+# Requiere Python 3.12 (el backend declara `>=3.12,<3.13`). Cubre SOLO Python: Python, Node 24, Docker Desktop y Git se instalan aparte, y las
+# dependencias del frontend y de la CLI de Supabase van con `npm ci` (ver README, «Equipo nuevo»). Las versiones están fijadas en
+# `contracts/requirements.txt` y en `backend/pyproject.toml`; aquí no se repiten para que no puedan divergir.
+#
+# El orden importa: `cuadre-contracts` no está en PyPI y el backend depende de él, así que va antes que `backend`.
+-r contracts/requirements.txt
+-e ./contracts/python
+-e ./backend[dev]

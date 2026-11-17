@@ -28,6 +28,18 @@ de los contratos de [`contracts/`](contracts/README.md).
 - Docker Desktop **en marcha** (Supabase local)
 - Git
 
+En un Windows sin nada instalado (PowerShell; `winget` viene con Windows 11):
+
+```powershell
+winget install --id Git.Git -e
+winget install --id Python.Python.3.12 -e
+winget install --id OpenJS.NodeJS -e --version 24.16.0     # cualquier 24.x sirve
+winget install --id Docker.DockerDesktop -e                # pide reiniciar y activar la virtualización (WSL 2)
+```
+
+Cierra y abre la terminal después de instalar, para que `python`, `node` y `git` entren en el `PATH`. Abre Docker Desktop y espera a que diga *running*
+antes de `npx supabase start`. La CLI de Supabase **no** se instala aparte: es una dependencia de la raíz (`npm ci`).
+
 ## Puesta en marcha
 
 ```powershell
@@ -37,7 +49,7 @@ python -m venv .venv
 python -m pip install --upgrade pip
 pip install -r contracts/requirements.txt
 pip install -e contracts/python                    # cuadre-contracts (no está en PyPI): siempre ANTES que el backend, que depende de él
-pip install -e "backend[dev]"
+pip install -e "backend[dev]"                      # las tres líneas juntas = `pip install -r requirements.txt` (mismo orden)
 
 # Supabase local (Docker Desktop en marcha)
 npm ci
@@ -62,6 +74,23 @@ origen. `npm --prefix frontend run build` descarga las fuentes: necesita red.
 Cuentas de desarrollo (datos sintéticos del seed, solo en local): `alicia@example.test` (autónomo), `gina@example.test` (gestor) y
 `adan@example.test` (administrador); la contraseña está en `supabase/seed.sql`. El correo que envía Supabase Auth (confirmación y
 recuperación) se lee en Mailpit: <http://127.0.0.1:54324>.
+
+### Equipo nuevo
+
+Para seguir en otro ordenador, con las mismas cuentas pero sin nada instalado:
+
+1. Instala los programas de «Requisitos» y reinicia la terminal.
+2. Clona el repositorio (es público): `git clone https://github.com/jlinmonroy-lab/cuadre_web.git`. La primera vez que hagas `pull` o `push`, Git Credential
+   Manager abre el inicio de sesión de GitHub; no hay nada que copiar. En el clon, `git config user.email 288111813+Jlinmonroy-lab@users.noreply.github.com`
+   (la configuración local no viaja y el correo de los commits debe seguir siendo el `noreply`).
+3. **Copia a mano** `docs/00-charter.md` y `docs/03-prd.md`: están en `.gitignore` (solo locales) y no llegan con el clon.
+4. Sigue «Puesta en marcha» tal cual: `python -m venv .venv` y `pip install -r requirements.txt` (todo Python), `npm ci` en la raíz y en `frontend`,
+   `npm run gen:signing-key`, `npx supabase start`, `npm run env:local`. Los `.env`, `frontend/.env.local` y la clave de firma no se copian: se generan
+   con la pila local, y no hay ningún secreto real que llevar.
+5. Solo si vas a ejecutar los E2E: `npm --prefix frontend run e2e:install` (descarga Chromium, Firefox y WebKit). Piden memoria libre, un worker en equipos
+   justos, y el puerto 3000 libre (o `E2E_WEB_PORT=3100`).
+
+La memoria y los ajustes de Claude Code son locales a cada equipo: no viajan con el repositorio.
 
 ## Comprobaciones
 

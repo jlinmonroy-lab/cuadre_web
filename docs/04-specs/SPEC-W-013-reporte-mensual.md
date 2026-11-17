@@ -221,7 +221,7 @@ Los nombres de prueba son los reales; las de `backend/tests/reports/test_reporte
 | AC-16 · integridad | `test_no_float.py` (todo `cuadre.reports`), `test_the_module_never_uses_decimals`, `test_the_logs_carry_no_amounts_names_or_emails`, `test_the_route_is_in_the_public_contract` y `report.test.ts` (sin `parseFloat`, `toFixed` ni `Number(`) |
 
 ### 8.4 Definición de hecho
-La secuencia termina con código 0 en local y en CI sobre el head empujado que contiene todos los hitos; `tasks.json` actualizado; ADR enlazados; sin secretos ni datos reales; el contenido del reporte queda anotado como **pendiente de validar con usuarios** (Charter §8). **Excepción del cierre (2026-11-16):** la persona cerró la spec como `hecha` **sin** el CI de GitHub en verde (ver Anexo A, hito 6); el criterio de CI no se verificó.
+La secuencia termina con código 0 en local y en CI sobre el head empujado que contiene todos los hitos; `tasks.json` actualizado; ADR enlazados; sin secretos ni datos reales; el contenido del reporte queda anotado como **pendiente de validar con usuarios** (Charter §8). **Excepción del cierre (2026-11-16):** la persona cerró la spec como `hecha` **sin** el CI de GitHub en verde (ver Anexo A, hito 6); el criterio de CI no se verificó al cerrar. **Actualización 2026-11-17:** el CI de GitHub, lanzado a mano sobre `9d44b88` (run `44032402643`, que contiene todos los hitos), terminó en verde con los cinco trabajos; el criterio de CI que faltaba al cerrar queda verificado.
 
 ## Anexo A · Orden de implementación (un commit por hito)
 

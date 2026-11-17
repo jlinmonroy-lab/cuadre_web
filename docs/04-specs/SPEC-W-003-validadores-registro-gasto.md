@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-003
 titulo: Validadores deterministas y registro del gasto
-estado: en-revision
+estado: hecha
 prioridad: must
 riesgo: alto
 historias: [US-005]
@@ -712,7 +712,7 @@ Nuevos: `frontend/e2e/gastos-registro.spec.ts` (9 pruebas) y `frontend/e2e/helpe
 - **El servicio real de agentes y Vercel**, como en SPEC-W-002.
 - **Lector de pantalla y Lighthouse**, que siguen propuestos.
 
-**Para lo que sigue:** SPEC-W-003 pasa a `en-revision` y pasará a `hecha` con el primer CI en verde (B.7), como SPEC-W-001 y SPEC-W-002. Deja registrados los gastos con su categoría, su IVA y su deducibilidad, que es lo que consumirán el 303 y el 130 (SPEC-W-008 y SPEC-W-009).
+**Para lo que sigue:** SPEC-W-003 pasó a `en-revision` y **pasó a `hecha` el 2026-11-17**, con el **CI de GitHub en verde** (cinco trabajos, a la primera: runs `44032402643` (manual, `9d44b88`) y `44043279742` (`push`, `c36e5b6`), 2026-11-17) (B.7), como SPEC-W-001 y SPEC-W-002. Deja registrados los gastos con su categoría, su IVA y su deducibilidad, que es lo que consumirán el 303 y el 130 (SPEC-W-008 y SPEC-W-009).
 
 ### B.7 Primer CI y su único fallo · 2026-11-07
 
@@ -751,4 +751,6 @@ El primer CI se ejecutó con el `push` de `cc47aa9` (14:23–14:38 UTC). Los reg
 - **El WebKit 27.2 de Linux del runner.** El de Playwright en Windows no es el mismo motor.
 - **Otras precargas cancelables.** Si Firefox o Chromium registraran algo parecido en otro momento, el vigilante lo seguirá contando.
 
-**Para lo que sigue:** con el siguiente `push` y un CI en verde, SPEC-W-001, W-002 y W-003 pasan a `hecha`. Si volviera a fallar, el artefacto `playwright-report` del trabajo (traza del primer reintento) dice qué navegación cancela la precarga.
+**Resultado posterior (2026-11-17):** el siguiente CI, en verde, confirma lo que aquí no se había podido comprobar: el `pageerror` de WebKit en Linux no se repite (runs `44032402643` (manual, `9d44b88`) y `44043279742` (`push`, `c36e5b6`), 2026-11-17; cinco trabajos, E2E incluido). SPEC-W-001, W-002 y W-003 pasan a `hecha`.
+
+**Para lo que sigue (antes de ese CI):** con el siguiente `push` y un CI en verde, SPEC-W-001, W-002 y W-003 pasan a `hecha`. Si volviera a fallar, el artefacto `playwright-report` del trabajo (traza del primer reintento) dice qué navegación cancela la precarga.

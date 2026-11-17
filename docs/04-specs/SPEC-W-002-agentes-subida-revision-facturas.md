@@ -2,7 +2,7 @@
 tipo: spec
 id: SPEC-W-002
 titulo: Cliente de agentes, subida de factura de compra y pantalla de revisión
-estado: en-progreso
+estado: hecha
 prioridad: must
 riesgo: alto
 historias: [US-001, US-011]
@@ -628,19 +628,19 @@ Nuevos: `frontend/e2e/gastos-subida.spec.ts` (10 pruebas), `frontend/e2e/helpers
 **Mutaciones** (19, mismo método que en los hitos anteriores): en la aplicación, `PUT` con credenciales, `PUT` con una cabecera de más, la entrada de cámara sin `capture`, aviso de instrucciones ocultas perdido, nota del dato dudoso perdida, «Registrar gasto» pulsable, refresco automático de la lista apagado, el handler de lectura aceptando cualquier origen, la lista desbordando a 390 px, descartar sin aviso, guardar la revisión sin llamar a la API, la fila de subida de un descartado que se queda (la `key`) y el original servido por una ruta fija; en el servidor de agentes, marcador ignorado, clave sin comprobar, `a>b` que no avanza, marcador sin cierre, documento sin descargar y cuerpo sin validar. **Las 19 hacen fallar la prueba prevista** y los archivos quedan idénticos tras revertir. El ejecutor desechable cuenta cualquier fallo como «detectada», y un proceso cortado por el sistema por falta de memoria (`3221225794`) lo sería sin serlo, así que se lanzó mutación a mutación con una guarda de memoria y parada en ese código.
 
 **Lo que no se ha comprobado:**
-- **El CI.** Sigue sin ejecutarse en un runner de GitHub (no hay remoto, B.2 de SPEC-W-001). La batería de tres motores y dos anchos solo se ha ejecutado en local y con un worker. Con varios workers y poca memoria libre el sistema cortó la batería (`worker process exited unexpectedly (code=3221225794)`): fue un límite del equipo, no de las pruebas. `playwright.config.ts` usa 4 workers en local y 2 en el CI; en un equipo justo de memoria conviene pasar `--workers=1`.
+- **El CI.** Al cerrar este hito no se había ejecutado en un runner de GitHub (no había remoto, B.2 de SPEC-W-001). **Actualización 2026-11-17:** ya se ejecutó, en verde (runs `44032402643` (manual, `9d44b88`) y `44043279742` (`push`, `c36e5b6`), 2026-11-17), con la batería de E2E de tres motores y dos anchos incluida. En aquel momento la batería solo se había ejecutado en local y con un worker. Con varios workers y poca memoria libre el sistema cortó la batería (`worker process exited unexpectedly (code=3221225794)`): fue un límite del equipo, no de las pruebas. `playwright.config.ts` usa 4 workers en local y 2 en el CI; en un equipo justo de memoria conviene pasar `--workers=1`.
 - **Un PDF real en el visor.** Los archivos sintéticos solo llevan la firma `%PDF`, así que el visor de Chrome muestra su propio error (con barra de desplazamiento dentro del `<iframe>` a 390 px, no de la página). Cómo se ve un PDF de verdad en cada navegador y con el Storage alojado sigue sin comprobarse (B.6); HEIC, igual.
 - **La cámara de un móvil real.** `capture` solo lo atienden los navegadores móviles; la prueba comprueba el atributo y que la foto entra por esa entrada.
 - **El servicio real de agentes y Vercel** (`maxDuration = 60`, cierre de la conexión durante la lectura): `HttpAgentsClient` solo ha hablado con servidores locales (B.4, B.5).
 - **Recargar con una lectura en curso** no tiene prueba E2E (el documento atascado en `uploading`, límite de B.5).
 - **Lighthouse y lector de pantalla**, que siguen propuestos.
 
-**Para lo que sigue:** SPEC-W-002 pasa a `en-revision` y pasará a `hecha` con la primera ejecución del CI, como SPEC-W-001. «Registrar gasto» sigue desactivado («Próximamente»): SPEC-W-003 añade los validadores y el registro. `injection_suspected` y los datos dudosos fuerzan la revisión manual, pero nunca validan nada (CLAUDE.md, «Frontera»).
+**Para lo que sigue:** SPEC-W-002 pasó a `en-revision` y **pasó a `hecha` el 2026-11-17**, con el **CI de GitHub en verde** (cinco trabajos, a la primera: runs `44032402643` (manual, `9d44b88`) y `44043279742` (`push`, `c36e5b6`), 2026-11-17), como SPEC-W-001. «Registrar gasto» sigue desactivado («Próximamente»): SPEC-W-003 añade los validadores y el registro. `injection_suspected` y los datos dudosos fuerzan la revisión manual, pero nunca validan nada (CLAUDE.md, «Frontera»).
 
 ### B.2 Sin comprobar todavía
 
 - ~~**Navegador real.**~~ **Comprobado en el hito 5 (B.7).** El CORS se había comprobado a nivel de cabeceras (preflight y `PUT` con `Origin: http://localhost:3000`); el E2E lo confirma en Chromium, Firefox y WebKit, a 390 y 1.440 px, con el `PUT` directo a Storage con solo `Content-Type`. D-01 se mantiene.
-- **El CI** de la batería de E2E (tres motores, dos anchos) y de toda la secuencia de §8.2: escritos y repetidos en local, sin ejecutar en un runner de GitHub (no hay remoto). Detalle y otros límites en B.7.
+- **El CI** de la batería de E2E (tres motores, dos anchos) y de toda la secuencia de §8.2: escritos y repetidos en local; **ejecutados después en GitHub, en verde (2026-11-17)**. Detalle y otros límites en B.7.
 - Si una URL de lectura ya emitida sigue valiendo tras revocar el vínculo: por construcción vale hasta que caduca (≤ 120 s); no se probó.
 - El Storage de Supabase alojado (versión, CORS, caducidad de 2 h): queda para la spec de despliegue.
 - Con el backend en Vercel (ADR-0016), también para la spec de despliegue: qué pasa con `complete` si el navegador cierra la conexión antes de que acabe la lectura, y que `cuadre-contracts`, que está fuera de `backend/`, se instale en el despliegue.
